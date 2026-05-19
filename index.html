@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>原物料行情查詢系統</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Purchasing Market Desk</p>
+          <h1>原物料行情看板</h1>
+          <p class="subtitle">快速看價格、漲跌與採購成本訊號。</p>
+        </div>
+        <div class="status-panel">
+          <div>
+            <span id="sourceMode" class="badge neutral">連線中</span>
+            <small>公開行情來源</small>
+          </div>
+          <strong id="lastUpdated">尚未更新</strong>
+          <small id="fxRate">USD/TWD: --</small>
+        </div>
+      </header>
+
+      <section class="toolbar" aria-label="查詢工具">
+        <label class="search">
+          <span>搜尋</span>
+          <input id="searchInput" type="search" placeholder="輸入銅、鋼、原油、HG=F...">
+        </label>
+        <label>
+          <span>分類</span>
+          <select id="categoryFilter">
+            <option value="all">全部</option>
+          </select>
+        </label>
+        <label>
+          <span>採購訊號</span>
+          <select id="signalFilter">
+            <option value="all">全部</option>
+            <option value="danger">成本上升</option>
+            <option value="opportunity">可議價</option>
+            <option value="stable">穩定</option>
+            <option value="error">API 錯誤</option>
+          </select>
+        </label>
+        <label>
+          <span>排序</span>
+          <select id="sortSelect">
+            <option value="signal">採購訊號優先</option>
+            <option value="category">分類</option>
+            <option value="changeDesc">漲幅高到低</option>
+            <option value="changeAsc">跌幅高到低</option>
+            <option value="name">名稱</option>
+          </select>
+        </label>
+        <label>
+          <span>自動更新</span>
+          <select id="refreshSelect">
+            <option value="300">每 5 分鐘</option>
+            <option value="60">每 1 分鐘</option>
+            <option value="900">每 15 分鐘</option>
+            <option value="0">關閉</option>
+          </select>
+        </label>
+        <button id="refreshButton" type="button">立即更新</button>
+      </section>
+
+      <section class="summary-grid" aria-label="行情摘要">
+        <article class="summary-card live-card">
+          <span>可用行情</span>
+          <strong id="liveCount">0</strong>
+        </article>
+        <article class="summary-card error-card">
+          <span>API 錯誤</span>
+          <strong id="errorCount">0</strong>
+        </article>
+        <article class="summary-card up-card">
+          <span>最大漲幅</span>
+          <strong id="topGainer">--</strong>
+        </article>
+        <article class="summary-card down-card">
+          <span>最大跌幅</span>
+          <strong id="topLoser">--</strong>
+        </article>
+      </section>
+
+      <section class="notice">
+        <strong>資料使用說明</strong>
+        <span id="disclaimer">公開商品期貨行情只適合採購趨勢參考，不等於台灣供應商現貨報價、含稅含運價格或合約價。</span>
+      </section>
+
+      <section class="market-layout">
+        <div class="table-wrap">
+          <div class="section-head">
+            <div>
+              <h2>行情比價表</h2>
+              <p>以台幣估算和漲跌幅快速排序，點選列查看來源。</p>
+            </div>
+            <span id="rowCount" class="row-count">0 筆</span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>原物料</th>
+                <th>分類</th>
+                <th class="numeric">行情</th>
+                <th class="numeric">漲跌</th>
+                <th class="numeric">台幣估算</th>
+                <th>成本訊號</th>
+                <th>資料時間</th>
+              </tr>
+            </thead>
+            <tbody id="materialRows">
+              <tr>
+                <td colspan="7" class="empty">正在讀取行情...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <aside class="detail-panel">
+          <div class="detail-header">
+            <span id="detailCategory">尚未選取</span>
+            <h2 id="detailName">選一個原物料</h2>
+            <p id="detailSignal">--</p>
+          </div>
+          <dl>
+            <div>
+              <dt>代碼</dt>
+              <dd id="detailSymbol">--</dd>
+            </div>
+            <div>
+              <dt>資料來源</dt>
+              <dd id="detailSource">--</dd>
+            </div>
+            <div>
+              <dt>行情狀態</dt>
+              <dd id="detailStatus">--</dd>
+            </div>
+            <div>
+              <dt>採購用途</dt>
+              <dd id="detailUsage">--</dd>
+            </div>
+            <div>
+              <dt>近幾日收盤</dt>
+              <dd id="detailHistory">--</dd>
+            </div>
+          </dl>
+        </aside>
+      </section>
+    </main>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
