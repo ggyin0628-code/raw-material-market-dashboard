@@ -2,7 +2,7 @@ const state = {
   rows: [],
   selectedId: null,
   refreshTimer: null,
-  refreshSeconds: 300,
+  refreshSeconds: 900,
 };
 
 const els = {
@@ -57,6 +57,14 @@ function formatDateTime(value) {
 }
 
 function getCostSignal(row) {
+  if (row.status === "STALE") {
+    return {
+      label: "快取資料",
+      tone: "stale",
+      note: "真實舊行情，非即時資料",
+    };
+  }
+
   if (row.status !== "LIVE") {
     return {
       label: "資料異常",
@@ -102,6 +110,9 @@ function setBadge(status) {
   if (status === "LIVE") {
     els.sourceMode.classList.add("live");
     els.sourceMode.textContent = "LIVE";
+  } else if (status === "STALE") {
+    els.sourceMode.classList.add("stale");
+    els.sourceMode.textContent = "STALE";
   } else if (status === "API_ERROR") {
     els.sourceMode.classList.add("error");
     els.sourceMode.textContent = "API ERROR";
@@ -137,6 +148,7 @@ function getFilteredRows() {
     opportunity: 2,
     stable: 3,
     neutral: 4,
+    stale: 5,
   };
   return filtered.sort((a, b) => {
     if (sortMode === "signal") {
@@ -153,8 +165,9 @@ function getFilteredRows() {
 
 function renderSummary() {
   const liveRows = state.rows.filter((row) => row.status === "LIVE");
+  const staleRows = state.rows.filter((row) => row.status === "STALE");
   const errorRows = state.rows.filter((row) => row.status === "API_ERROR");
-  const ranked = liveRows.filter((row) => typeof row.changePercent === "number");
+  const ranked = [...liveRows, ...staleRows].filter((row) => typeof row.changePercent === "number");
   const topGainer = [...ranked].sort((a, b) => b.changePercent - a.changePercent)[0];
   const topLoser = [...ranked].sort((a, b) => a.changePercent - b.changePercent)[0];
 
@@ -197,7 +210,7 @@ function renderTable() {
           <small class="signal-note">${signal.note}</small>
         </td>
         <td>
-          <span class="time-text">${row.status === "LIVE" ? formatDateTime(row.lastTradeAt) : "API ERROR"}</span>
+          <span class="time-text">${row.status === "LIVE" || row.status === "STALE" ? formatDateTime(row.lastTradeAt) : "API ERROR"}</span>
           <small class="muted">${row.status}</small>
         </td>
       </tr>
@@ -216,7 +229,9 @@ function renderDetail() {
   els.detailSignal.className = `detail-signal ${signal.tone}`;
   els.detailSymbol.textContent = selected.symbol;
   els.detailSource.textContent = selected.source;
-  els.detailStatus.innerHTML = `<span class="badge ${selected.status === "LIVE" ? "live" : "error"}">${selected.status}</span> ${selected.status === "LIVE" ? formatDateTime(selected.lastTradeAt) : selected.error || "資料源無回應"}`;
+  const detailBadge = selected.status === "LIVE" ? "live" : selected.status === "STALE" ? "stale" : "error";
+  const detailTime = selected.status === "LIVE" || selected.status === "STALE" ? formatDateTime(selected.lastTradeAt) : selected.error || "資料源無回應";
+  els.detailStatus.innerHTML = `<span class="badge ${detailBadge}">${selected.status}</span> ${detailTime}`;
   els.detailUsage.textContent = selected.usage;
   els.detailHistory.textContent = selected.history?.length
     ? selected.history.map((point) => `${point.date}: ${formatNumber(point.close, 4)}`).join(" / ")
@@ -252,7 +267,7 @@ async function loadMarketData() {
     els.disclaimer.textContent = data.disclaimer || "";
     els.lastUpdated.textContent = `更新：${formatDateTime(data.generatedAt)}`;
     els.fxRate.textContent = data.fx?.rate ? `USD/TWD: ${formatNumber(data.fx.rate, 4)} (${data.fx.status})` : `USD/TWD: ${data.fx?.status || "API_ERROR"}`;
-    setBadge(state.rows.some((row) => row.status === "LIVE") ? "LIVE" : "API_ERROR");
+    setBadge(state.rows.some((row) => row.status === "LIVE") ? "LIVE" : state.rows.some((row) => row.status === "STALE") ? "STALE" : "API_ERROR");
     renderAll();
   } catch (error) {
     setBadge("API_ERROR");
