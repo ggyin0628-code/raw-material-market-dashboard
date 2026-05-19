@@ -7,6 +7,11 @@ const { URL } = require("node:url");
 const PORT = Number(process.env.PORT || 4173);
 const HOST = process.env.HOST || "0.0.0.0";
 const ROOT = __dirname;
+const MARKET_CACHE_TTL_MS = Number(process.env.MARKET_CACHE_TTL_MS || 15 * 60 * 1000);
+const MARKET_STALE_TTL_MS = Number(process.env.MARKET_STALE_TTL_MS || 24 * 60 * 60 * 1000);
+const FETCH_GAP_MS = Number(process.env.FETCH_GAP_MS || 350);
+let marketCache = null;
+let marketRefreshPromise = null;
 
 const materials = [
   {
@@ -157,6 +162,41 @@ function sendJson(res, status, payload) {
   res.end(body);
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isFreshCache() {
+  return marketCache && Date.now() - marketCache.cachedAt < MARKET_CACHE_TTL_MS;
+}
+
+function isUsableStaleCache() {
+  return marketCache && Date.now() - marketCache.cachedAt < MARKET_STALE_TTL_MS;
+}
+
+function markPayloadStale(payload, reason) {
+  return {
+    ...payload,
+    generatedAt: new Date().toISOString(),
+    cache: {
+      status: "STALE",
+      cachedAt: new Date(payload.cachedAt || marketCache?.cachedAt || Date.now()).toISOString(),
+      reason,
+    },
+    fx: {
+      ...payload.fx,
+      status: payload.fx?.status === "LIVE" ? "STALE" : payload.fx?.status,
+      error: reason,
+    },
+    rows: (payload.rows || []).map((row) => ({
+      ...row,
+      status: row.status === "LIVE" ? "STALE" : row.status,
+      error: row.status === "LIVE" ? reason : row.error,
+    })),
+    disclaimer: `${payload.disclaimer} 目前行情來源被限流時，系統會暫時顯示最近一次成功抓取的快取資料並標示 STALE。`,
+  };
+}
+
 function latestValid(values = []) {
   for (let index = values.length - 1; index >= 0; index -= 1) {
     if (typeof values[index] === "number" && Number.isFinite(values[index])) {
@@ -251,17 +291,18 @@ async function getUsdTwd() {
 
 async function getMarketData() {
   const fx = await getUsdTwd();
-  const rows = await Promise.all(materials.map(async (material) => {
+  const rows = [];
+  for (const material of materials) {
     try {
       const quote = await fetchYahooChart(material.symbol);
-      return {
+      rows.push({
         ...material,
         ...quote,
         twdEstimate: typeof quote.price === "number" && typeof fx.rate === "number" ? quote.price * (material.usdFactor || 1) * fx.rate : null,
         status: "LIVE",
-      };
+      });
     } catch (error) {
-      return {
+      rows.push({
         ...material,
         price: null,
         previousClose: null,
@@ -272,16 +313,75 @@ async function getMarketData() {
         history: [],
         status: "API_ERROR",
         error: error.message,
-      };
+      });
     }
-  }));
+    await sleep(FETCH_GAP_MS);
+  }
 
   return {
     generatedAt: new Date().toISOString(),
-    refreshSeconds: 300,
+    refreshSeconds: Math.round(MARKET_CACHE_TTL_MS / 1000),
     fx,
     rows,
+    cache: {
+      status: "LIVE",
+      cachedAt: new Date().toISOString(),
+      ttlSeconds: Math.round(MARKET_CACHE_TTL_MS / 1000),
+    },
     disclaimer: "公開商品期貨行情只適合採購趨勢參考，不等於台灣供應商現貨報價、含稅含運價格或合約價。",
+  };
+}
+
+async function getCachedMarketData() {
+  if (isFreshCache()) {
+    return {
+      ...marketCache.payload,
+      generatedAt: new Date().toISOString(),
+      cache: {
+        ...marketCache.payload.cache,
+        status: "LIVE_CACHE",
+        cachedAt: new Date(marketCache.cachedAt).toISOString(),
+      },
+    };
+  }
+
+  if (!marketRefreshPromise) {
+    marketRefreshPromise = getMarketData()
+      .then((payload) => {
+        const liveRows = payload.rows.filter((row) => row.status === "LIVE").length;
+        if (payload.fx.status === "LIVE" || liveRows > 0) {
+          marketCache = {
+            cachedAt: Date.now(),
+            payload: {
+              ...payload,
+              cachedAt: Date.now(),
+            },
+          };
+        }
+        return payload;
+      })
+      .finally(() => {
+        marketRefreshPromise = null;
+      });
+  }
+
+  const payload = await marketRefreshPromise;
+  const liveRows = payload.rows.filter((row) => row.status === "LIVE").length;
+  if (payload.fx.status === "LIVE" || liveRows > 0) {
+    return payload;
+  }
+
+  if (isUsableStaleCache()) {
+    const firstError = payload.rows.find((row) => row.error)?.error || payload.fx.error || "行情來源暫時無法連線";
+    return markPayloadStale(marketCache.payload, firstError);
+  }
+
+  return {
+    ...payload,
+    cache: {
+      status: "API_ERROR",
+      reason: "沒有可用快取資料",
+    },
   };
 }
 
@@ -323,9 +423,13 @@ const server = http.createServer(async (req, res) => {
 
   if (requestUrl.pathname === "/api/materials") {
     try {
-      sendJson(res, 200, await getMarketData());
+      sendJson(res, 200, await getCachedMarketData());
     } catch (error) {
-      sendJson(res, 500, { status: "API_ERROR", error: error.message });
+      if (isUsableStaleCache()) {
+        sendJson(res, 200, markPayloadStale(marketCache.payload, error.message));
+      } else {
+        sendJson(res, 500, { status: "API_ERROR", error: error.message });
+      }
     }
     return;
   }
