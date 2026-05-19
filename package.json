@@ -1,0 +1,14 @@
+{
+  "name": "raw-material-market-dashboard",
+  "version": "1.0.0",
+  "description": "原物料行情查詢與採購比價看板",
+  "private": true,
+  "type": "commonjs",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "check": "node --check server.js && node --check app.js"
+  }
+}
