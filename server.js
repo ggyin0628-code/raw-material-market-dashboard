@@ -10,6 +10,7 @@ dns.setDefaultResultOrder("ipv4first");
 const PORT = Number(process.env.PORT || 4173);
 const HOST = process.env.HOST || "0.0.0.0";
 const ROOT = __dirname;
+const MARKET_SEED_PATH = path.join(ROOT, "market-seed.json");
 const MARKET_CACHE_TTL_MS = Number(process.env.MARKET_CACHE_TTL_MS || 15 * 60 * 1000);
 const MARKET_STALE_TTL_MS = Number(process.env.MARKET_STALE_TTL_MS || 24 * 60 * 60 * 1000);
 const FETCH_GAP_MS = Number(process.env.FETCH_GAP_MS || 350);
@@ -540,6 +541,11 @@ async function getCachedMarketData() {
     return markPayloadStale(marketCache.payload, firstError);
   }
 
+  const seedPayload = await getSeedMarketData(payload.rows.find((row) => row.error)?.error || payload.fx.error || "行情來源暫時失敗");
+  if (seedPayload) {
+    return seedPayload;
+  }
+
   return {
     ...payload,
     cache: {
@@ -547,6 +553,24 @@ async function getCachedMarketData() {
       reason: "沒有可用快取資料",
     },
   };
+}
+
+async function getSeedMarketData(reason) {
+  try {
+    const seed = JSON.parse(await fs.readFile(MARKET_SEED_PATH, "utf8"));
+    const liveRows = seed.rows?.filter((row) => row.status === "LIVE").length || 0;
+    if (!liveRows) return null;
+
+    return markPayloadStale(
+      {
+        ...seed,
+        cachedAt: seed.cachedAt || seed.generatedAt,
+      },
+      `正式站行情來源暫時失敗，顯示最近一次成功行情快取。${reason}`,
+    );
+  } catch {
+    return null;
+  }
 }
 
 async function serveStatic(req, res) {
@@ -592,7 +616,12 @@ const server = http.createServer(async (req, res) => {
       if (isUsableStaleCache()) {
         sendJson(res, 200, markPayloadStale(marketCache.payload, error.message));
       } else {
-        sendJson(res, 500, { status: "API_ERROR", error: error.message });
+        const seedPayload = await getSeedMarketData(error.message);
+        if (seedPayload) {
+          sendJson(res, 200, seedPayload);
+        } else {
+          sendJson(res, 500, { status: "API_ERROR", error: error.message });
+        }
       }
     }
     return;
