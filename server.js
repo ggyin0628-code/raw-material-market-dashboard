@@ -1,8 +1,11 @@
 const http = require("node:http");
 const fs = require("node:fs/promises");
+const dns = require("node:dns");
 const os = require("node:os");
 const path = require("node:path");
 const { URL } = require("node:url");
+
+dns.setDefaultResultOrder("ipv4first");
 
 const PORT = Number(process.env.PORT || 4173);
 const HOST = process.env.HOST || "0.0.0.0";
@@ -11,7 +14,7 @@ const MARKET_CACHE_TTL_MS = Number(process.env.MARKET_CACHE_TTL_MS || 15 * 60 * 
 const MARKET_STALE_TTL_MS = Number(process.env.MARKET_STALE_TTL_MS || 24 * 60 * 60 * 1000);
 const FETCH_GAP_MS = Number(process.env.FETCH_GAP_MS || 350);
 const YAHOO_TIMEOUT_MS = Number(process.env.YAHOO_TIMEOUT_MS || 2500);
-const FALLBACK_TIMEOUT_MS = Number(process.env.FALLBACK_TIMEOUT_MS || 5000);
+const FALLBACK_TIMEOUT_MS = Number(process.env.FALLBACK_TIMEOUT_MS || 8000);
 let marketCache = null;
 let marketRefreshPromise = null;
 
@@ -515,7 +518,7 @@ async function getCachedMarketData() {
     marketRefreshPromise = getMarketData()
       .then((payload) => {
         const liveRows = payload.rows.filter((row) => row.status === "LIVE").length;
-        if (payload.fx.status === "LIVE" || liveRows > 0) {
+        if (liveRows > 0) {
           marketCache = {
             cachedAt: Date.now(),
             payload: {
@@ -533,7 +536,7 @@ async function getCachedMarketData() {
 
   const payload = await marketRefreshPromise;
   const liveRows = payload.rows.filter((row) => row.status === "LIVE").length;
-  if (payload.fx.status === "LIVE" || liveRows > 0) {
+  if (liveRows > 0) {
     return payload;
   }
 
