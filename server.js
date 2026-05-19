@@ -234,20 +234,34 @@ function latestValidPoint(timestamps = [], values = []) {
 }
 
 async function fetchYahooChart(symbol, range = "5d", interval = "1d") {
-  const endpoint = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=${range}&interval=${interval}`;
-  const response = await fetch(endpoint, {
-    signal: AbortSignal.timeout(YAHOO_TIMEOUT_MS),
-    headers: {
-      "user-agent": "Mozilla/5.0 raw-material-monitor/1.0",
-      accept: "application/json",
-    },
-  });
+  const hosts = ["query1.finance.yahoo.com", "query2.finance.yahoo.com"];
+  let lastError = null;
+  for (const host of hosts) {
+    try {
+      const endpoint = `https://${host}/v8/finance/chart/${encodeURIComponent(symbol)}?range=${range}&interval=${interval}`;
+      const response = await fetch(endpoint, {
+        signal: AbortSignal.timeout(YAHOO_TIMEOUT_MS),
+        headers: {
+          "user-agent": "Mozilla/5.0 raw-material-monitor/1.0",
+          accept: "application/json",
+        },
+      });
 
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}`);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const payload = await response.json();
+      return normalizeYahooPayload(payload);
+    } catch (error) {
+      lastError = error;
+    }
   }
 
-  const payload = await response.json();
+  throw lastError || new Error("Yahoo chart request failed");
+}
+
+function normalizeYahooPayload(payload) {
   const result = payload?.chart?.result?.[0];
   const error = payload?.chart?.error;
   if (!result || error) {
@@ -290,7 +304,16 @@ function parseStooqCsv(text) {
   if (rows.length < 2) throw new Error("Stooq response missing quote");
   const headers = rows[0].split(",");
   const values = rows[1].split(",");
-  return Object.fromEntries(headers.map((header, index) => [header, values[index]]));
+  const aliases = {
+    Data: "Date",
+    Czas: "Time",
+    Otwarcie: "Open",
+    Najwyzszy: "High",
+    Najnizszy: "Low",
+    Zamkniecie: "Close",
+    Wolumen: "Volume",
+  };
+  return Object.fromEntries(headers.map((header, index) => [aliases[header] || header, values[index]]));
 }
 
 function toFiniteNumber(value) {
@@ -303,20 +326,38 @@ async function fetchStooqQuote(material) {
     throw new Error("No Stooq fallback symbol");
   }
 
-  const endpoint = `https://stooq.com/q/l/?s=${encodeURIComponent(material.stooqSymbol.toLowerCase())}&f=sd2t2ohlcv&h&e=csv`;
-  const response = await fetch(endpoint, {
-    signal: AbortSignal.timeout(FALLBACK_TIMEOUT_MS),
-    headers: {
-      "user-agent": "Mozilla/5.0 raw-material-monitor/1.0",
-      accept: "text/csv,*/*",
-    },
-  });
+  const symbol = encodeURIComponent(material.stooqSymbol.toLowerCase());
+  const endpoints = [
+    `https://stooq.com/q/l/?s=${symbol}&f=sd2t2ohlcv&h&e=csv`,
+    `http://stooq.com/q/l/?s=${symbol}&f=sd2t2ohlcv&h&e=csv`,
+    `https://stooq.pl/q/l/?s=${symbol}&f=sd2t2ohlcv&h&e=csv`,
+  ];
+  let lastError = null;
+  for (const endpoint of endpoints) {
+    try {
+      const response = await fetch(endpoint, {
+        signal: AbortSignal.timeout(FALLBACK_TIMEOUT_MS),
+        headers: {
+          "user-agent": "Mozilla/5.0 raw-material-monitor/1.0",
+          accept: "text/csv,*/*",
+        },
+      });
 
-  if (!response.ok) {
-    throw new Error(`Stooq HTTP ${response.status}`);
+      if (!response.ok) {
+        throw new Error(`Stooq HTTP ${response.status}`);
+      }
+
+      return normalizeStooqQuote(await response.text(), material);
+    } catch (error) {
+      lastError = error;
+    }
   }
 
-  const row = parseStooqCsv(await response.text());
+  throw lastError || new Error("Stooq request failed");
+}
+
+function normalizeStooqQuote(text, material) {
+  const row = parseStooqCsv(text);
   const rawClose = toFiniteNumber(row.Close);
   const rawOpen = toFiniteNumber(row.Open);
   if (row.Date === "N/D" || typeof rawClose !== "number") {
