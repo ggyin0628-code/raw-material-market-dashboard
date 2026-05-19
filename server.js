@@ -335,9 +335,8 @@ async function fetchStooqQuote(material) {
     `http://stooq.com/q/l/?s=${symbol}&f=sd2t2ohlcv&h&e=csv`,
     `https://stooq.pl/q/l/?s=${symbol}&f=sd2t2ohlcv&h&e=csv`,
   ];
-  let lastError = null;
-  for (const endpoint of endpoints) {
-    try {
+  try {
+    return await Promise.any(endpoints.map(async (endpoint) => {
       const response = await fetch(endpoint, {
         signal: AbortSignal.timeout(FALLBACK_TIMEOUT_MS),
         headers: {
@@ -351,12 +350,10 @@ async function fetchStooqQuote(material) {
       }
 
       return normalizeStooqQuote(await response.text(), material);
-    } catch (error) {
-      lastError = error;
-    }
+    }));
+  } catch (error) {
+    throw new Error(error.errors?.map((item) => item.message).join("; ") || error.message || "Stooq request failed");
   }
-
-  throw lastError || new Error("Stooq request failed");
 }
 
 function normalizeStooqQuote(text, material) {
@@ -459,19 +456,18 @@ async function fetchMaterialQuote(material) {
 
 async function getMarketData() {
   const fx = await getUsdTwd();
-  const rows = [];
-  for (const material of materials) {
+  const rows = await Promise.all(materials.map(async (material) => {
     try {
       const quote = await fetchMaterialQuote(material);
-      rows.push({
+      return {
         ...material,
         ...quote,
         source: quote.source || material.source,
         twdEstimate: typeof quote.price === "number" && typeof fx.rate === "number" ? quote.price * (material.usdFactor || 1) * fx.rate : null,
         status: "LIVE",
-      });
+      };
     } catch (error) {
-      rows.push({
+      return {
         ...material,
         price: null,
         previousClose: null,
@@ -482,10 +478,9 @@ async function getMarketData() {
         history: [],
         status: "API_ERROR",
         error: error.message,
-      });
+      };
     }
-    await sleep(FETCH_GAP_MS);
-  }
+  }));
 
   return {
     generatedAt: new Date().toISOString(),
