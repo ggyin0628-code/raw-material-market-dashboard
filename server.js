@@ -18,6 +18,8 @@ const materials = [
     id: "copper",
     name: "銅",
     symbol: "HG=F",
+    stooqSymbol: "HG.F",
+    stooqPriceFactor: 0.01,
     category: "工業金屬",
     unit: "USD/lb",
     source: "Yahoo Finance - COMEX Copper Futures",
@@ -54,6 +56,7 @@ const materials = [
     id: "wti-oil",
     name: "WTI 原油",
     symbol: "CL=F",
+    stooqSymbol: "CL.F",
     category: "能源",
     unit: "USD/barrel",
     source: "Yahoo Finance - WTI Crude Oil Futures",
@@ -72,6 +75,7 @@ const materials = [
     id: "natural-gas",
     name: "天然氣",
     symbol: "NG=F",
+    stooqSymbol: "NG.F",
     category: "能源",
     unit: "USD/MMBtu",
     source: "Yahoo Finance - Natural Gas Futures",
@@ -81,6 +85,7 @@ const materials = [
     id: "gold",
     name: "黃金",
     symbol: "GC=F",
+    stooqSymbol: "GC.F",
     category: "貴金屬",
     unit: "USD/troy oz",
     source: "Yahoo Finance - Gold Futures",
@@ -90,6 +95,8 @@ const materials = [
     id: "silver",
     name: "白銀",
     symbol: "SI=F",
+    stooqSymbol: "SI.F",
+    stooqPriceFactor: 0.01,
     category: "貴金屬",
     unit: "USD/troy oz",
     source: "Yahoo Finance - Silver Futures",
@@ -99,6 +106,7 @@ const materials = [
     id: "platinum",
     name: "鉑金",
     symbol: "PL=F",
+    stooqSymbol: "PL.F",
     category: "貴金屬",
     unit: "USD/troy oz",
     source: "Yahoo Finance - Platinum Futures",
@@ -108,6 +116,7 @@ const materials = [
     id: "corn",
     name: "玉米",
     symbol: "ZC=F",
+    stooqSymbol: "ZC.F",
     category: "農產品",
     unit: "US cents/bushel",
     usdFactor: 0.01,
@@ -118,6 +127,7 @@ const materials = [
     id: "soybean",
     name: "黃豆",
     symbol: "ZS=F",
+    stooqSymbol: "ZS.F",
     category: "農產品",
     unit: "US cents/bushel",
     usdFactor: 0.01,
@@ -128,6 +138,7 @@ const materials = [
     id: "coffee",
     name: "咖啡",
     symbol: "KC=F",
+    stooqSymbol: "KC.F",
     category: "農產品",
     unit: "US cents/lb",
     usdFactor: 0.01,
@@ -138,6 +149,7 @@ const materials = [
     id: "cotton",
     name: "棉花",
     symbol: "CT=F",
+    stooqSymbol: "CT.F",
     category: "纖維",
     unit: "US cents/lb",
     usdFactor: 0.01,
@@ -270,6 +282,97 @@ async function fetchYahooChart(symbol, range = "5d", interval = "1d") {
   };
 }
 
+function parseStooqCsv(text) {
+  const rows = text.trim().split(/\r?\n/);
+  if (rows.length < 2) throw new Error("Stooq response missing quote");
+  const headers = rows[0].split(",");
+  const values = rows[1].split(",");
+  return Object.fromEntries(headers.map((header, index) => [header, values[index]]));
+}
+
+function toFiniteNumber(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+async function fetchStooqQuote(material) {
+  if (!material.stooqSymbol) {
+    throw new Error("No Stooq fallback symbol");
+  }
+
+  const endpoint = `https://stooq.com/q/l/?s=${encodeURIComponent(material.stooqSymbol.toLowerCase())}&f=sd2t2ohlcv&h&e=csv`;
+  const response = await fetch(endpoint, {
+    headers: {
+      "user-agent": "Mozilla/5.0 raw-material-monitor/1.0",
+      accept: "text/csv,*/*",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Stooq HTTP ${response.status}`);
+  }
+
+  const row = parseStooqCsv(await response.text());
+  const rawClose = toFiniteNumber(row.Close);
+  const rawOpen = toFiniteNumber(row.Open);
+  if (row.Date === "N/D" || typeof rawClose !== "number") {
+    throw new Error("Stooq quote unavailable");
+  }
+
+  const factor = material.stooqPriceFactor || 1;
+  const price = rawClose * factor;
+  const previousClose = typeof rawOpen === "number" ? rawOpen * factor : null;
+  const change = typeof previousClose === "number" ? price - previousClose : null;
+  const changePercent = typeof change === "number" && previousClose ? (change / previousClose) * 100 : null;
+  const lastTradeAt = row.Date && row.Time && row.Date !== "N/D" && row.Time !== "N/D"
+    ? new Date(`${row.Date}T${row.Time}Z`).toISOString()
+    : null;
+
+  return {
+    price,
+    previousClose,
+    change,
+    changePercent,
+    currency: "USD",
+    exchangeName: "Stooq",
+    marketState: "",
+    lastTradeAt,
+    history: [
+      {
+        date: row.Date,
+        close: price,
+      },
+    ],
+    source: `Stooq - ${material.stooqSymbol}`,
+  };
+}
+
+async function getUsdTwdFallback() {
+  const response = await fetch("https://open.er-api.com/v6/latest/USD", {
+    headers: {
+      "user-agent": "Mozilla/5.0 raw-material-monitor/1.0",
+      accept: "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`FX fallback HTTP ${response.status}`);
+  }
+
+  const payload = await response.json();
+  const rate = payload?.rates?.TWD;
+  if (typeof rate !== "number" || !Number.isFinite(rate)) {
+    throw new Error("FX fallback missing TWD rate");
+  }
+
+  return {
+    rate,
+    status: "LIVE",
+    lastTradeAt: payload?.time_last_update_utc ? new Date(payload.time_last_update_utc).toISOString() : new Date().toISOString(),
+    source: "open.er-api.com - USD/TWD",
+  };
+}
+
 async function getUsdTwd() {
   try {
     const fx = await fetchYahooChart("TWD=X", "5d", "1d");
@@ -280,12 +383,28 @@ async function getUsdTwd() {
       source: "Yahoo Finance - USD/TWD",
     };
   } catch (error) {
-    return {
-      rate: null,
-      status: "API_ERROR",
-      error: error.message,
-      source: "Yahoo Finance - USD/TWD",
-    };
+    try {
+      return await getUsdTwdFallback();
+    } catch (fallbackError) {
+      return {
+        rate: null,
+        status: "API_ERROR",
+        error: `${error.message}; ${fallbackError.message}`,
+        source: "Yahoo Finance - USD/TWD",
+      };
+    }
+  }
+}
+
+async function fetchMaterialQuote(material) {
+  try {
+    return await fetchYahooChart(material.symbol);
+  } catch (yahooError) {
+    try {
+      return await fetchStooqQuote(material);
+    } catch (fallbackError) {
+      throw new Error(`${yahooError.message}; ${fallbackError.message}`);
+    }
   }
 }
 
@@ -294,10 +413,11 @@ async function getMarketData() {
   const rows = [];
   for (const material of materials) {
     try {
-      const quote = await fetchYahooChart(material.symbol);
+      const quote = await fetchMaterialQuote(material);
       rows.push({
         ...material,
         ...quote,
+        source: quote.source || material.source,
         twdEstimate: typeof quote.price === "number" && typeof fx.rate === "number" ? quote.price * (material.usdFactor || 1) * fx.rate : null,
         status: "LIVE",
       });
