@@ -10,6 +10,8 @@ const ROOT = __dirname;
 const MARKET_CACHE_TTL_MS = Number(process.env.MARKET_CACHE_TTL_MS || 15 * 60 * 1000);
 const MARKET_STALE_TTL_MS = Number(process.env.MARKET_STALE_TTL_MS || 24 * 60 * 60 * 1000);
 const FETCH_GAP_MS = Number(process.env.FETCH_GAP_MS || 350);
+const YAHOO_TIMEOUT_MS = Number(process.env.YAHOO_TIMEOUT_MS || 2500);
+const FALLBACK_TIMEOUT_MS = Number(process.env.FALLBACK_TIMEOUT_MS || 5000);
 let marketCache = null;
 let marketRefreshPromise = null;
 
@@ -234,6 +236,7 @@ function latestValidPoint(timestamps = [], values = []) {
 async function fetchYahooChart(symbol, range = "5d", interval = "1d") {
   const endpoint = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=${range}&interval=${interval}`;
   const response = await fetch(endpoint, {
+    signal: AbortSignal.timeout(YAHOO_TIMEOUT_MS),
     headers: {
       "user-agent": "Mozilla/5.0 raw-material-monitor/1.0",
       accept: "application/json",
@@ -302,6 +305,7 @@ async function fetchStooqQuote(material) {
 
   const endpoint = `https://stooq.com/q/l/?s=${encodeURIComponent(material.stooqSymbol.toLowerCase())}&f=sd2t2ohlcv&h&e=csv`;
   const response = await fetch(endpoint, {
+    signal: AbortSignal.timeout(FALLBACK_TIMEOUT_MS),
     headers: {
       "user-agent": "Mozilla/5.0 raw-material-monitor/1.0",
       accept: "text/csv,*/*",
@@ -349,6 +353,7 @@ async function fetchStooqQuote(material) {
 
 async function getUsdTwdFallback() {
   const response = await fetch("https://open.er-api.com/v6/latest/USD", {
+    signal: AbortSignal.timeout(FALLBACK_TIMEOUT_MS),
     headers: {
       "user-agent": "Mozilla/5.0 raw-material-monitor/1.0",
       accept: "application/json",
