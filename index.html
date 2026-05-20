@@ -42,6 +42,8 @@
             <option value="danger">成本上升</option>
             <option value="opportunity">可議價</option>
             <option value="stable">穩定</option>
+            <option value="fallback">備援來源</option>
+            <option value="stale">快取資料</option>
             <option value="error">API 錯誤</option>
           </select>
         </label>
@@ -58,9 +60,8 @@
         <label>
           <span>自動更新</span>
           <select id="refreshSelect">
-            <option value="300">每 5 分鐘</option>
-            <option value="60">每 1 分鐘</option>
             <option value="900">每 15 分鐘</option>
+            <option value="300">每 5 分鐘</option>
             <option value="0">關閉</option>
           </select>
         </label>
