@@ -128,6 +128,16 @@ h1 {
   background: var(--error-bg);
 }
 
+.badge.fallback {
+  color: #1d4ed8;
+  background: #dbeafe;
+}
+
+.badge.stale {
+  color: #7c2d12;
+  background: #ffedd5;
+}
+
 .badge.neutral {
   color: #334155;
   background: #e2e8f0;
@@ -418,6 +428,16 @@ tbody tr.chance-row td:first-child {
   background: var(--error-bg);
 }
 
+.signal.fallback {
+  color: #1d4ed8;
+  background: #dbeafe;
+}
+
+.signal.stale {
+  color: #9a3412;
+  background: #ffedd5;
+}
+
 .time-text {
   display: block;
   font-weight: 800;
@@ -488,6 +508,16 @@ tbody tr.chance-row td:first-child {
 .detail-signal.error {
   color: var(--error);
   background: var(--error-bg);
+}
+
+.detail-signal.fallback {
+  color: #1d4ed8;
+  background: #dbeafe;
+}
+
+.detail-signal.stale {
+  color: #9a3412;
+  background: #ffedd5;
 }
 
 dl {
