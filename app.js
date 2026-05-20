@@ -65,7 +65,15 @@ function getCostSignal(row) {
     };
   }
 
-  if (row.status !== "LIVE") {
+  if (row.status === "FALLBACK") {
+    return {
+      label: "備援來源",
+      tone: "fallback",
+      note: "主來源失敗，使用備援行情",
+    };
+  }
+
+  if (row.status !== "OK" && row.status !== "LIVE") {
     return {
       label: "資料異常",
       tone: "error",
@@ -107,9 +115,12 @@ function getCostSignal(row) {
 
 function setBadge(status) {
   els.sourceMode.className = "badge";
-  if (status === "LIVE") {
+  if (status === "OK" || status === "LIVE") {
     els.sourceMode.classList.add("live");
-    els.sourceMode.textContent = "LIVE";
+    els.sourceMode.textContent = status === "OK" ? "OK" : "LIVE";
+  } else if (status === "FALLBACK") {
+    els.sourceMode.classList.add("fallback");
+    els.sourceMode.textContent = "FALLBACK";
   } else if (status === "STALE") {
     els.sourceMode.classList.add("stale");
     els.sourceMode.textContent = "STALE";
@@ -148,7 +159,8 @@ function getFilteredRows() {
     opportunity: 2,
     stable: 3,
     neutral: 4,
-    stale: 5,
+    fallback: 5,
+    stale: 6,
   };
   return filtered.sort((a, b) => {
     if (sortMode === "signal") {
@@ -164,7 +176,7 @@ function getFilteredRows() {
 }
 
 function renderSummary() {
-  const liveRows = state.rows.filter((row) => row.status === "LIVE");
+  const liveRows = state.rows.filter((row) => row.status === "OK" || row.status === "LIVE" || row.status === "FALLBACK");
   const staleRows = state.rows.filter((row) => row.status === "STALE");
   const errorRows = state.rows.filter((row) => row.status === "API_ERROR");
   const ranked = [...liveRows, ...staleRows].filter((row) => typeof row.changePercent === "number");
@@ -210,7 +222,7 @@ function renderTable() {
           <small class="signal-note">${signal.note}</small>
         </td>
         <td>
-          <span class="time-text">${row.status === "LIVE" || row.status === "STALE" ? formatDateTime(row.lastTradeAt) : "API ERROR"}</span>
+          <span class="time-text">${row.status === "OK" || row.status === "LIVE" || row.status === "FALLBACK" || row.status === "STALE" ? formatDateTime(row.lastTradeAt) : "API ERROR"}</span>
           <small class="muted">${row.status}</small>
         </td>
       </tr>
@@ -229,8 +241,8 @@ function renderDetail() {
   els.detailSignal.className = `detail-signal ${signal.tone}`;
   els.detailSymbol.textContent = selected.symbol;
   els.detailSource.textContent = selected.source;
-  const detailBadge = selected.status === "LIVE" ? "live" : selected.status === "STALE" ? "stale" : "error";
-  const detailTime = selected.status === "LIVE" || selected.status === "STALE" ? formatDateTime(selected.lastTradeAt) : selected.error || "資料源無回應";
+  const detailBadge = selected.status === "OK" || selected.status === "LIVE" ? "live" : selected.status === "FALLBACK" ? "fallback" : selected.status === "STALE" ? "stale" : "error";
+  const detailTime = selected.status === "OK" || selected.status === "LIVE" || selected.status === "FALLBACK" || selected.status === "STALE" ? formatDateTime(selected.lastTradeAt) : selected.error || "資料源無回應";
   els.detailStatus.innerHTML = `<span class="badge ${detailBadge}">${selected.status}</span> ${detailTime}`;
   els.detailUsage.textContent = selected.usage;
   els.detailHistory.textContent = selected.history?.length
@@ -260,14 +272,14 @@ async function loadMarketData() {
   setBadge("連線中");
 
   try {
-    const response = await fetch("/api/materials", { cache: "no-store" });
+    const response = await fetch("/api/market", { cache: "no-store" });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const data = await response.json();
     state.rows = data.rows || [];
     els.disclaimer.textContent = data.disclaimer || "";
     els.lastUpdated.textContent = `更新：${formatDateTime(data.generatedAt)}`;
     els.fxRate.textContent = data.fx?.rate ? `USD/TWD: ${formatNumber(data.fx.rate, 4)} (${data.fx.status})` : `USD/TWD: ${data.fx?.status || "API_ERROR"}`;
-    setBadge(state.rows.some((row) => row.status === "LIVE") ? "LIVE" : state.rows.some((row) => row.status === "STALE") ? "STALE" : "API_ERROR");
+    setBadge(data.state || (state.rows.some((row) => row.status === "OK" || row.status === "LIVE") ? "OK" : state.rows.some((row) => row.status === "FALLBACK") ? "FALLBACK" : state.rows.some((row) => row.status === "STALE") ? "STALE" : "API_ERROR"));
     renderAll();
   } catch (error) {
     setBadge("API_ERROR");
