@@ -1,310 +1,50 @@
-const state = {
-  rows: [],
-  selectedId: null,
-  refreshTimer: null,
-  refreshSeconds: 900,
-};
-
+const state = { rows: [], selectedId: null, refreshTimer: null };
+const $ = (id) => document.querySelector(id);
 const els = {
-  sourceMode: document.querySelector("#sourceMode"),
-  lastUpdated: document.querySelector("#lastUpdated"),
-  fxRate: document.querySelector("#fxRate"),
-  searchInput: document.querySelector("#searchInput"),
-  categoryFilter: document.querySelector("#categoryFilter"),
-  signalFilter: document.querySelector("#signalFilter"),
-  sortSelect: document.querySelector("#sortSelect"),
-  refreshSelect: document.querySelector("#refreshSelect"),
-  refreshButton: document.querySelector("#refreshButton"),
-  liveCount: document.querySelector("#liveCount"),
-  errorCount: document.querySelector("#errorCount"),
-  topGainer: document.querySelector("#topGainer"),
-  topLoser: document.querySelector("#topLoser"),
-  rowCount: document.querySelector("#rowCount"),
-  disclaimer: document.querySelector("#disclaimer"),
-  materialRows: document.querySelector("#materialRows"),
-  detailCategory: document.querySelector("#detailCategory"),
-  detailName: document.querySelector("#detailName"),
-  detailSignal: document.querySelector("#detailSignal"),
-  detailSymbol: document.querySelector("#detailSymbol"),
-  detailSource: document.querySelector("#detailSource"),
-  detailStatus: document.querySelector("#detailStatus"),
-  detailUsage: document.querySelector("#detailUsage"),
-  detailHistory: document.querySelector("#detailHistory"),
+  sourceMode: $("#sourceMode"), lastUpdated: $("#lastUpdated"), fxRate: $("#fxRate"), searchInput: $("#searchInput"), categoryFilter: $("#categoryFilter"), signalFilter: $("#signalFilter"), sortSelect: $("#sortSelect"), refreshSelect: $("#refreshSelect"), refreshButton: $("#refreshButton"),
+  exportMaterialSelect: $("#exportMaterialSelect"), exportPeriodSelect: $("#exportPeriodSelect"), exportExcelButton: $("#exportExcelButton"), exportAllExcelButton: $("#exportAllExcelButton"), exportStatus: $("#exportStatus"),
+  historyMaterialSelect: $("#historyMaterialSelect"), historyPeriodSelect: $("#historyPeriodSelect"), historyLoadButton: $("#historyLoadButton"), historyState: $("#historyState"), historySource: $("#historySource"), historyPosition: $("#historyPosition"), historyRange: $("#historyRange"), historySignal: $("#historySignal"), historyAction: $("#historyAction"), historyUpdated: $("#historyUpdated"), trendChart: $("#trendChart"),
+  liveCount: $("#liveCount"), errorCount: $("#errorCount"), topGainer: $("#topGainer"), topLoser: $("#topLoser"), rowCount: $("#rowCount"), disclaimer: $("#disclaimer"), materialRows: $("#materialRows"),
+  detailCategory: $("#detailCategory"), detailName: $("#detailName"), detailSignal: $("#detailSignal"), detailSymbol: $("#detailSymbol"), detailSource: $("#detailSource"), detailStatus: $("#detailStatus"), detailUsage: $("#detailUsage"), detailHistory: $("#detailHistory"),
 };
-
-function formatNumber(value, digits = 2) {
-  if (typeof value !== "number" || !Number.isFinite(value)) return "--";
-  return new Intl.NumberFormat("zh-TW", {
-    maximumFractionDigits: digits,
-    minimumFractionDigits: value < 10 ? Math.min(2, digits) : 0,
-  }).format(value);
+function n(v, d = 2) { return typeof v === "number" && Number.isFinite(v) ? new Intl.NumberFormat("zh-TW", { maximumFractionDigits: d, minimumFractionDigits: v < 10 ? Math.min(2, d) : 0 }).format(v) : "--"; }
+function p(v) { return typeof v === "number" && Number.isFinite(v) ? `${v > 0 ? "+" : ""}${n(v, 2)}%` : "--"; }
+function dt(v) { return v ? new Intl.DateTimeFormat("zh-TW", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }).format(new Date(v)) : "--"; }
+function dataLabel(s) { if (s === "OK" || s === "LIVE") return "【API資料】"; if (s === "FALLBACK") return "【API資料】備援"; if (s === "NO_DATA") return "【資料不足】"; return s || "API_ERROR"; }
+function signal(row) {
+  if (row.status === "STALE") return { label: "快取資料", tone: "stale", note: "真實舊行情，非即時資料" };
+  if (row.status === "FALLBACK") return { label: "備援來源", tone: "fallback", note: "主來源失敗，使用備援行情" };
+  if (row.status !== "OK" && row.status !== "LIVE") return { label: "資料異常", tone: "error", note: row.error || "資料源無回應" };
+  if (typeof row.changePercent !== "number") return { label: "待觀察", tone: "neutral", note: "缺少漲跌資料" };
+  if (row.changePercent >= 2) return { label: "成本上升", tone: "danger", note: "先確認供應商報價有效期" };
+  if (row.changePercent <= -2) return { label: "可議價", tone: "opportunity", note: "行情下跌，可詢問新報價" };
+  return { label: "穩定", tone: "stable", note: "短線波動較小" };
 }
-
-function formatPercent(value) {
-  if (typeof value !== "number" || !Number.isFinite(value)) return "--";
-  const sign = value > 0 ? "+" : "";
-  return `${sign}${formatNumber(value, 2)}%`;
+function setBadge(status) { els.sourceMode.className = "badge"; const tone = status === "OK" || status === "LIVE" ? "live" : status === "FALLBACK" ? "fallback" : status === "STALE" ? "stale" : status === "API_ERROR" ? "error" : "neutral"; els.sourceMode.classList.add(tone); els.sourceMode.textContent = status === "OK" ? "OK" : status === "API_ERROR" ? "API ERROR" : status; }
+function populateSelectors() {
+  const cats = [...new Set(state.rows.map((r) => r.category))].sort((a, b) => a.localeCompare(b, "zh-Hant"));
+  const c = els.categoryFilter.value; els.categoryFilter.innerHTML = `<option value="all">全部</option>${cats.map((x) => `<option value="${x}">${x}</option>`).join("")}`; els.categoryFilter.value = cats.includes(c) ? c : "all";
+  const opts = state.rows.map((r) => `<option value="${r.symbol}">${r.name}（${r.symbol}）</option>`).join("");
+  const ex = els.exportMaterialSelect.value; const hs = els.historyMaterialSelect.value; els.exportMaterialSelect.innerHTML = opts; els.historyMaterialSelect.innerHTML = opts; if (state.rows.some((r) => r.symbol === ex)) els.exportMaterialSelect.value = ex; if (state.rows.some((r) => r.symbol === hs)) els.historyMaterialSelect.value = hs;
 }
-
-function formatDateTime(value) {
-  if (!value) return "--";
-  return new Intl.DateTimeFormat("zh-TW", {
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(value));
+function rows() {
+  const q = els.searchInput.value.trim().toLowerCase(); const cat = els.categoryFilter.value; const sig = els.signalFilter.value;
+  const out = state.rows.filter((r) => (`${r.name} ${r.symbol} ${r.category} ${r.usage}`.toLowerCase().includes(q)) && (cat === "all" || r.category === cat) && (sig === "all" || signal(r).tone === sig));
+  const rank = { error: 0, danger: 1, opportunity: 2, stable: 3, neutral: 4, fallback: 5, stale: 6 };
+  return out.sort((a, b) => els.sortSelect.value === "signal" ? (rank[signal(a).tone] ?? 9) - (rank[signal(b).tone] ?? 9) : els.sortSelect.value === "changeDesc" ? (b.changePercent ?? -Infinity) - (a.changePercent ?? -Infinity) : els.sortSelect.value === "changeAsc" ? (a.changePercent ?? Infinity) - (b.changePercent ?? Infinity) : els.sortSelect.value === "name" ? a.name.localeCompare(b.name, "zh-Hant") : `${a.category}${a.name}`.localeCompare(`${b.category}${b.name}`, "zh-Hant"));
 }
-
-function getCostSignal(row) {
-  if (row.status === "STALE") {
-    return {
-      label: "快取資料",
-      tone: "stale",
-      note: "真實舊行情，非即時資料",
-    };
-  }
-
-  if (row.status === "FALLBACK") {
-    return {
-      label: "備援來源",
-      tone: "fallback",
-      note: "主來源失敗，使用備援行情",
-    };
-  }
-
-  if (row.status !== "OK" && row.status !== "LIVE") {
-    return {
-      label: "資料異常",
-      tone: "error",
-      note: row.error || "資料源無回應",
-    };
-  }
-
-  const change = row.changePercent;
-  if (typeof change !== "number") {
-    return {
-      label: "待觀察",
-      tone: "neutral",
-      note: "缺少漲跌資料",
-    };
-  }
-
-  if (change >= 2) {
-    return {
-      label: "成本上升",
-      tone: "danger",
-      note: "採購前先確認供應商報價有效期",
-    };
-  }
-
-  if (change <= -2) {
-    return {
-      label: "可議價",
-      tone: "opportunity",
-      note: "行情下跌，可詢問新報價",
-    };
-  }
-
-  return {
-    label: "穩定",
-    tone: "stable",
-    note: "短線波動較小",
-  };
-}
-
-function setBadge(status) {
-  els.sourceMode.className = "badge";
-  if (status === "OK" || status === "LIVE") {
-    els.sourceMode.classList.add("live");
-    els.sourceMode.textContent = status === "OK" ? "OK" : "LIVE";
-  } else if (status === "FALLBACK") {
-    els.sourceMode.classList.add("fallback");
-    els.sourceMode.textContent = "FALLBACK";
-  } else if (status === "STALE") {
-    els.sourceMode.classList.add("stale");
-    els.sourceMode.textContent = "STALE";
-  } else if (status === "API_ERROR") {
-    els.sourceMode.classList.add("error");
-    els.sourceMode.textContent = "API ERROR";
-  } else {
-    els.sourceMode.classList.add("neutral");
-    els.sourceMode.textContent = status;
-  }
-}
-
-function populateCategories() {
-  const categories = [...new Set(state.rows.map((row) => row.category))].sort((a, b) => a.localeCompare(b, "zh-Hant"));
-  const current = els.categoryFilter.value;
-  els.categoryFilter.innerHTML = `<option value="all">全部</option>${categories.map((category) => `<option value="${category}">${category}</option>`).join("")}`;
-  els.categoryFilter.value = categories.includes(current) ? current : "all";
-}
-
-function getFilteredRows() {
-  const query = els.searchInput.value.trim().toLowerCase();
-  const category = els.categoryFilter.value;
-  const signalMode = els.signalFilter.value;
-  const filtered = state.rows.filter((row) => {
-    const text = `${row.name} ${row.symbol} ${row.category} ${row.usage}`.toLowerCase();
-    const categoryMatched = category === "all" || row.category === category;
-    const signal = getCostSignal(row);
-    const signalMatched = signalMode === "all" || signal.tone === signalMode;
-    return categoryMatched && signalMatched && (!query || text.includes(query));
-  });
-
-  const sortMode = els.sortSelect.value;
-  const signalRank = {
-    error: 0,
-    danger: 1,
-    opportunity: 2,
-    stable: 3,
-    neutral: 4,
-    fallback: 5,
-    stale: 6,
-  };
-  return filtered.sort((a, b) => {
-    if (sortMode === "signal") {
-      const rankA = signalRank[getCostSignal(a).tone] ?? 9;
-      const rankB = signalRank[getCostSignal(b).tone] ?? 9;
-      return rankA - rankB || Math.abs(b.changePercent ?? 0) - Math.abs(a.changePercent ?? 0);
-    }
-    if (sortMode === "changeDesc") return (b.changePercent ?? -Infinity) - (a.changePercent ?? -Infinity);
-    if (sortMode === "changeAsc") return (a.changePercent ?? Infinity) - (b.changePercent ?? Infinity);
-    if (sortMode === "name") return a.name.localeCompare(b.name, "zh-Hant");
-    return `${a.category}${a.name}`.localeCompare(`${b.category}${b.name}`, "zh-Hant");
-  });
-}
-
-function renderSummary() {
-  const liveRows = state.rows.filter((row) => row.status === "OK" || row.status === "LIVE" || row.status === "FALLBACK");
-  const staleRows = state.rows.filter((row) => row.status === "STALE");
-  const errorRows = state.rows.filter((row) => row.status === "API_ERROR");
-  const ranked = [...liveRows, ...staleRows].filter((row) => typeof row.changePercent === "number");
-  const topGainer = [...ranked].sort((a, b) => b.changePercent - a.changePercent)[0];
-  const topLoser = [...ranked].sort((a, b) => a.changePercent - b.changePercent)[0];
-
-  els.liveCount.textContent = liveRows.length;
-  els.errorCount.textContent = errorRows.length;
-  els.topGainer.textContent = topGainer ? `${topGainer.name} ${formatPercent(topGainer.changePercent)}` : "--";
-  els.topLoser.textContent = topLoser ? `${topLoser.name} ${formatPercent(topLoser.changePercent)}` : "--";
-}
-
-function renderTable() {
-  const rows = getFilteredRows();
-  els.rowCount.textContent = `${rows.length} 筆`;
-  if (!rows.length) {
-    els.materialRows.innerHTML = `<tr><td colspan="7" class="empty">沒有符合條件的原物料</td></tr>`;
-    return;
-  }
-
-  els.materialRows.innerHTML = rows.map((row) => {
-    const changeClass = row.changePercent > 0 ? "up" : row.changePercent < 0 ? "down" : "muted";
-    const signal = getCostSignal(row);
-    const selected = state.selectedId === row.id ? "selected" : "";
-    const rowTone = signal.tone === "danger" ? "risk-row" : signal.tone === "opportunity" ? "chance-row" : "";
-    return `
-      <tr class="${selected} ${rowTone}" data-id="${row.id}">
-        <td class="name-cell">
-          <strong>${row.name}</strong>
-          <small>${row.symbol} · ${row.source.replace("Yahoo Finance - ", "")}</small>
-        </td>
-        <td>${row.category}</td>
-        <td class="numeric">
-          <span class="price">${formatNumber(row.price, 4)}</span>
-          <small class="unit">${row.unit}</small>
-        </td>
-        <td class="numeric ${changeClass}">
-          <span class="change-pill">${formatPercent(row.changePercent)}</span>
-        </td>
-        <td class="numeric twd-cell">TWD ${formatNumber(row.twdEstimate, 2)}</td>
-        <td>
-          <span class="signal ${signal.tone}">${signal.label}</span>
-          <small class="signal-note">${signal.note}</small>
-        </td>
-        <td>
-          <span class="time-text">${row.status === "OK" || row.status === "LIVE" || row.status === "FALLBACK" || row.status === "STALE" ? formatDateTime(row.lastTradeAt) : "API ERROR"}</span>
-          <small class="muted">${row.status}</small>
-        </td>
-      </tr>
-    `;
-  }).join("");
-}
-
-function renderDetail() {
-  const selected = state.rows.find((row) => row.id === state.selectedId) || state.rows[0];
-  if (!selected) return;
-  const signal = getCostSignal(selected);
-  state.selectedId = selected.id;
-  els.detailCategory.textContent = selected.category;
-  els.detailName.textContent = selected.name;
-  els.detailSignal.textContent = `${signal.label}｜${signal.note}`;
-  els.detailSignal.className = `detail-signal ${signal.tone}`;
-  els.detailSymbol.textContent = selected.symbol;
-  els.detailSource.textContent = selected.source;
-  const detailBadge = selected.status === "OK" || selected.status === "LIVE" ? "live" : selected.status === "FALLBACK" ? "fallback" : selected.status === "STALE" ? "stale" : "error";
-  const detailTime = selected.status === "OK" || selected.status === "LIVE" || selected.status === "FALLBACK" || selected.status === "STALE" ? formatDateTime(selected.lastTradeAt) : selected.error || "資料源無回應";
-  els.detailStatus.innerHTML = `<span class="badge ${detailBadge}">${selected.status}</span> ${detailTime}`;
-  els.detailUsage.textContent = selected.usage;
-  els.detailHistory.textContent = selected.history?.length
-    ? selected.history.map((point) => `${point.date}: ${formatNumber(point.close, 4)}`).join(" / ")
-    : selected.status === "API_ERROR" ? `無資料：${selected.error || "API ERROR"}` : "--";
-}
-
-function renderAll() {
-  populateCategories();
-  renderSummary();
-  renderTable();
-  renderDetail();
-}
-
-function scheduleRefresh() {
-  if (state.refreshTimer) clearInterval(state.refreshTimer);
-  const seconds = Number(els.refreshSelect.value);
-  state.refreshSeconds = seconds;
-  if (seconds > 0) {
-    state.refreshTimer = setInterval(loadMarketData, seconds * 1000);
-  }
-}
-
-async function loadMarketData() {
-  els.refreshButton.disabled = true;
-  els.refreshButton.textContent = "更新中";
-  setBadge("連線中");
-
-  try {
-    const response = await fetch("/api/market", { cache: "no-store" });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const data = await response.json();
-    state.rows = data.rows || [];
-    els.disclaimer.textContent = data.disclaimer || "";
-    els.lastUpdated.textContent = `更新：${formatDateTime(data.generatedAt)}`;
-    els.fxRate.textContent = data.fx?.rate ? `USD/TWD: ${formatNumber(data.fx.rate, 4)} (${data.fx.status})` : `USD/TWD: ${data.fx?.status || "API_ERROR"}`;
-    setBadge(data.state || (state.rows.some((row) => row.status === "OK" || row.status === "LIVE") ? "OK" : state.rows.some((row) => row.status === "FALLBACK") ? "FALLBACK" : state.rows.some((row) => row.status === "STALE") ? "STALE" : "API_ERROR"));
-    renderAll();
-  } catch (error) {
-    setBadge("API_ERROR");
-    els.lastUpdated.textContent = "更新失敗";
-    els.materialRows.innerHTML = `<tr><td colspan="7" class="empty">行情讀取失敗：${error.message}</td></tr>`;
-  } finally {
-    els.refreshButton.disabled = false;
-    els.refreshButton.textContent = "立即更新";
-  }
-}
-
-els.materialRows.addEventListener("click", (event) => {
-  const row = event.target.closest("tr[data-id]");
-  if (!row) return;
-  state.selectedId = row.dataset.id;
-  renderTable();
-  renderDetail();
-});
-
-els.searchInput.addEventListener("input", renderTable);
-els.categoryFilter.addEventListener("change", renderTable);
-els.signalFilter.addEventListener("change", renderTable);
-els.sortSelect.addEventListener("change", renderTable);
-els.refreshButton.addEventListener("click", loadMarketData);
-els.refreshSelect.addEventListener("change", scheduleRefresh);
-
-scheduleRefresh();
-loadMarketData();
+function renderSummary() { const live = state.rows.filter((r) => ["OK", "LIVE", "FALLBACK"].includes(r.status)); const err = state.rows.filter((r) => r.status === "API_ERROR"); const ranked = state.rows.filter((r) => typeof r.changePercent === "number"); const up = [...ranked].sort((a, b) => b.changePercent - a.changePercent)[0]; const down = [...ranked].sort((a, b) => a.changePercent - b.changePercent)[0]; els.liveCount.textContent = live.length; els.errorCount.textContent = err.length; els.topGainer.textContent = up ? `${up.name} ${p(up.changePercent)}` : "--"; els.topLoser.textContent = down ? `${down.name} ${p(down.changePercent)}` : "--"; }
+function renderTable() { const list = rows(); els.rowCount.textContent = `${list.length} 筆`; els.materialRows.innerHTML = list.length ? list.map((r) => { const s = signal(r); const changeClass = r.changePercent > 0 ? "up" : r.changePercent < 0 ? "down" : "muted"; return `<tr class="${state.selectedId === r.id ? "selected" : ""}" data-id="${r.id}"><td class="name-cell"><strong>${r.name}</strong><small>${r.symbol} · ${r.source.replace("Yahoo Finance - ", "")}</small></td><td>${r.category}</td><td class="numeric"><span class="price">${n(r.price, 4)}</span><small class="unit">${r.unit}</small></td><td class="numeric ${changeClass}"><span class="change-pill">${p(r.changePercent)}</span></td><td class="numeric twd-cell">TWD ${n(r.twdEstimate, 2)}</td><td><span class="signal ${s.tone}">${s.label}</span><small class="signal-note">${s.note}</small></td><td><span class="time-text">${["OK", "LIVE", "FALLBACK", "STALE"].includes(r.status) ? dt(r.lastTradeAt) : "API ERROR"}</span><small class="muted">${dataLabel(r.status)}</small></td></tr>`; }).join("") : `<tr><td colspan="7" class="empty">沒有符合條件的原物料</td></tr>`; }
+function renderDetail() { const r = state.rows.find((x) => x.id === state.selectedId) || state.rows[0]; if (!r) return; state.selectedId = r.id; const s = signal(r); els.detailCategory.textContent = r.category; els.detailName.textContent = r.name; els.detailSignal.textContent = `${s.label}｜${s.note}`; els.detailSignal.className = `detail-signal ${s.tone}`; els.detailSymbol.textContent = r.symbol; els.detailSource.textContent = r.source; els.detailStatus.innerHTML = `<span class="badge ${r.status === "STALE" ? "stale" : r.status === "API_ERROR" ? "error" : "live"}">${dataLabel(r.status)}</span> ${dt(r.lastTradeAt)}`; els.detailUsage.textContent = r.usage; els.detailHistory.textContent = r.history?.length ? r.history.map((x) => `${x.date}: ${n(x.close, 4)}`).join(" / ") : "--"; }
+function renderAll() { populateSelectors(); renderSummary(); renderTable(); renderDetail(); }
+async function loadMarketData() { els.refreshButton.disabled = true; els.refreshButton.textContent = "更新中"; setBadge("連線中"); try { const res = await fetch("/api/market", { cache: "no-store" }); if (!res.ok) throw new Error(`HTTP ${res.status}`); const data = await res.json(); state.rows = data.rows || []; els.disclaimer.textContent = data.disclaimer || ""; els.lastUpdated.textContent = `更新：${dt(data.generatedAt)}`; els.fxRate.textContent = data.fx?.rate ? `USD/TWD: ${n(data.fx.rate, 4)} (${data.fx.status})` : `USD/TWD: ${data.fx?.status || "API_ERROR"}`; setBadge(data.state || "OK"); renderAll(); } catch (e) { setBadge("API_ERROR"); els.lastUpdated.textContent = "更新失敗"; els.materialRows.innerHTML = `<tr><td colspan="7" class="empty">行情讀取失敗：${e.message}</td></tr>`; } finally { els.refreshButton.disabled = false; els.refreshButton.textContent = "立即更新"; } }
+function scheduleRefresh() { if (state.refreshTimer) clearInterval(state.refreshTimer); const seconds = Number(els.refreshSelect.value); if (seconds > 0) state.refreshTimer = setInterval(loadMarketData, seconds * 1000); }
+function filename(disposition, fallback) { return decodeURIComponent(disposition?.match(/filename\*=UTF-8''([^;]+)/)?.[1] || disposition?.match(/filename="([^"]+)"/)?.[1] || fallback); }
+async function downloadExport(all = false) { const period = els.exportPeriodSelect.value; const symbol = els.exportMaterialSelect.value; const url = all ? `/api/export/all?period=${encodeURIComponent(period)}` : `/api/export/excel?symbol=${encodeURIComponent(symbol)}&period=${encodeURIComponent(period)}`; els.exportExcelButton.disabled = true; els.exportAllExcelButton.disabled = true; els.exportStatus.textContent = "正在準備 Excel..."; try { const res = await fetch(url, { cache: "no-store" }); if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`); const blob = await res.blob(); const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = filename(res.headers.get("content-disposition"), all ? `all-raw-materials-${period}.xlsx` : `${symbol}-${period}.xlsx`); document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href); els.exportStatus.textContent = "Excel 已下載。"; } catch (e) { els.exportStatus.textContent = `匯出失敗：${e.message}`; } finally { els.exportExcelButton.disabled = false; els.exportAllExcelButton.disabled = false; } }
+function y(value, min, max, bottom, top) { return max === min ? (bottom + top) / 2 : bottom - ((value - min) / (max - min)) * (bottom - top); }
+function renderTrendChart(dataRows) { const data = dataRows.filter((r) => typeof r.close === "number").slice(-260); if (data.length < 2) { els.trendChart.innerHTML = `<text x="450" y="120" text-anchor="middle" class="chart-empty">【資料不足】無法繪製趨勢圖</text>`; return; } const w = 900, h = 240, left = 58, right = 878, top = 18, bottom = 202; const vals = data.map((r) => r.close); const min = Math.min(...vals), max = Math.max(...vals); const pts = data.map((r, i) => `${(left + i / (data.length - 1) * (right - left)).toFixed(1)},${y(r.close, min, max, bottom, top).toFixed(1)}`).join(" "); els.trendChart.innerHTML = `<line x1="${left}" y1="${top}" x2="${left}" y2="${bottom}" class="axis"></line><line x1="${left}" y1="${bottom}" x2="${right}" y2="${bottom}" class="axis"></line><text x="${left}" y="${top + 4}" class="axis-label">${n(max, 2)}</text><text x="${left}" y="${bottom - 4}" class="axis-label">${n(min, 2)}</text><text x="${left}" y="230" class="axis-label">${data[0].date}</text><text x="${right}" y="230" text-anchor="end" class="axis-label">${data[data.length - 1].date}</text><polygon points="${left},${bottom} ${pts} ${right},${bottom}" class="trend-area"></polygon><polyline points="${pts}" class="trend-line"></polyline>`; }
+async function loadHistoryDecision() { const symbol = els.historyMaterialSelect.value || els.exportMaterialSelect.value; const period = els.historyPeriodSelect.value; if (!symbol) return; els.historyLoadButton.disabled = true; els.historyUpdated.textContent = "查詢中..."; try { const res = await fetch(`/api/history?symbol=${encodeURIComponent(symbol)}&period=${encodeURIComponent(period)}`, { cache: "no-store" }); if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`); const data = await res.json(); const d = data.decision || {}; els.historyState.textContent = data.dataWarning ? `${data.sourceLabel} ${data.dataWarning}` : data.sourceLabel; els.historySource.textContent = `${data.material.name}｜${data.period.label}｜${data.source}`; els.historyPosition.textContent = d.position || "--"; els.historyRange.textContent = d.threeYearRange || "--"; els.historySignal.textContent = d.signal || "--"; els.historyAction.textContent = d.action || "--"; els.historyUpdated.textContent = `更新：${dt(data.generatedAt)}`; renderTrendChart(data.rows || []); } catch (e) { els.historyState.textContent = "API_ERROR"; els.historySource.textContent = `查詢失敗：${e.message}`; els.historyPosition.textContent = "--"; els.historyRange.textContent = "【資料不足】"; els.historySignal.textContent = "建議觀望"; els.historyAction.textContent = "等待資料來源恢復後再判斷"; els.trendChart.innerHTML = `<text x="450" y="120" text-anchor="middle" class="chart-empty">歷史查詢失敗：${e.message}</text>`; } finally { els.historyLoadButton.disabled = false; } }
+els.materialRows.addEventListener("click", (e) => { const tr = e.target.closest("tr[data-id]"); if (!tr) return; state.selectedId = tr.dataset.id; renderTable(); renderDetail(); });
+[els.searchInput, els.categoryFilter, els.signalFilter, els.sortSelect].forEach((el) => el.addEventListener("input", renderTable));
+els.categoryFilter.addEventListener("change", renderTable); els.signalFilter.addEventListener("change", renderTable); els.sortSelect.addEventListener("change", renderTable); els.refreshButton.addEventListener("click", loadMarketData); els.refreshSelect.addEventListener("change", scheduleRefresh); els.exportExcelButton.addEventListener("click", () => downloadExport(false)); els.exportAllExcelButton.addEventListener("click", () => downloadExport(true)); els.historyLoadButton.addEventListener("click", loadHistoryDecision);
+scheduleRefresh(); loadMarketData();
