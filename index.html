@@ -31,9 +31,7 @@
         </label>
         <label>
           <span>分類</span>
-          <select id="categoryFilter">
-            <option value="all">全部</option>
-          </select>
+          <select id="categoryFilter"><option value="all">全部</option></select>
         </label>
         <label>
           <span>採購訊號</span>
@@ -68,91 +66,85 @@
         <button id="refreshButton" type="button">立即更新</button>
       </section>
 
-      <section class="summary-grid" aria-label="行情摘要">
-        <article class="summary-card live-card">
-          <span>可用行情</span>
-          <strong id="liveCount">0</strong>
-        </article>
-        <article class="summary-card error-card">
-          <span>API 錯誤</span>
-          <strong id="errorCount">0</strong>
-        </article>
-        <article class="summary-card up-card">
-          <span>最大漲幅</span>
-          <strong id="topGainer">--</strong>
-        </article>
-        <article class="summary-card down-card">
-          <span>最大跌幅</span>
-          <strong id="topLoser">--</strong>
-        </article>
+      <section class="export-panel" aria-label="歷史行情匯出">
+        <div>
+          <h2>歷史資料匯出 Excel</h2>
+          <p>選擇原物料與期間，下載 1～3 年歷史行情、月均價、年度比較與採購建議。</p>
+        </div>
+        <label><span>原物料</span><select id="exportMaterialSelect"></select></label>
+        <label>
+          <span>期間</span>
+          <select id="exportPeriodSelect">
+            <option value="1y">近 1 年</option>
+            <option value="2y">近 2 年</option>
+            <option value="3y">近 3 年</option>
+          </select>
+        </label>
+        <button id="exportExcelButton" type="button">匯出 Excel</button>
+        <button id="exportAllExcelButton" type="button" class="secondary-button">匯出全部原物料 Excel</button>
+        <small id="exportStatus" class="export-status">Excel 只使用公開歷史行情；抓不到會顯示錯誤，不會補假資料。</small>
       </section>
 
-      <section class="notice">
-        <strong>資料使用說明</strong>
-        <span id="disclaimer">公開商品期貨行情只適合採購趨勢參考，不等於台灣供應商現貨報價、含稅含運價格或合約價。</span>
+      <section class="decision-workbench" aria-label="採購決策支援">
+        <div class="decision-head">
+          <div>
+            <p class="eyebrow">Purchasing Decision Support</p>
+            <h2>採購決策面板</h2>
+            <p>查詢 1～3 年公開歷史行情，快速判斷高位風險、可議價區與分批採購時機。</p>
+          </div>
+          <div class="decision-controls">
+            <label><span>原物料</span><select id="historyMaterialSelect"></select></label>
+            <label>
+              <span>期間</span>
+              <select id="historyPeriodSelect">
+                <option value="1y">近 1 年</option>
+                <option value="2y">近 2 年</option>
+                <option value="3y">近 3 年</option>
+              </select>
+            </label>
+            <button id="historyLoadButton" type="button">查詢歷史</button>
+          </div>
+        </div>
+        <div class="decision-grid">
+          <article class="decision-card"><span>資料狀態</span><strong id="historyState">尚未查詢</strong><small id="historySource">--</small></article>
+          <article class="decision-card"><span>目前位階</span><strong id="historyPosition">--</strong><small id="historyRange">--</small></article>
+          <article class="decision-card risk-card"><span>採購訊號</span><strong id="historySignal">--</strong><small id="historyAction">--</small></article>
+        </div>
+        <div class="trend-panel">
+          <div class="trend-title"><h3>歷史價格趨勢</h3><span id="historyUpdated">--</span></div>
+          <svg id="trendChart" viewBox="0 0 900 240" role="img" aria-label="歷史價格趨勢圖"></svg>
+        </div>
       </section>
+
+      <section class="summary-grid" aria-label="行情摘要">
+        <article class="summary-card live-card"><span>可用行情</span><strong id="liveCount">0</strong></article>
+        <article class="summary-card error-card"><span>API 錯誤</span><strong id="errorCount">0</strong></article>
+        <article class="summary-card up-card"><span>最大漲幅</span><strong id="topGainer">--</strong></article>
+        <article class="summary-card down-card"><span>最大跌幅</span><strong id="topLoser">--</strong></article>
+      </section>
+
+      <section class="notice"><strong>資料使用說明</strong><span id="disclaimer">公開商品期貨行情只適合採購趨勢參考，不等於台灣供應商現貨報價、含稅含運價格或合約價。</span></section>
 
       <section class="market-layout">
         <div class="table-wrap">
-          <div class="section-head">
-            <div>
-              <h2>行情比價表</h2>
-              <p>以台幣估算和漲跌幅快速排序，點選列查看來源。</p>
-            </div>
-            <span id="rowCount" class="row-count">0 筆</span>
-          </div>
+          <div class="section-head"><div><h2>行情比價表</h2><p>以台幣估算和漲跌幅快速排序，點選列查看來源。</p></div><span id="rowCount" class="row-count">0 筆</span></div>
           <table>
-            <thead>
-              <tr>
-                <th>原物料</th>
-                <th>分類</th>
-                <th class="numeric">行情</th>
-                <th class="numeric">漲跌</th>
-                <th class="numeric">台幣估算</th>
-                <th>成本訊號</th>
-                <th>資料時間</th>
-              </tr>
-            </thead>
-            <tbody id="materialRows">
-              <tr>
-                <td colspan="7" class="empty">正在讀取行情...</td>
-              </tr>
-            </tbody>
+            <thead><tr><th>原物料</th><th>分類</th><th class="numeric">行情</th><th class="numeric">漲跌</th><th class="numeric">台幣估算</th><th>成本訊號</th><th>資料時間</th></tr></thead>
+            <tbody id="materialRows"><tr><td colspan="7" class="empty">正在讀取行情...</td></tr></tbody>
           </table>
         </div>
-
         <aside class="detail-panel">
-          <div class="detail-header">
-            <span id="detailCategory">尚未選取</span>
-            <h2 id="detailName">選一個原物料</h2>
-            <p id="detailSignal">--</p>
-          </div>
+          <div class="detail-header"><span id="detailCategory">尚未選取</span><h2 id="detailName">選一個原物料</h2><p id="detailSignal">--</p></div>
           <dl>
-            <div>
-              <dt>代碼</dt>
-              <dd id="detailSymbol">--</dd>
-            </div>
-            <div>
-              <dt>資料來源</dt>
-              <dd id="detailSource">--</dd>
-            </div>
-            <div>
-              <dt>行情狀態</dt>
-              <dd id="detailStatus">--</dd>
-            </div>
-            <div>
-              <dt>採購用途</dt>
-              <dd id="detailUsage">--</dd>
-            </div>
-            <div>
-              <dt>近幾日收盤</dt>
-              <dd id="detailHistory">--</dd>
-            </div>
+            <div><dt>代碼</dt><dd id="detailSymbol">--</dd></div>
+            <div><dt>資料來源</dt><dd id="detailSource">--</dd></div>
+            <div><dt>行情狀態</dt><dd id="detailStatus">--</dd></div>
+            <div><dt>採購用途</dt><dd id="detailUsage">--</dd></div>
+            <div><dt>近幾日收盤</dt><dd id="detailHistory">--</dd></div>
           </dl>
         </aside>
       </section>
     </main>
-
     <script src="/app.js"></script>
   </body>
 </html>
