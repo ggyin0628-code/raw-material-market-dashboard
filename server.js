@@ -4,6 +4,7 @@ const dns = require("node:dns");
 const os = require("node:os");
 const path = require("node:path");
 const { URL } = require("node:url");
+const { createHistoricalWorkbook, createHistoryPayload } = require("./lib/marketData/exportService");
 const { getMarketSnapshot } = require("./lib/marketData/marketService");
 
 dns.setDefaultResultOrder("ipv4first");
@@ -26,6 +27,25 @@ function sendJson(res, status, payload) {
     "cache-control": "no-store",
   });
   res.end(body);
+}
+
+function sendExcel(res, filename, buffer) {
+  const encodedName = encodeURIComponent(filename);
+  res.writeHead(200, {
+    "content-type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "content-disposition": `attachment; filename="${filename}"; filename*=UTF-8''${encodedName}`,
+    "cache-control": "no-store",
+    "content-length": buffer.length,
+  });
+  res.end(buffer);
+}
+
+function sendApiError(res, error) {
+  sendJson(res, error.statusCode || 500, {
+    state: "API_ERROR",
+    generatedAt: new Date().toISOString(),
+    error: error.message || "匯出失敗",
+  });
 }
 
 function toLegacyMaterialPayload(snapshot) {
@@ -105,6 +125,40 @@ const server = http.createServer(async (req, res) => {
         generatedAt: new Date().toISOString(),
         error: error.message,
       });
+    }
+    return;
+  }
+
+  if (requestUrl.pathname === "/api/export/excel") {
+    try {
+      const symbol = requestUrl.searchParams.get("symbol");
+      const period = requestUrl.searchParams.get("period") || "1y";
+      const result = await createHistoricalWorkbook({ symbol, period });
+      sendExcel(res, result.filename, result.buffer);
+    } catch (error) {
+      sendApiError(res, error);
+    }
+    return;
+  }
+
+  if (requestUrl.pathname === "/api/history") {
+    try {
+      const symbol = requestUrl.searchParams.get("symbol");
+      const period = requestUrl.searchParams.get("period") || "1y";
+      sendJson(res, 200, await createHistoryPayload({ symbol, period }));
+    } catch (error) {
+      sendApiError(res, error);
+    }
+    return;
+  }
+
+  if (requestUrl.pathname === "/api/export/all") {
+    try {
+      const period = requestUrl.searchParams.get("period") || "3y";
+      const result = await createHistoricalWorkbook({ period, all: true });
+      sendExcel(res, result.filename, result.buffer);
+    } catch (error) {
+      sendApiError(res, error);
     }
     return;
   }
