@@ -72,6 +72,18 @@ Signals are selected in this order. A higher-priority condition wins and the exa
 
 A signal is an explainable observation, not a BUY, SELL, MUST PURCHASE, stop-buy, negotiation guarantee or company decision. The Traditional Chinese reason must use purchasing-friendly but non-directive language.
 
+## Production quality gate
+
+Before delivery, `evaluateWeeklyQuality` counts tracked indicators, usable `LIVE`／`FALLBACK` rows, `STALE`, `API_ERROR`, `NO_DATA`, insufficient-history comparisons, missing FX and artifact integrity. It returns one of:
+
+| Result | Rule | Delivery behavior |
+| --- | --- | --- |
+| `SEND_OK` | Usable public observations meet the threshold, no blocking integrity failure and no material warning | Live send is eligible after SMTP and owner approval |
+| `SEND_WITH_WARNINGS` | Report is materially usable but exposes fallback, stale, provider, history or FX warnings | Live send is eligible only with warnings preserved |
+| `SEND_BLOCKED` | No usable rows, usable ratio below 50%, or required artifact integrity failure | No SMTP attempt; job records a blocked result |
+
+The gate does not fabricate data, convert stale rows to fresh rows or hide provider failure. The same result is present in canonical report metadata and safe operational status.
+
 ## Output contract
 
 The HTML report begins with biggest weekly risers, biggest decliners, high-volatility indicators and data-quality warnings. It then displays a compact table of all indicators, source units, statuses, values, weekly／four-week changes, signals and reasons. Inline SVG trend visuals are compact and optional; the text table is sufficient when images are unavailable.
@@ -80,6 +92,6 @@ The XLSX report contains exactly these minimum sheets: 「本週摘要」、「�
 
 ## References
 
-[1]: https://github.com/ggyin0628-code/raw-material-market-dashboard/tree/feat/weekly-market-intelligence-v1 "Weekly report implementation branch"
-[2]: https://github.com/ggyin0628-code/raw-material-market-dashboard/blob/feat/weekly-market-intelligence-v1/lib/weekly/weeklyAnalytics.js "Analytics implementation"
-[3]: https://github.com/ggyin0628-code/raw-material-market-dashboard/blob/feat/weekly-market-intelligence-v1/lib/weekly/reportService.js "Report, HTML and XLSX implementation"
+[1]: https://github.com/ggyin0628-code/raw-material-market-dashboard/tree/feat/weekly-market-intelligence-production-v1 "Weekly report implementation branch"
+[2]: https://github.com/ggyin0628-code/raw-material-market-dashboard/blob/feat/weekly-market-intelligence-production-v1/lib/weekly/weeklyAnalytics.js "Analytics implementation"
+[3]: https://github.com/ggyin0628-code/raw-material-market-dashboard/blob/feat/weekly-market-intelligence-production-v1/lib/weekly/reportService.js "Report, HTML and XLSX implementation"

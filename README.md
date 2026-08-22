@@ -112,7 +112,18 @@ npm run weekly:preview -- --week YYYY-Www --out /tmp/weekly-preview.html
 DRY_RUN=1 npm run weekly:send -- --week YYYY-Www --dry-run --out-dir /tmp/weekly-send
 ```
 
-`MARKET_SNAPSHOT_FILE` 可指向持久化快照路徑；`WEEKLY_DELIVERY_LEDGER` 可指向持久化寄信 ledger。Daily snapshot、report、preview 與 backfill 不寄送 email。Live SMTP 只接受 environment-only 設定，缺少或格式錯誤時 fail closed。完成週預設以 `Asia/Taipei` 的前一個 Monday–Sunday ISO week 計算。完整模型、訊號順序、SMTP 與 scheduler 說明見 [`docs/WEEKLY_MARKET_INTELLIGENCE.md`](docs/WEEKLY_MARKET_INTELLIGENCE.md)、[`docs/WEEKLY_REPORT_CONTRACT.md`](docs/WEEKLY_REPORT_CONTRACT.md)、[`docs/EMAIL_DELIVERY.md`](docs/EMAIL_DELIVERY.md) 與 [`docs/SCHEDULER_RUNBOOK.md`](docs/SCHEDULER_RUNBOOK.md)。
+Production jobs 必須先通過 durable storage gate：
+
+```bash
+npm run production:storage-check
+npm run production:status
+npm run production:bootstrap -- --period 3y
+npm run production:daily
+npm run production:weekly -- --dry-run --send
+npm run production:backup -- --backup-id <owner-approved-id>
+```
+
+在 `NODE_ENV=production` 或 `REQUIRE_DURABLE_STORAGE=1` 時，`PRODUCTION_STORAGE_ROOT` 必須是 owner-approved absolute durable mount；否則回 `STORAGE_CONFIGURATION_REQUIRED`，不可將 Render free／container ephemeral filesystem 當成 durable。Production weekly 先產生 JSON／HTML／XLSX、評估 `SEND_OK`／`SEND_WITH_WARNINGS`／`SEND_BLOCKED`，再依 dry-run → `MAIL_TEST_MODE=1`／`MAIL_TEST_TO` → approved recipients 的 staged workflow 進行 SMTP。完成週預設以 `Asia/Taipei` 的前一個 Monday–Sunday ISO week 計算。完整模型、品質、儲存、SMTP 與 scheduler 說明見 [`docs/WEEKLY_MARKET_INTELLIGENCE.md`](docs/WEEKLY_MARKET_INTELLIGENCE.md)、[`docs/WEEKLY_REPORT_CONTRACT.md`](docs/WEEKLY_REPORT_CONTRACT.md)、[`docs/PRODUCTION_STORAGE.md`](docs/PRODUCTION_STORAGE.md)、[`docs/PRODUCTION_ACTIVATION.md`](docs/PRODUCTION_ACTIVATION.md)、[`docs/EMAIL_DELIVERY.md`](docs/EMAIL_DELIVERY.md)、[`docs/OPERATIONS_RUNBOOK.md`](docs/OPERATIONS_RUNBOOK.md) 與 [`docs/SCHEDULER_RUNBOOK.md`](docs/SCHEDULER_RUNBOOK.md)。
 
 ## 測試與驗證
 
@@ -126,13 +137,13 @@ npm run build
 npm audit --omit=dev
 ```
 
-`npm test` 會 mock 外部 fetch，涵蓋材料與單位契約、conversion factor、malformed quote、日期排序與去重、bounded retry、訊號門檻、歷史計算、FX nearest-prior、fresh／stale cache、`LIVE` canonicalization、fallback、total failure、無效 symbol／period、timeout、健康檢查、兩種歷史 API 與兩種 XLSX export。測試不依賴 Yahoo 當下可用性。
+`npm test` 會 mock 外部 fetch，涵蓋材料與單位契約、conversion factor、malformed quote、日期排序與去重、bounded retry、訊號門檻、歷史計算、FX nearest-prior、fresh／stale cache、`LIVE` canonicalization、fallback、total failure、無效 symbol／period、timeout、健康檢查、兩種歷史 API 與兩種 XLSX export，以及 production storage gate、quality gate、bootstrap、SMTP test mode、auth／timeout／uncertain acceptance／attachment failure 與 safe weekly health。最新 deterministic suite 為 31 passed／0 failed，測試不依賴 Yahoo 當下可用性。
 
 ## 公開資料部署
 
 這是需要 Node.js 後端的 Web Service，不是只把靜態檔案丟到 CDN。Render 設定見 [`render.yaml`](render.yaml)，部署步驟與非生產檢查見 [`DEPLOY.md`](DEPLOY.md)。部署前至少執行 `npm ci`、`npm run check`、`npm test`、`npm run build`，並確認 `/health` 與公開資料 API 的實際狀態。
 
-本次稽核未部署新 production site、未加入認證、未加入私人 connector 或生產憑證。公開 repository 目前只含公開市場 dashboard 實作與 seed；在未來加入供應商報價、公司採購資料、SAP、內部門檻或公司專屬 mapping 前，應先改為 private repository 並重新做資料分級審查。
+本次未部署新 production site、未啟用 paid resources、未建立 production cron、未加入認證、私人 connector 或生產憑證。公開 repository 永久只含外部公開市場情報與採購參考實作及 public seed；供應商報價、公司採購資料、SAP、內部門檻、公司目標價格、inventory、MOQ、payment terms、private mapping 與 private runtime reports 永遠不屬於本產品，也不得作為未來功能方向。下一個功能擴展固定為 external machining／sheet-metal public market reference intelligence。
 
 ## 詳細契約與交接
 

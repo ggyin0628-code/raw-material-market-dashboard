@@ -1,66 +1,60 @@
-# 公開網站部署方式
+# 公開網站與 Weekly V1 Production Readiness
 
-本系統是需要 Node.js 後端的 **公開市場資料 Web Service**，不能只部署 `index.html` 與靜態檔案。後端會依請求取得 Yahoo Finance、Stooq、Jina 公開代理或 open.er-api.com 的資料；外部來源暫時不可用時，服務會依契約顯示 `FALLBACK`、`STALE`、`NO_DATA` 或 `API_ERROR`，不會補假價格。
+本系統是需要 Node.js 後端的 **外部公開市場情報與採購參考平台**，不只是靜態網站。服務取得 Yahoo Finance、registry-configured Stooq、固定 Jina public proxy 與 open.er-api 的公開資料，並在來源失敗時保留 `FALLBACK`、`STALE`、`NO_DATA` 或 `API_ERROR`。本專案不包含 SAP、公司採購歷史、供應商報價、公司目標價、庫存、MOQ、付款條件、私人門檻或生產憑證。
 
-## 建議部署設定
-
-Render、Railway、Fly.io 或公司自己的 Linux／Windows Node 主機皆可使用，前提是支援 Node.js 20 以上、可執行 `npm start`，並允許服務連到已配置的公開來源。Render manifest 位於 [`render.yaml`](render.yaml)。
+## 已驗證的 runtime contract
 
 | 設定 | 值 |
 | --- | --- |
-| Runtime | Node.js 20 或以上 |
-| Install／Build | `npm ci`；若平台只接受 build command，可使用 `npm ci` 或 `npm run build`，但正式啟動前應已完成依賴安裝。 |
-| Start command | `npm start` |
-| Health check | `/health` |
-| Host | 應由平台提供的 `HOST`；未指定時程式預設 `0.0.0.0`。 |
-| Port | 使用平台提供的 `PORT`；未指定時預設 `4173`。 |
-| Secrets | 本專案目前不要求 API key；不要把公司憑證、supplier data 或私人 endpoint 放入 repository。 |
+| Runtime | Node.js 20 以上 |
+| Install／Build | `npm ci`；正式 pipeline 不使用未鎖定的 `npm install` |
+| Start | `npm start` |
+| Host | `HOST`；未指定時 `0.0.0.0` |
+| Port | `PORT`；未指定時 `4173` |
+| Process health | `GET /health`；只證明 web process 可回應 |
+| Weekly operational health | `GET /health/weekly`；storage 未配置時回 HTTP 503 並回報 `STORAGE_CONFIGURATION_REQUIRED` |
+| Production storage guard | `REQUIRE_DURABLE_STORAGE=1` 或 `NODE_ENV=production` 時，未配置 durable root 會阻擋 production jobs |
+| Public sources | Yahoo Finance、明確配置的 Stooq、固定 Jina public proxy、open.er-api |
+| Secrets | 僅由 environment 讀取；本 repository 不存放 SMTP credentials 或 recipient list |
 
-部署前請從乾淨 checkout 執行：
+## Render current posture
 
-```bash
+`render.yaml` 保持 `plan: free`，並使用 `npm ci`、`npm start` 與 `/health`。Free web service 沒有本次已驗證的 persistent volume；因此 manifest 明確設定 `REQUIRE_DURABLE_STORAGE=1`，production daily／bootstrap／weekly／backup commands 會在未提供 durable storage 時 fail closed，`/health/weekly` 會顯示 `STORAGE_CONFIGURATION_REQUIRED`。這不是把 ephemeral filesystem 假裝成 durable，也沒有在本次任務中購買或啟用付費資源。
+
+在 owner 批准 persistent storage 後，才可將 `PRODUCTION_STORAGE_ROOT` 指向平台提供的持久化 mount，並重新執行全部 validation gates。若平台不能提供可靠的 persistent mount，應使用與現有 Node architecture 相容且由 owner 批准的 durable storage adapter；不得讓 scheduler 直接寫 ephemeral local disk。
+
+## 安全啟用順序
+
+先由 owner 配置並驗證 durable storage，再執行 public-history bootstrap；接著執行 daily snapshot 與 `/health/weekly` 檢查，確認 job state、coverage 與 reporting week；之後以 `DRY_RUN=1` 產生 HTML／XLSX 並檢查 report quality gate。SMTP 必須依 `docs/EMAIL_DELIVERY.md` 先進行 TEST_RECIPIENT live verification，完成實收信件檢查後，才可批准 production recipients，最後才啟用外部 scheduler。
+
+```sh
 npm ci
 npm run check
 npm test
 npm run build
 npm audit --omit=dev
+npm run production:storage-check
+npm run production:status
+npm run production:bootstrap -- --period 3y
+npm run production:daily
+npm run production:weekly -- --dry-run --send
 ```
 
-## 部署後檢查
+在 storage 尚未配置時，`production:storage-check` 與 `production:status` 必須清楚回報 `STORAGE_CONFIGURATION_REQUIRED`；`production:bootstrap`、`production:daily`、`production:weekly` 與 `production:backup` 必須拒絕執行，不得產生虛假的 durable claim。
 
-先確認健康端點：
+## Deployment checks
 
-```text
-https://你的網址/health
-```
+部署後先檢查 `/health`，再檢查 `/health/weekly`。`/health` HTTP 200 不代表 weekly durable storage、資料快照、report 或 mail 已就緒。只有 `/health/weekly` 回報 storage ready，且 production readiness matrix 沒有 `FIX_REQUIRED`、`HOSTING_REQUIRED`、`SECRET_REQUIRED` 或未核准的 external dependency，才可把 production scheduler 從 blocked 改為可執行。
 
-成功時應得到 HTTP 200 與類似以下內容：
+## Product direction
 
-```json
-{
-  "status": "OK"
-}
-```
+本產品的下一個功能擴展是 **外部加工／鈑金市場參考情報**，仍然只使用公開外部市場資料。任何公司私有採購資料、SAP、供應商資料或 credentials 都不在本 repository 的下一步。
 
-接著檢查：
+## References
 
-```text
-https://你的網址/api/market
-https://你的網址/api/materials
-https://你的網址/api/history?symbol=HG%3DF&period=1y
-https://你的網址/api/export/excel?symbol=HG%3DF&period=1y
-```
-
-`/api/market` 或 `/api/materials` 的 `state` 可以是 `OK`、`FALLBACK`、`STALE`、`NO_DATA` 或 `API_ERROR`；這些是資料可用性的真實狀態，不代表服務程序掛掉。外部公開來源的暫時 timeout 不應被誤判為產品可以自行提供即時報價。
-
-## 快取與執行期注意事項
-
-fresh cache 預設 TTL 是 15 分鐘，stale cache 預設 TTL 是 24 小時。只有至少 70% 的 row 是有限數值且狀態為新鮮 `OK`／`FALLBACK` 時，snapshot 才會被儲存成 fresh cache。stale 結果會保留最近成功時間並在 UI 與 XLSX 中標明 `STALE`。
-
-cache 與 logs 都寫在專案根目錄下的 ignored 目錄；路徑由模組位置解析，不依賴平台啟動時的 current working directory。正式平台應確認檔案系統是否為 ephemeral；若服務重啟後清除 local cache，程式仍會依 bundled `market-seed.json` 或公開來源決定結果，但不能保證 seed 永遠是即時資料。
-
-## 公開可見性與資料邊界
-
-本次稽核未變更 repository visibility，也未部署 production。公開 repository 目前只包含公開市場資料程式、非私人 seed、測試與文件。未來若要加入供應商名稱與報價、公司採購數量、SAP 匯出、內部決策門檻、公司專屬材料 mapping 或私人 API endpoint，應在加入前改為 private repository，並重新進行秘密掃描與資料分級審查。
-
-不應把目前的市場 TWD 參考值當成台灣現貨、含稅含運、交貨條件或合約價。正式上線前仍應由產品負責人確認服務條款、來源授權、監控與對外使用政策；本文件只記錄程式與公開資料的部署就緒條件。
+- [`render.yaml`](render.yaml)
+- [`docs/PRODUCTION_ACTIVATION.md`](docs/PRODUCTION_ACTIVATION.md)
+- [`docs/PRODUCTION_STORAGE.md`](docs/PRODUCTION_STORAGE.md)
+- [`docs/EMAIL_DELIVERY.md`](docs/EMAIL_DELIVERY.md)
+- [`docs/SCHEDULER_RUNBOOK.md`](docs/SCHEDULER_RUNBOOK.md)
+- [`docs/OPERATIONS_RUNBOOK.md`](docs/OPERATIONS_RUNBOOK.md)

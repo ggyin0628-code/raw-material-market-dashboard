@@ -75,7 +75,7 @@ Weekly analytics 僅使用 `LIVE` 與 `FALLBACK` 進行數值比較；`STALE`、
 
 訊號依固定優先順序產生：current status 為 stale／error 時先顯示 `DATA_QUALITY_WARNING`；沒有 current 或必要 comparison 時顯示 `DATA_INSUFFICIENT`；rolling volatility ≥ 3 percentage points 時顯示 `HIGH_VOLATILITY`；weekly change ≥ 2% 或 four-week change ≥ 4% 時顯示 `COST_PRESSURE_RISING`；weekly change ≤ -2% 或 four-week change ≤ -4% 時顯示 `MARKET_WEAKENING`；其餘資料充足狀態為 `STABLE`。每個訊號都帶有可重現的 reason code 與 Traditional Chinese reason。
 
-這些訊號描述公開市場觀察，不是買進、賣出、停買、必須採購、議價承諾或公司決策。使用者仍需查核供應商報價、交期、MOQ、付款條件、庫存與內部政策；這些資料不在本 public repository。
+這些訊號描述公開市場觀察，不是買進、賣出、停買、必須採購、議價承諾或公司決策。產品不讀取、不保存也不延伸至 supplier quotation、交期、MOQ、付款條件、庫存或內部政策；上述私人資料永久不屬於本產品。
 
 ## 產出
 
@@ -83,11 +83,19 @@ Weekly analytics 僅使用 `LIVE` 與 `FALLBACK` 進行數值比較；`STALE`、
 
 ## 外部限制
 
-Public provider availability、rate limit、timeout、資料延遲、來源授權與 runtime filesystem persistence 都是 operational dependency。若部署環境的本地檔案系統會在 instance replacement 後消失，必須先配置持久化 volume 或外部 private storage；本次沒有新增公司資料庫或私人 connector，也沒有建立 production cron。
+Public provider availability、rate limit、timeout、資料延遲、來源授權與 runtime filesystem persistence 都是 operational dependency。若部署環境的本地檔案系統會在 instance replacement 後消失，production jobs 必須先配置 owner-approved durable storage root；未配置時一律 `STORAGE_CONFIGURATION_REQUIRED`，不得把 ephemeral filesystem 當成 durable。本次沒有新增公司資料庫、私人 connector、付費資源或 production cron。
 
 ## References
 
-[1]: https://github.com/ggyin0628-code/raw-material-market-dashboard/tree/feat/weekly-market-intelligence-v1 "Weekly Market Intelligence V1 source branch"
+[1]: https://github.com/ggyin0628-code/raw-material-market-dashboard/tree/feat/weekly-market-intelligence-production-v1 "Weekly Market Intelligence V1 source branch"
 [2]: https://query1.finance.yahoo.com/ "Yahoo Finance public chart host used by the existing adapter"
 [3]: https://r.jina.ai/ "Fixed public proxy used only for Yahoo history fallback"
 [4]: https://open.er-api.com/ "Public FX fallback endpoint used by the existing adapter"
+
+## Production activation contract
+
+Production storage paths are resolved by the shared storage configuration. `PRODUCTION_STORAGE_ROOT` must be an absolute owner-approved durable mount when `NODE_ENV=production` or `REQUIRE_DURABLE_STORAGE=1`; otherwise every production command fails closed with `STORAGE_CONFIGURATION_REQUIRED`. Snapshot, job state, report metadata, delivery ledger and report artifacts use atomic file replacement; backup exports only public-market data and safe operational metadata.
+
+Before an email attempt, the weekly report evaluates the quality gate. `SEND_OK` means usable public observations and complete artifacts; `SEND_WITH_WARNINGS` means the report is materially usable but exposes fallback, stale, provider error, insufficient-history or FX warnings; `SEND_BLOCKED` means no usable data, usable ratio below the documented threshold or incomplete artifact integrity. Blocked reports never send.
+
+The production commands are `production:storage-check`, `production:status`, `production:bootstrap`, `production:daily`, `production:weekly` and `production:backup`. SMTP remains provider-neutral, environment-only and staged through dry-run → `MAIL_TEST_MODE=1`／`MAIL_TEST_TO` → approved recipients. No production scheduler or live recipient send is enabled by this repository task. The explicit next human action is to configure approved persistent storage and SMTP variables, perform TEST_RECIPIENT live email verification, and then enable the Asia/Taipei weekly scheduler.

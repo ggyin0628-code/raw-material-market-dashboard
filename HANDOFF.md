@@ -1,18 +1,18 @@
-# Codex Handoff — Weekly Market Intelligence V1
+# Codex Handoff — Weekly Market Intelligence Production Activation
 
 ## Delivery identity
 
 | Item | Value |
 | --- | --- |
 | Repository | [`ggyin0628-code/raw-material-market-dashboard`](https://github.com/ggyin0628-code/raw-material-market-dashboard) |
-| Starting checkpoint | `raw-material-dashboard-hardened-v1` |
-| Starting checkpoint target | `698bed19b79ec0ee868d9707bdecd858e5a18f73` |
-| Authoritative feature branch | `feat/weekly-market-intelligence-v1` |
-| Checkpoint tag to resolve after delivery | `weekly-market-intelligence-v1` |
+| Starting checkpoint | `weekly-market-intelligence-v1` |
+| Starting checkpoint target | `b78ba1e6302a30b8231711c15d5945d3223687c5` |
+| Authoritative feature branch | `feat/weekly-market-intelligence-production-v1` |
+| Production checkpoint tag | `weekly-market-intelligence-production-ready-v1` |
 | Product boundary | External public-market intelligence and purchasing-reference platform |
 | Deployment | Not performed in this task |
 
-The weekly feature branch must be based on the hardened checkpoint tag, not on `main`. `main` must remain unmodified and must never receive a merge from this task. The final immutable revision is the commit resolved by `git rev-parse weekly-market-intelligence-v1^{}` after the annotated tag has been pushed. This command keeps the document self-verifying without depending on conversation history.
+The production feature branch is based directly on the `weekly-market-intelligence-v1` checkpoint target, not on `main`. `main` must remain unmodified and must never receive a merge from this task. The final immutable revision is the commit resolved by `git rev-parse weekly-market-intelligence-production-ready-v1^{}` after the annotated tag has been pushed. Required tag message: `Weekly Market Intelligence production-ready — SMTP and owner activation remaining`.
 
 ## Product boundary
 
@@ -24,7 +24,7 @@ The implementation must not claim supplier purchase prices, company target purch
 
 The existing Node.js CommonJS service remains the application boundary. `lib/weekly/snapshotStore.js` owns the atomic JSON ledger, `dailySnapshotService.js` converts the hardened live snapshot to canonical daily records, `backfillService.js` imports provider-supported public history idempotently, `weeklyAnalytics.js` calculates completed-week comparisons and reason-coded signals, `reportService.js` owns the canonical report plus Traditional Chinese HTML and XLSX renderers, `mailService.js` owns fail-closed SMTP delivery and the weekly delivery ledger, and `cli.js` exposes scheduler-compatible commands.
 
-The default durable ledger path is `data/market-snapshots/snapshots.json`, overridable by `MARKET_SNAPSHOT_FILE`. The default report output directory is `data/weekly-reports`. Both generated paths are ignored by Git. Writes use a temporary file followed by an atomic rename; identities are `materialId + date`. A higher-quality `LIVE` or `FALLBACK` record cannot be silently downgraded by a later same-day `STALE`, `NO_DATA` or `API_ERROR` attempt. Missing market days remain missing.
+Local development defaults remain under ignored `data/`, but production never treats an ephemeral filesystem as durable. In production mode, `PRODUCTION_STORAGE_ROOT` must be an absolute owner-approved persistent mount or the command fails closed with `STORAGE_CONFIGURATION_REQUIRED`. Snapshot, report, job-state, metadata and delivery ledger files resolve from the shared storage configuration and use temporary-file plus atomic rename writes. Identities are `materialId + date`; a higher-quality `LIVE` or `FALLBACK` record cannot be silently downgraded by a later same-day `STALE`, `NO_DATA` or `API_ERROR` attempt. Missing market days remain missing. Public-only backup export is available via `production:backup`.
 
 ## Canonical statuses and public sources
 
@@ -53,9 +53,22 @@ Signal precedence is deterministic. Missing current or required comparison data 
 
 Preview and report routes are safe read operations. They never send email. The dashboard adds only a compact weekly summary, preview link, Excel link and data-quality visibility; the existing hardened market table and decision panel remain intact.
 
+## Production commands and gates
+
+| Command | Purpose | Expected blocking state |
+| --- | --- | --- |
+| `npm run production:storage-check` | Validate absolute owner-approved durable storage | `STORAGE_CONFIGURATION_REQUIRED` |
+| `npm run production:status` | Print sanitized storage／job／week summary | non-zero when storage is unconfigured |
+| `npm run production:bootstrap -- --period 3y` | Idempotent public-history bootstrap and first report | blocked by storage or report quality |
+| `npm run production:daily` | Capture and persist a public daily snapshot | blocked by storage; row-level provider errors remain visible |
+| `npm run production:weekly -- --dry-run --send` | Build artifacts, evaluate quality and write no-socket dry-run ledger | `SEND_BLOCKED` for unusable report |
+| `npm run production:backup -- --backup-id <id>` | Export public snapshot／ledger／metadata with manifest | non-zero on storage or copy failure |
+
+Quality gate results are `SEND_OK`, `SEND_WITH_WARNINGS` or `SEND_BLOCKED`; no blocked report opens SMTP. `/health/weekly` returns safe operational data only, with HTTP 503 and `STORAGE_CONFIGURATION_REQUIRED` before durable configuration and HTTP 200 for a configured synthetic root.
+
 ## Mail safety
 
-SMTP configuration comes only from environment variables. `MAIL_ENABLED` must be truthy for live delivery; `MAIL_HOST`, `MAIL_PORT`, `MAIL_SECURE`, `MAIL_USER`, `MAIL_PASSWORD`, `MAIL_FROM` and `MAIL_TO` are validated. `DRY_RUN=1` or `--dry-run` produces the report, attachment and configuration result but does not open a socket or send mail. Live delivery is fail-closed for missing or malformed configuration, has a bounded timeout and retry policy, writes only redacted delivery metadata, and records `SENT` by reporting week to prevent duplicate sends.
+SMTP configuration comes only from environment variables. `MAIL_ENABLED` must be truthy for live delivery; host, port, credentials, sender, recipients, optional `MAIL_CC`／`MAIL_REPLY_TO` and test-mode values are validated. `MAIL_TEST_MODE=1` ignores production recipients and uses only `MAIL_TEST_TO`; test mode also omits production CC／Reply-To headers. `DRY_RUN=1` or `--dry-run` produces the report, attachment and configuration result but does not open a socket or send mail. Live delivery is fail-closed for missing or malformed configuration, has bounded transient-only retry, does not auto-retry uncertain acceptance after SMTP DATA, writes redacted delivery metadata, records `TEST_SENT`／`SENT`／`FAILED` and prevents duplicate weeks. Owner-approved resend requires both `ALLOW_WEEKLY_RESEND=1` and `--allow-resend`.
 
 ## Validation commands
 
@@ -72,21 +85,21 @@ npm run weekly:preview -- --week 2026-W33 --file /path/to/snapshots.json --out /
 DRY_RUN=1 npm run weekly:send -- --week 2026-W33 --file /path/to/snapshots.json --out-dir /tmp/weekly-send --dry-run
 ```
 
-The deterministic suite must cover snapshot persistence, duplicate prevention, missing days, stale and API-error separation, partial and insufficient history, FX calculations, threshold boundaries, reason codes, report model, HTML, XLSX, dry-run email, missing mail configuration, duplicate weekly sends, scheduler command parsing and history backfill normalization. A separate public smoke records configured indicators, quote and history availability, source, fallback use and failure count; public API failure is not by itself an offline implementation failure.
+The deterministic suite must cover snapshot persistence, duplicate prevention, missing days, stale and API-error separation, partial and insufficient history, FX calculations, threshold boundaries, reason codes, report model, HTML, XLSX, dry-run email, test-recipient routing, missing mail configuration, duplicate weekly sends, storage gating, quality blocking, production bootstrap, safe health output, scheduler command parsing and history backfill normalization. The current local result is 31 passed／0 failed. A separate public smoke records configured indicators, quote and history availability, source, fallback use and failure count; public API failure is not by itself an offline implementation failure.
 
 ## Fresh-clone rule
 
-Final validation must clone only from GitHub using the feature branch. No Manus-only file, local cache, external fixture or untracked artifact may be required. The fresh clone must run `npm ci`, `npm run check`, `npm test`, `npm run build`, the production dependency audit, the safe report commands and a local `/health` check. The clone working tree must remain clean after the checks.
+Final validation must clone only from GitHub using `feat/weekly-market-intelligence-production-v1`. No Manus-only file, local cache, external fixture or untracked artifact may be required. The fresh clone must run `npm ci`, `npm run check`, `npm test`, `npm run build`, `npm audit --omit=dev`, production storage/status/bootstrap/daily/weekly dry-run/backup commands with a temporary synthetic absolute durable root, and local `/health` plus `/health/weekly` checks. The clone working tree must remain clean after the checks.
 
 ## External configuration required
 
-For public-data operation, the scheduler needs network access to the fixed public providers and a persistent `MARKET_SNAPSHOT_FILE` location. For live email, an owner must supply the SMTP environment variables and approved recipients outside the repository. No real address, password, token or private endpoint may be committed. A Render-style external scheduler can run the commands; this task does not create or activate a production cron.
+For public-data operation, the scheduler needs network access to the fixed public providers and an owner-approved durable `PRODUCTION_STORAGE_ROOT`. For live email, an owner must supply SMTP environment variables, an approved sender, `MAIL_TEST_TO` and later approved recipients outside the repository. No real address, password, token, private endpoint or private runtime report may be committed. This task does not deploy, purchase／activate paid resources, or create／activate a production cron. Explicit next human action: configure approved persistent storage and SMTP variables, perform TEST_RECIPIENT live email verification, then enable the weekly scheduler.
 
 ## Next Codex task
 
-Before any private data integration, obtain owner approval for a separate private authenticated procurement-data service and a data-classification／retention／access-control design. Do not add supplier quotation, SAP, inventory, delivery, MOQ, company thresholds or private credentials to this public repository. Preserve the weekly public-data semantics and source-status contract.
+The next functional expansion is **external machining／sheet-metal market reference intelligence**. It must remain public external market intelligence only and must not be redirected into company purchase history, SAP, supplier quotation history, company target prices, private thresholds, inventory, MOQ, payment terms or other private procurement data. Preserve the public-data semantics, source-status contract and purchasing-reference boundary while extending coverage to public machining and sheet-metal market indicators.
 
 ## References
 
-[1]: https://github.com/ggyin0628-code/raw-material-market-dashboard/tree/raw-material-dashboard-hardened-v1 "Starting hardened checkpoint"
-[2]: https://github.com/ggyin0628-code/raw-material-market-dashboard/tree/feat/weekly-market-intelligence-v1 "Weekly Market Intelligence V1 feature branch"
+[1]: https://github.com/ggyin0628-code/raw-material-market-dashboard/tree/weekly-market-intelligence-v1 "Authoritative Weekly V1 checkpoint"
+[2]: https://github.com/ggyin0628-code/raw-material-market-dashboard/tree/feat/weekly-market-intelligence-production-v1 "Production feature branch"

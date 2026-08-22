@@ -42,8 +42,12 @@ const { readStore, upsertSnapshots, clearWriteQueue } = require("../lib/weekly/s
 const { buildWeeklyReport, renderWeeklyHtml, createWeeklyWorkbook } = require("../lib/weekly/reportService");
 const { buildSignal } = require("../lib/weekly/weeklyAnalytics");
 const { backfillPublicHistory } = require("../lib/weekly/backfillService");
-const { parseArgs, run: runWeeklyCommand } = require("../lib/weekly/cli");
-const { sendWeeklyEmail, readMailConfig, validateMailConfig, writeLedger } = require("../lib/weekly/mailService");
+const { parseArgs, run: runWeeklyCommand, commandExitCode, errorExitCode } = require("../lib/weekly/cli");
+const { sendWeeklyEmail, readMailConfig, validateMailConfig, writeLedger, readLedger, createMimeMessage } = require("../lib/weekly/mailService");
+const { getStorageConfig, assertProductionStorage } = require("../lib/weekly/storageConfig");
+const { ensureStorageDirectories, getStorageStatus, backupPublicStorage, readJobState } = require("../lib/weekly/storageService");
+const { evaluateWeeklyQuality } = require("../lib/weekly/qualityGate");
+const { runProductionBootstrap, runProductionWeekly, readProductionStatus } = require("../lib/weekly/productionService");
 
 const originalFetch = global.fetch;
 const originalSnapshotFile = process.env.MARKET_SNAPSHOT_FILE;
@@ -491,4 +495,129 @@ test("weekly command generates preview and report artifacts without email", asyn
   const generated = await runWeeklyCommand("weekly:report", ["--week", "2026-W33", "--file", filePath, "--out-dir", outputDir]);
   assert.equal(generated.reportingWeek, "2026-W33");
   assert.equal((await fs.stat(generated.artifacts.xlsxPath)).isFile(), true);
+});
+
+function fullProductionFixtureRecords() {
+  const materialRecords = materials.flatMap((material, index) => [
+    { materialId: material.id, materialName: material.name, symbol: material.symbol, category: material.category, exchange: material.exchange, date: "2026-08-10", marketPrice: 100 + index, sourceUnit: material.unit, currency: material.currency, usdTwdRate: 32, twdReferenceValue: (100 + index) * 32, source: "fixture public history", status: "LIVE", collectedAt: "2026-08-17T01:00:00Z", lastTradeTimestamp: "2026-08-10T12:00:00Z" },
+    { materialId: material.id, materialName: material.name, symbol: material.symbol, category: material.category, exchange: material.exchange, date: "2026-08-16", marketPrice: 101 + index, sourceUnit: material.unit, currency: material.currency, usdTwdRate: 32, twdReferenceValue: (101 + index) * 32, source: "fixture public history", status: "LIVE", collectedAt: "2026-08-17T01:00:00Z", lastTradeTimestamp: "2026-08-16T12:00:00Z" },
+  ]);
+  return materialRecords.concat([
+    { materialId: "__fx_usd_twd__", materialName: "USD/TWD", symbol: "TWD=X", category: "匯率", exchange: "PUBLIC FX", date: "2026-08-10", marketPrice: 32, sourceUnit: "TWD/USD", currency: "TWD", usdTwdRate: 32, twdReferenceValue: 32, source: "fixture FX", status: "LIVE", collectedAt: "2026-08-17T01:00:00Z", lastTradeTimestamp: "2026-08-10T12:00:00Z" },
+    { materialId: "__fx_usd_twd__", materialName: "USD/TWD", symbol: "TWD=X", category: "匯率", exchange: "PUBLIC FX", date: "2026-08-16", marketPrice: 32.1, sourceUnit: "TWD/USD", currency: "TWD", usdTwdRate: 32.1, twdReferenceValue: 32.1, source: "fixture FX", status: "LIVE", collectedAt: "2026-08-17T01:00:00Z", lastTradeTimestamp: "2026-08-16T12:00:00Z" },
+  ]);
+}
+
+test("production storage requires durable configuration and supports atomic public backup", async () => {
+  const missing = await getStorageStatus({ NODE_ENV: "production" }, { forceProduction: true });
+  assert.equal(missing.state, "STORAGE_CONFIGURATION_REQUIRED");
+  assert.equal(commandExitCode({ storage: missing }), 2);
+  assert.equal(errorExitCode({ code: "STORAGE_CONFIGURATION_REQUIRED", statusCode: 503 }), 2);
+  await assert.rejects(() => ensureStorageDirectories({ NODE_ENV: "production" }, { forceProduction: true }), (error) => error.code === "STORAGE_CONFIGURATION_REQUIRED");
+  const directory = await tempDirectory();
+  const env = { NODE_ENV: "production", PRODUCTION_STORAGE_ROOT: directory };
+  const config = getStorageConfig(env, { forceProduction: true });
+  await ensureStorageDirectories(env, { config });
+  await upsertSnapshots(weeklyFixtureRecords(), { filePath: config.snapshotFile, env });
+  await writeLedger({ weeks: { "2026-W33": { state: "DRY_RUN" } } }, config.deliveryLedgerFile);
+  await fs.writeFile(config.reportMetadataFile, JSON.stringify({ version: 1, reports: [] }));
+  const ready = await getStorageStatus(env, { config });
+  assert.equal(ready.state, "DURABLE_CONFIGURED");
+  assert.equal(ready.ready, true);
+  const backup = await backupPublicStorage({ env, config, backupId: "fixture" });
+  assert.equal(backup.files.snapshots.endsWith("snapshots.json"), true);
+  assert.equal((await fs.stat(backup.manifest)).isFile(), true);
+});
+
+test("production quality gate blocks materially unusable reports and production weekly records state", async () => {
+  const emptyReport = buildWeeklyReport({ records: [], reportingWeek: "2026-W33", generatedAt: "2026-08-17T01:00:00Z" });
+  const gate = evaluateWeeklyQuality(emptyReport);
+  assert.equal(gate.state, "SEND_BLOCKED");
+  assert.equal(gate.readyForDelivery, false);
+  const directory = await tempDirectory();
+  const env = { NODE_ENV: "production", PRODUCTION_STORAGE_ROOT: directory };
+  const config = getStorageConfig(env, { forceProduction: true });
+  const result = await runProductionWeekly({ env, storageConfig: config, reportingWeek: "2026-W33", records: [], send: true, dryRun: true });
+  assert.equal(result.state, "SEND_BLOCKED");
+  assert.equal(result.mail.state, "SEND_BLOCKED");
+  const jobs = await readJobState(config.jobStateFile);
+  assert.equal(jobs.jobs.weeklyReport.state, "SEND_BLOCKED");
+});
+
+test("production bootstrap is idempotent-safe and generates a first public report without sending mail", async () => {
+  const directory = await tempDirectory();
+  const env = { NODE_ENV: "production", PRODUCTION_STORAGE_ROOT: directory };
+  const config = getStorageConfig(env, { forceProduction: true });
+  let calls = 0;
+  const backfill = async ({ filePath }) => {
+    calls += 1;
+    const writeResult = await upsertSnapshots(fullProductionFixtureRecords(), { filePath, env });
+    return { period: "1y", recordCount: fullProductionFixtureRecords().length, inserted: writeResult.inserted, replaced: writeResult.replaced, ignored: writeResult.ignored, failureCount: 0, results: [] };
+  };
+  const result = await runProductionBootstrap({ env, storageConfig: config, period: "1y", backfill });
+  assert.equal(calls, 1);
+  assert.equal(result.state, "BOOTSTRAP_COMPLETE");
+  assert.equal(result.weekly.mail.state, "NOT_REQUESTED");
+  assert.equal(result.persistedRecordCount, 30);
+});
+
+test("mail test mode overrides production recipients and dry-run remains non-sending", async () => {
+  const config = readMailConfig({ MAIL_TEST_MODE: "1", MAIL_TEST_TO: " qa@example.com;QA@example.com ", MAIL_TO: "production@example.com", MAIL_CC: "cc@example.com cc@example.com", MAIL_REPLY_TO: "reply@example.com" });
+  assert.deepEqual(config.to, ["qa@example.com"]);
+  assert.deepEqual(config.envelopeRecipients, ["qa@example.com"]);
+  assert.equal(config.configuredTo[0], "production@example.com");
+  assert.equal(config.cc.length, 0);
+  assert.equal(config.replyTo, "");
+  const report = buildWeeklyReport({ records: fullProductionFixtureRecords(), reportingWeek: "2026-W33", generatedAt: "2026-08-17T01:00:00Z" });
+  const directory = await tempDirectory();
+  const dry = await sendWeeklyEmail({ report, html: "<p>fixture</p>", xlsxBuffer: Buffer.from("xlsx"), dryRun: true, env: { MAIL_ENABLED: "1", MAIL_HOST: "smtp.example.com", MAIL_PORT: "587", MAIL_USER: "fixture-user", MAIL_PASSWORD: "fixture-password", MAIL_FROM: "sender@example.com", MAIL_TO: "production@example.com", MAIL_TEST_MODE: "1", MAIL_TEST_TO: "qa@example.com" }, ledgerPath: path.join(directory, "ledger.json") });
+  assert.equal(dry.state, "DRY_RUN");
+  assert.equal(dry.testMode, true);
+  assert.equal(dry.sent, false);
+  const mime = createMimeMessage({ from: "sender@example.com", to: config.to, cc: config.cc, replyTo: config.replyTo, subject: "fixture", html: "<p>fixture</p>", attachments: [] });
+  assert.match(mime, /qa@example.com/);
+  assert.doesNotMatch(mime, /production@example.com/);
+  assert.doesNotMatch(mime, /cc@example.com/);
+});
+
+test("SMTP failure modes are bounded, redacted, and do not retry uncertain acceptance", async () => {
+  const report = buildWeeklyReport({ records: fullProductionFixtureRecords(), reportingWeek: "2026-W33", generatedAt: "2026-08-17T01:00:00Z" });
+  const env = { MAIL_ENABLED: "1", MAIL_HOST: "smtp.fixture", MAIL_PORT: "587", MAIL_USER: "fixture-user", MAIL_PASSWORD: "fixture-password", MAIL_FROM: "sender@example.com", MAIL_TO: "qa@example.com" };
+  const base = { report, html: "<p>fixture</p>", xlsxBuffer: Buffer.from("xlsx"), env };
+  let calls = 0;
+  const authLedger = path.join(await tempDirectory(), "auth-ledger.json");
+  const auth = Object.assign(new Error("SMTP authentication failed password=fixture-password"), { smtpCode: 535 });
+  const authResult = await sendWeeklyEmail({ ...base, ledgerPath: authLedger, smtpSender: async () => { calls += 1; throw auth; } });
+  assert.equal(authResult.state, "FAILED");
+  assert.equal(calls, 1);
+  assert.doesNotMatch(JSON.stringify(await readLedger(authLedger)), /fixture-password/);
+
+  calls = 0;
+  const timeoutLedger = path.join(await tempDirectory(), "timeout-ledger.json");
+  const timeout = Object.assign(new Error("SMTP pre-DATA timeout"), { code: "ETIMEDOUT" });
+  const timeoutResult = await sendWeeklyEmail({ ...base, ledgerPath: timeoutLedger, smtpSender: async () => { calls += 1; throw timeout; } });
+  assert.equal(timeoutResult.state, "FAILED");
+  assert.equal(calls, 3);
+
+  calls = 0;
+  const uncertainLedger = path.join(await tempDirectory(), "uncertain-ledger.json");
+  const uncertain = Object.assign(new Error("SMTP connection reset after DATA"), { code: "ECONNRESET", maybeAccepted: true });
+  const uncertainResult = await sendWeeklyEmail({ ...base, ledgerPath: uncertainLedger, smtpSender: async () => { calls += 1; throw uncertain; } });
+  assert.equal(uncertainResult.state, "FAILED");
+  assert.equal(calls, 1);
+
+  const attachmentLedger = path.join(await tempDirectory(), "attachment-ledger.json");
+  const attachmentResult = await sendWeeklyEmail({ ...base, xlsxBuffer: Buffer.alloc(0), ledgerPath: attachmentLedger, smtpSender: async () => { throw new Error("must not connect"); } });
+  assert.equal(attachmentResult.state, "FAILED");
+  assert.equal((await readLedger(attachmentLedger)).weeks["2026-W33"].state, "FAILED");
+});
+
+test("weekly health exposes storage state without filesystem paths or secrets", async () => {
+  const res = await request("/health/weekly");
+  assert.equal(res.statusCode, 503);
+  const body = JSON.parse(res.body);
+  assert.equal(body.status, "STORAGE_CONFIGURATION_REQUIRED");
+  assert.match(body.warnings.join(" "), /STORAGE_CONFIGURATION_REQUIRED/);
+  assert.equal(JSON.stringify(body).includes("/home/ubuntu"), false);
+  assert.equal(JSON.stringify(body).includes("MAIL_PASSWORD"), false);
 });

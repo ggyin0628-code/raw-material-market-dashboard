@@ -3,9 +3,11 @@ services:
     name: raw-material-market-dashboard
     env: node
     plan: free
-    buildCommand: "npm install"
+    buildCommand: "npm ci"
     startCommand: "npm start"
     healthCheckPath: "/health"
     envVars:
       - key: NODE_ENV
         value: production
+      - key: REQUIRE_DURABLE_STORAGE
+        value: "1"

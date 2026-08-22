@@ -1,62 +1,89 @@
-# Email Delivery
+# Email Delivery Runbook
 
-## Scope and safety
+## Boundary
 
-Weekly mail is a provider-neutral SMTP adapter for the public-market intelligence report. It does not read addresses, passwords or tokens from tracked files. All configuration comes from environment variables, and no live email is sent by the preview or report routes.
+Weekly email contains only external public-market intelligence, source/status/provenance, market-reference values, quality warnings and the non-purchasing-instruction disclaimer. It must not contain supplier quotations, company purchase history, SAP, inventory, MOQ, payment terms, company thresholds, credentials or private metadata.
 
-`DRY_RUN=1` or the `--dry-run` argument always takes precedence over delivery. In dry-run mode the system builds the weekly JSON／HTML／XLSX artifacts, validates the recipient and configuration shape, reports `DRY_RUN`, and does not open an SMTP socket. A dry-run never records `SENT` and can be repeated safely.
+## Environment-only configuration
 
-## Configuration
+No SMTP value is stored in Git. The adapter reads:
 
-| Variable | Required for live delivery | Description |
+| Variable | Required for live send | Meaning |
 | --- | --- | --- |
-| `MAIL_ENABLED` | Yes | Truthy value enables live delivery; otherwise the adapter fails closed |
-| `MAIL_HOST` | Yes | SMTP host |
-| `MAIL_PORT` | Yes | Integer from 1 to 65535; default shape is 587 when omitted |
-| `MAIL_SECURE` | Yes | Truthy value uses TLS; false uses plain SMTP with STARTTLS not negotiated by this minimal adapter |
-| `MAIL_USER` | Yes | SMTP authentication username |
-| `MAIL_PASSWORD` | Yes | SMTP authentication password; never logged |
-| `MAIL_FROM` | Yes | One validated sender address |
-| `MAIL_TO` | Yes | One or more validated addresses separated by whitespace, comma or semicolon |
-| `MAIL_TIMEOUT_MS` | No | Bounded timeout, clamped to 1–30 seconds |
-| `WEEKLY_DELIVERY_LEDGER` | No | Optional persistent ledger path; defaults to `data/weekly-reports/delivery-ledger.json` |
-| `DRY_RUN` | No | Truthy value prevents network delivery |
+| `MAIL_ENABLED` | Yes | Must be truthy before any live connection |
+| `MAIL_HOST` | Yes | Approved SMTP host |
+| `MAIL_PORT` | Yes | Integer 1–65535; default 587 |
+| `MAIL_SECURE` | No | TLS connection mode |
+| `MAIL_USER` | Yes | Secret-managed SMTP user |
+| `MAIL_PASSWORD` | Yes | Secret-managed password; never logged |
+| `MAIL_FROM` | Yes | Approved sender address |
+| `MAIL_TO` | Yes | Production recipient list |
+| `MAIL_CC` | No | Optional additional recipients |
+| `MAIL_REPLY_TO` | No | Optional valid reply-to address |
+| `MAIL_TEST_MODE` | No | When truthy, ignore `MAIL_TO` and use only `MAIL_TEST_TO` |
+| `MAIL_TEST_TO` | Required in test mode | Approved test recipient list |
+| `DRY_RUN` | No | When truthy, generate and validate without SMTP socket |
+| `ALLOW_WEEKLY_RESEND` | No | Must be truthy together with explicit `--allow-resend` to bypass duplicate guard |
 
-The current adapter expects authenticated SMTP credentials for live delivery. If the environment does not provide a complete valid configuration, the result is `FAILED` with a redacted configuration error and no socket connection. The adapter never prints `MAIL_PASSWORD`.
+Recipient parsing accepts comma, semicolon or whitespace separators, trims whitespace and removes case-insensitive duplicates. `MAIL_FROM`, `MAIL_TO`, `MAIL_CC`, `MAIL_REPLY_TO` and `MAIL_TEST_TO` are validated; malformed configuration fails closed.
+
+## Required staged activation
+
+### Stage A — dry-run
+
+```sh
+DRY_RUN=1 npm run production:weekly -- --dry-run --send
+```
+
+The command must generate JSON／HTML／XLSX, evaluate the quality gate, write `DRY_RUN` state, return `sent: false` and never create an SMTP socket. A dry-run does not prove credentials or network reachability.
+
+### Stage B — real SMTP with test recipient only
+
+Set `MAIL_ENABLED=1`, approved host／port／secure mode, secret-managed user／password, approved sender, `MAIL_TEST_MODE=1` and `MAIL_TEST_TO=<approved-test-address>`. The configured production `MAIL_TO` is ignored in this mode. Do not set production recipients as a substitute for `MAIL_TEST_TO`.
+
+### Stage C — actual receipt review
+
+Send one explicitly approved test week. Confirm subject `採購市場情報週報｜YYYY-Www`, sender, HTML at desktop and narrow/mobile widths, attachment opening, timestamps, source labels, status warnings and public-data disclaimer. Do not advance if any item is wrong.
+
+### Stage D — approved production recipients
+
+After Stage C passes, disable test mode and provide the owner-approved `MAIL_TO` and optional `MAIL_CC`. Run one explicitly approved production-recipient send for a known reporting week. The system still applies the duplicate guard.
+
+### Stage E — scheduler enablement
+
+Only after Stage D passes may the owner activate the weekly external scheduler. The scheduler must run the readiness/storage check first and must stop on `STORAGE_CONFIGURATION_REQUIRED` or `SEND_BLOCKED`.
 
 ## Delivery states
 
-| State | Meaning |
-| --- | --- |
-| `DRY_RUN` | Artifacts and configuration shape validated; no delivery attempted |
-| `SENT` | SMTP transaction completed and weekly ledger recorded the successful send |
-| `FAILED` | Mail disabled, configuration invalid, timeout, provider error or bounded retries exhausted |
-| `DUPLICATE_PREVENTED` | The same reporting week is already recorded as `SENT` |
+| State | Meaning | Safe retry |
+| --- | --- | --- |
+| `DRY_RUN` | Report and attachment built; no network delivery | Repeat freely; ledger records simulation |
+| `TEST_SENT` | Live SMTP send used `MAIL_TEST_MODE` | Do not resend automatically |
+| `SENT` | Live SMTP sent to approved recipients | Duplicate guard blocks same week |
+| `FAILED` | Configuration, authentication, timeout or other delivery failure | Follow recovery below |
+| `DUPLICATE_PREVENTED` | Same week already `SENT` or `TEST_SENT` | Requires explicit owner-approved resend |
 
-The delivery ledger is written atomically and keyed by `reportingWeek`. A successful delivery records only state, timestamp, recipient count and attachment count. It does not store credentials or message bodies.
+The ledger is atomic and keyed by reporting week. It stores state, timestamp, test-mode flag, recipient count, attachment count and a redacted error only. It does not store passwords or full recipient lists.
 
-## Safe commands
+## Retry and uncertain acceptance
+
+Market data retry remains bounded and provider-visible. SMTP retry is limited to transient connection／pre-DATA failures. Once the SMTP `DATA` body has been submitted, the adapter does not automatically retry an uncertain response because the message may already have been accepted and a retry could duplicate it. An authentication failure is non-transient and is not retried.
+
+For an SMTP timeout or connection reset, inspect the ledger and provider logs. If the failure occurred after DATA submission, treat delivery as uncertain and require owner confirmation before any resend. If the failure occurred before DATA submission, correct the configuration or transient network issue and retry only with explicit operational approval.
+
+## Controlled resend
+
+A legitimate resend requires owner approval, a known reporting week and an explicit command:
 
 ```sh
-# Generate artifacts only
-npm run weekly:report -- --week 2026-W33 --out-dir /tmp/weekly-report
-
-# Preview HTML only
-npm run weekly:preview -- --week 2026-W33 --out /tmp/weekly-preview.html
-
-# Validate configuration and attachments without sending
-DRY_RUN=1 npm run weekly:send -- --week 2026-W33 --dry-run --out-dir /tmp/weekly-send
+ALLOW_WEEKLY_RESEND=1 npm run production:weekly -- --week YYYY-Www --send --allow-resend
 ```
 
-Live delivery is intentionally not required for the public repository handoff because SMTP credentials and approved recipients have not been supplied. The dry-run, missing-configuration, fail-closed, timeout／retry, and duplicate-week paths are deterministic and tested.
-
-## Troubleshooting
-
-If the result is `FAILED` with a configuration error, validate `MAIL_ENABLED`, host, port, sender and all recipients; do not put credentials into `.env` committed files. If the result is `FAILED` after configuration validation, inspect the redacted runtime log for timeout or provider response without printing the password. If a week returns `DUPLICATE_PREVENTED`, inspect the persistent ledger and intentionally remove or rotate that entry only under owner-approved operational procedure; do not resend automatically.
-
-The intended weekly report is external market intelligence. It must not be reworded as a supplier quote, company target price, guaranteed negotiation price, unsupported Taiwan spot price or a BUY／SELL instruction.
+Never delete arbitrary ledger files to bypass the guard. Preserve the previous ledger for audit and use the documented backup/recovery procedure.
 
 ## References
 
-[1]: https://github.com/ggyin0628-code/raw-material-market-dashboard/blob/feat/weekly-market-intelligence-v1/lib/weekly/mailService.js "SMTP adapter implementation"
-[2]: https://github.com/ggyin0628-code/raw-material-market-dashboard/blob/feat/weekly-market-intelligence-v1/lib/weekly/cli.js "Weekly CLI implementation"
+- [`PRODUCTION_ACTIVATION.md`](PRODUCTION_ACTIVATION.md)
+- [`PRODUCTION_STORAGE.md`](PRODUCTION_STORAGE.md)
+- [`OPERATIONS_RUNBOOK.md`](OPERATIONS_RUNBOOK.md)
+- [`WEEKLY_REPORT_CONTRACT.md`](WEEKLY_REPORT_CONTRACT.md)

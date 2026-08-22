@@ -12,7 +12,7 @@ npm run build
 npm audit --omit=dev
 ```
 
-預期的 `npm test` 是 Node 內建 test runner 的 25 個 deterministic tests；`npm run check` 與 `npm run build` 都執行 Node syntax checks，保持 CommonJS 與最小工具鏈。`npm audit --omit=dev` 用來檢查 production dependency tree。
+預期的 `npm test` 是 Node 內建 test runner 的 30 個 deterministic tests；`npm run check` 與 `npm run build` 都執行 Node syntax checks，保持 CommonJS 與最小工具鏈。`npm audit --omit=dev` 用來檢查 production dependency tree。
 
 ## 已完成的離線／API 測試範圍
 
@@ -75,7 +75,7 @@ GitHub-only fresh clone 已由 `gh repo clone ggyin0628-code/raw-material-market
 
 ## Weekly V1 validation
 
-Weekly V1 local validation was rerun after the final implementation corrections using `npm ci`, `npm run check`, all weekly module syntax checks, `npm test`, `npm run build` and `npm audit --omit=dev`. Results were 25 tests passed／0 failed, build PASS and production dependency audit 0 vulnerabilities. A controlled empty-ledger command run generated JSON／HTML／XLSX report artifacts, generated a safe HTML preview and returned `DRY_RUN` with `sent: false`; no SMTP socket or email was used.
+Weekly V1 local validation was rerun after the final implementation corrections using `npm ci`, `npm run check`, all weekly module syntax checks, `npm test`, `npm run build` and `npm audit --omit=dev`. The historical V1 result was 25 tests passed／0 failed, build PASS and production dependency audit 0 vulnerabilities. A controlled empty-ledger command run generated JSON／HTML／XLSX report artifacts, generated a safe HTML preview and returned `DRY_RUN` with `sent: false`; no SMTP socket or email was used.
 
 The Weekly V1 test suite covers atomic snapshot persistence, provenance, same-day identity deduplication, quality-preserving upsert, missing days, Asia/Taipei reporting weeks, fresh-only comparison windows, volatility, FX separation, `LIVE`／`FALLBACK`／`STALE`／`NO_DATA`／`API_ERROR`, signal threshold boundaries, reason codes, canonical JSON, Traditional Chinese HTML, inline SVG, four-sheet XLSX, invalid-week HTTP 400, safe preview／XLSX routes, public-history backfill idempotence, malformed／missing SMTP configuration, dry-run, duplicate-week delivery guard and scheduler CLI parsing.
 
@@ -104,4 +104,33 @@ The local dashboard at `http://127.0.0.1:4176/` rendered the minimum Weekly V1 p
 
 ## Weekly V1 fresh-clone requirement
 
-Before the final checkpoint tag, clone `feat/weekly-market-intelligence-v1` directly from GitHub into a new temporary directory and rerun `npm ci`, `npm run check`, `npm test`, `npm run build`, `npm audit --omit=dev`, safe report／preview／dry-run commands and `/health`. Confirm that the clone works without local files, contains no generated data or credentials, and remains clean after validation.
+Before the production checkpoint tag, clone `feat/weekly-market-intelligence-production-v1` directly from GitHub into a new temporary directory and rerun `npm ci`, `npm run check`, `npm test`, `npm run build`, `npm audit --omit=dev`, production storage/status/bootstrap/daily/weekly dry-run/backup commands with a temporary synthetic durable root, and `/health` plus `/health/weekly`. Confirm that the clone works without local files, contains no generated data or credentials, and remains clean after validation.
+
+## Production activation verification contract
+
+| Gate | Required result | Classification |
+| --- | --- | --- |
+| Starting checkpoint | `weekly-market-intelligence-v1` target `b78ba1e6302a30b8231711c15d5945d3223687c5` | PASS |
+| Production branch | `feat/weekly-market-intelligence-production-v1`, based on the checkpoint and not `main` | PASS |
+| Storage guard | Unconfigured production returns `STORAGE_CONFIGURATION_REQUIRED`; synthetic absolute root returns durable configured status | PASS when both simulations pass |
+| Production commands | `storage-check`, `status`, `bootstrap`, `daily`, `weekly`, `backup` have safe JSON output／exit behavior | PASS when fresh clone rerun passes |
+| Quality gate | `SEND_OK`, `SEND_WITH_WARNINGS`, `SEND_BLOCKED` documented and deterministic | PASS |
+| Email safety | dry-run has no socket; test mode isolates `MAIL_TEST_TO`; duplicate guard and resend approval exist | PASS |
+| Observability | `/health/weekly` safe redaction; 503 when storage missing; 200 with synthetic durable root | PASS |
+| Scheduler | Asia/Taipei contract and UTC conversion documented; no live cron activated | PASS |
+| Live owner configuration | Persistent storage, SMTP credentials, approved sender／recipients and test recipient | `EXTERNAL_CONFIGURATION_REQUIRED` |
+| Scheduler activation | Owner-controlled after test-recipient receipt review | `EXTERNAL_CONFIGURATION_REQUIRED` |
+
+The last two rows are intentionally not offline code gaps. They are owner/runtime dependencies and must remain explicit until the owner performs the controlled activation sequence. The final handoff must state `OFFLINE_GAPS = 0` and `CODEX_HANDOFF_READY = YES` only after all repository and GitHub-only fresh-clone evidence is complete.
+
+## Production simulation contract
+
+Use only a temporary absolute `PRODUCTION_STORAGE_ROOT` and synthetic/public-safe records. Required sequence is storage check → public bootstrap or deterministic backfill → daily snapshot → completed-week analytics／quality gate → JSON／HTML／XLSX → SMTP dry-run → duplicate guard → `/health/weekly` → public backup. Never use real recipient addresses, owner secrets or generated private runtime reports in Git.
+
+A separate bounded live public smoke may report current source availability, material counts, history and FX; provider failures are operational observations, not offline code gaps. Real SMTP receipt and scheduler enablement are intentionally excluded from this repository verification.
+
+## Production simulation result
+
+Local production simulation completed with synthetic public-safe records on `feat/weekly-market-intelligence-production-v1`: unconfigured storage returned `STORAGE_CONFIGURATION_REQUIRED`／not ready; configured absolute temporary root returned `DURABLE_CONFIGURED`; bootstrap returned `BOOTSTRAP_COMPLETE` with 45 persisted records; daily snapshot returned `OK` with 15 records／15 inserted; weekly generated JSON／HTML／XLSX and returned `SEND_WITH_WARNINGS` plus mail `DRY_RUN`／`sent: false`; duplicate guard returned `DUPLICATE_PREVENTED`; `/health/weekly` returned HTTP 200 with no path or secret leak; public-only backup manifest was created. No SMTP socket or real email was used. Exact safe output is retained outside the repository at `/home/ubuntu/raw-material-production-simulation.md`.
+
+The current local final deterministic gate is `31 passed／0 failed`; `npm run check`, `npm run build` and `npm audit --omit=dev` pass with 0 vulnerabilities. Production storage, SMTP credentials, approved sender／recipients, TEST_RECIPIENT receipt and scheduler activation remain `EXTERNAL_CONFIGURATION_REQUIRED` by design.

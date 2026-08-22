@@ -16,7 +16,13 @@
     "weekly:backfill": "node lib/weekly/cli.js weekly:backfill",
     "weekly:report": "node lib/weekly/cli.js weekly:report",
     "weekly:preview": "node lib/weekly/cli.js weekly:preview",
-    "weekly:send": "node lib/weekly/cli.js weekly:send"
+    "weekly:send": "node lib/weekly/cli.js weekly:send",
+    "production:storage-check": "node lib/weekly/cli.js production:storage-check",
+    "production:status": "node lib/weekly/cli.js production:status",
+    "production:bootstrap": "node lib/weekly/cli.js production:bootstrap",
+    "production:daily": "node lib/weekly/cli.js production:daily",
+    "production:weekly": "node lib/weekly/cli.js production:weekly",
+    "production:backup": "node lib/weekly/cli.js production:backup"
   },
   "dependencies": {
     "exceljs": "^4.4.0"

@@ -9,6 +9,7 @@ const { getMarketSnapshot } = require("./lib/marketData/marketService");
 const { DEBUG } = require("./lib/marketData/logger");
 const { canonicalizeSnapshot } = require("./lib/marketData/dataContract");
 const { getWeeklyPreview, getWeeklyWorkbook, generateWeeklyReport } = require("./lib/weekly/weeklyEngine");
+const { readProductionStatus } = require("./lib/weekly/productionService");
 
 dns.setDefaultResultOrder("ipv4first");
 
@@ -160,6 +161,19 @@ async function handleRequest(req, res) {
       status: "OK",
       generatedAt: new Date().toISOString(),
     });
+    return;
+  }
+
+  if (requestUrl.pathname === "/health/weekly") {
+    try {
+      const status = await readProductionStatus({ forceProduction: true });
+      sendJson(res, status.storage.ready ? 200 : 503, {
+        status: status.storage.ready ? "OK" : status.storage.state,
+        ...status,
+      });
+    } catch (error) {
+      sendApiError(res, error);
+    }
     return;
   }
 
