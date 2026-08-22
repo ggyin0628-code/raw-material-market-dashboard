@@ -71,4 +71,4 @@ HTTP boundary 已加入 path traversal 防護、symbol／period allowlist、輸�
 
 ## Fresh clone
 
-fresh clone 必須只來自 GitHub 的 authoritative feature branch，依序執行 `npm ci`、`npm run check`、`npm test`、`npm run build`，再啟動本機服務檢查 `/health` 與 deterministic/mock-supported runtime path。完成 fresh clone 後，將 exact commit、HTTP 結果與 working tree 狀態補入本文件與 [`HANDOFF.md`](../HANDOFF.md)。
+GitHub-only fresh clone 已由 `gh repo clone ggyin0628-code/raw-material-market-dashboard /home/ubuntu/raw-material-dashboard-fresh -- --branch feat/raw-material-dashboard-hardening-v1` 建立，clone SHA 與 remote branch SHA 均為 `0750f6d068bfe4749211678799de569fdb84a1e8`。在該 clone 中，`npm ci` 通過、`npm run check` 通過、`npm test` 為 15 passed／0 failed、`npm run build` 通過、`npm audit --omit=dev` 為 0 vulnerabilities（98 production dependencies），受控啟動後 `/health` 回傳 `OK`，且 clone worktree clean。此結果驗證的是 GitHub 內容，不依賴本機未追蹤檔案或 Manus-only artifact。

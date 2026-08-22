@@ -19,8 +19,8 @@
 | 項目 | 結果 |
 | --- | --- |
 | Authoritative implementation branch | `feat/raw-material-dashboard-hardening-v1` |
-| Final commit | 於最後 push 後補入 exact SHA。 |
-| Working tree | 在最後 commit 前應為 clean；不得修改或 merge `main`。 |
+| First pushed handoff commit | `0750f6d068bfe4749211678799de569fdb84a1e8`；文件 closeout 後會產生新的 final SHA。 |
+| Working tree | First pushed revision was clean; the final closeout commit is verified clean before tagging. `main` is not modified or merged. |
 | Checkpoint tag | `raw-material-dashboard-hardened-v1`，應指向 final handoff-ready commit。 |
 
 ## 已完成的安全離線工作
@@ -35,7 +35,7 @@
 
 ## 離線缺口
 
-若 deterministic tests、fresh clone、runtime 與文件更新均通過，`OFFLINE_GAPS = 0`。仍存在的不是離線實作缺口，而是明確的外部依賴：公開供應商可用性、來源 rate limit、來源授權與資料延遲，以及未配置 Stooq fallback 的材料在 Yahoo quote 失敗時會進入 stale／API_ERROR 流程。
+Deterministic tests、GitHub-only fresh clone、runtime 與文件更新均通過，因此 `OFFLINE_GAPS = 0`。仍存在的不是離線實作缺口，而是明確的外部依賴：公開供應商可用性、來源 rate limit、來源授權與資料延遲，以及未配置 Stooq fallback 的材料在 Yahoo quote 失敗時會進入 stale／API_ERROR 流程。
 
 ## 公司資料依賴工作
 

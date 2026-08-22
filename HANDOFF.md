@@ -4,7 +4,7 @@
 
 Repository: `ggyin0628-code/raw-material-market-dashboard`.
 
-The audited baseline was public `main` at `7658a8c74dd4a09a7b5bedd5677cd094fdb6770a`. The implementation branch is `feat/raw-material-dashboard-hardening-v1`; it is authoritative for this hardening change. The final commit SHA and remote SHA are filled in after the final push. `main` must not be merged or modified by this task.
+The audited baseline was public `main` at `7658a8c74dd4a09a7b5bedd5677cd094fdb6770a`. The implementation branch is `feat/raw-material-dashboard-hardening-v1`; it is authoritative for this hardening change. The first pushed handoff revision was `0750f6d068bfe4749211678799de569fdb84a1e8`, and the final tag target is the exact handoff revision after the documentation-only closeout commit. To resolve that final revision without relying on conversation history, run `git rev-parse raw-material-dashboard-hardened-v1^{}`. `main` must not be merged or modified by this task.
 
 ## Product boundary
 
@@ -61,7 +61,7 @@ npm audit --omit=dev
 
 The deterministic suite contains 15 tests covering material and unit contracts, cents normalization, malformed response handling, bounded retry, signal thresholds, historical calculations, nearest-prior FX, period sufficiency, cache freshness／staleness／canonicalization, health and validation routes, primary and fallback market paths, total source failure, history, single/all XLSX exports, malformed history and timeout. The public smoke is separate: 14 materials were observed, 10 primary quotes succeeded, 4 quote symbols were unavailable, all 14 histories succeeded, 3 histories used the Jina proxy, Yahoo FX failed by timeout and open.er-api fallback succeeded.
 
-The local runtime verification returned HTTP 200 for `/health`, `/api/market`, `/api/materials`, `/api/history?symbol=HG%3DF&period=1y` and `/api/export/excel?symbol=HG%3DF&period=1y`. Browser verification covered load, search, category and signal filters, sorting, row selection, detail panel, history chart, single/all export initiation, stale and public-data labels, and an empty console check. The fresh-clone command results are recorded in `docs/RUNTIME_VERIFICATION.md` after the final GitHub push.
+The local runtime verification returned HTTP 200 for `/health`, `/api/market`, `/api/materials`, `/api/history?symbol=HG%3DF&period=1y` and `/api/export/excel?symbol=HG%3DF&period=1y`. Browser verification covered load, search, category and signal filters, sorting, row selection, detail panel, history chart, single/all export initiation, stale and public-data labels, and an empty console check. The GitHub-only fresh clone at `0750f6d068bfe4749211678799de569fdb84a1e8` completed `npm ci`, `npm run check`, `npm test` (15/15), `npm run build`, `npm audit --omit=dev` (0 vulnerabilities, 98 production dependencies), and a controlled `/health` check returning `OK` with a clean worktree. The final documentation-only closeout commit is revalidated before the checkpoint tag; its exact SHA is the tag target resolved by `git rev-parse raw-material-dashboard-hardened-v1^{}`.
 
 ## Known external-data limitations
 
