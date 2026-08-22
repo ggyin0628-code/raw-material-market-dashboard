@@ -9,10 +9,14 @@
   },
   "scripts": {
     "start": "node server.js",
+    "test": "node --test",
     "build": "npm run check",
     "check": "node --check server.js && node --check app.js"
   },
   "dependencies": {
     "exceljs": "^4.4.0"
+  },
+  "overrides": {
+    "uuid": ">=11.1.1"
   }
 }
