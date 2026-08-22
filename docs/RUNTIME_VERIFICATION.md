@@ -131,13 +131,13 @@ A separate bounded live public smoke may report current source availability, mat
 
 ## Production simulation result
 
-Local production simulation completed with synthetic public-safe records on `feat/weekly-market-intelligence-production-v1`: unconfigured storage returned `STORAGE_CONFIGURATION_REQUIRED`／not ready; configured absolute temporary root returned `DURABLE_CONFIGURED`; bootstrap returned `BOOTSTRAP_COMPLETE` with 45 persisted records; daily snapshot returned `OK` with 15 records／15 inserted; weekly generated JSON／HTML／XLSX and returned `SEND_WITH_WARNINGS` plus mail `DRY_RUN`／`sent: false`; duplicate guard returned `DUPLICATE_PREVENTED`; `/health/weekly` returned HTTP 200 with no path or secret leak; public-only backup manifest was created. No SMTP socket or real email was used. Exact safe output is retained outside the repository at `/home/ubuntu/raw-material-production-simulation.md`.
+Historical filesystem production simulation completed with synthetic public-safe records on `feat/weekly-market-intelligence-production-v1`: unconfigured storage returned `STORAGE_CONFIGURATION_REQUIRED`／not ready; configured absolute temporary root returned `DURABLE_CONFIGURED`; bootstrap returned `BOOTSTRAP_COMPLETE` with 45 persisted records; daily snapshot returned `OK` with 15 records／15 inserted; weekly generated JSON／HTML／XLSX and returned `SEND_WITH_WARNINGS` plus mail `DRY_RUN`／`sent: false`; duplicate guard returned `DUPLICATE_PREVENTED`; `/health/weekly` returned HTTP 200 with no path or secret leak; public-only backup manifest was created. No SMTP socket or real email was used. Exact safe output is retained outside the repository at `/home/ubuntu/raw-material-production-simulation.md`.
 
-The current local final deterministic gate is `31 passed／0 failed`; `npm run check`, `npm run build` and `npm audit --omit=dev` pass with 0 vulnerabilities. Production storage, SMTP credentials, approved sender／recipients, TEST_RECIPIENT receipt and scheduler activation remain `EXTERNAL_CONFIGURATION_REQUIRED` by design.
+The historical filesystem production gate recorded `31 passed／0 failed`; the current zero-cost deterministic gate is `37 passed／0 failed`; `npm run check`, `npm run build` and `npm audit --omit=dev` pass with 0 vulnerabilities. Production storage, SMTP credentials, approved sender／recipients, TEST_RECIPIENT receipt and scheduler activation remain `EXTERNAL_CONFIGURATION_REQUIRED` by design.
 
 ## Zero-Cost Runtime V1 verification
 
-The current zero-cost branch is `feat/zero-cost-runtime-v1`, based on `weekly-market-intelligence-production-ready-v1` target `222e1a2a7a602d3700260f83753bf024708b47d6`. Its deterministic suite is **36 passed／0 failed**. `npm run check`, `npm run build` and `npm audit --omit=dev` pass; the Postgres adapter tests do not require a real Neon account.
+The current zero-cost branch is `feat/zero-cost-runtime-v1`, based on `weekly-market-intelligence-production-ready-v1` target `222e1a2a7a602d3700260f83753bf024708b47d6`. Its deterministic suite is **37 passed／0 failed**. `npm run check`, `npm run build` and `npm audit --omit=dev` pass; the Postgres adapter tests do not require a real Neon account.
 
 | Area | Verification |
 | --- | --- |

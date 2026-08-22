@@ -74,14 +74,14 @@ STORAGE_PROVIDER=postgres DATABASE_URL="$DATABASE_URL" npm run production:backup
 | Starting checkpoint | PASS; `weekly-market-intelligence-production-ready-v1` → `222e1a2a7a602d3700260f83753bf024708b47d6` |
 | Branch isolation | PASS; `feat/zero-cost-runtime-v1`, based on checkpoint and not `main` |
 | Syntax／build | PASS; `npm run check` and `npm run build` |
-| Deterministic tests | PASS; 35 passed／0 failed |
+| Deterministic tests | PASS; 37 passed／0 failed |
 | Dependency audit | PASS; `npm audit --omit=dev` reports 0 vulnerabilities |
 | Postgres migration／parity | PASS offline with FakePostgresPool; idempotence, schema command contract, filesystem parity, uniqueness and quality upsert covered |
 | Transaction／failure behavior | PASS offline; rollback, invalid payload, missing `DATABASE_URL`, database failure and safe error states covered |
 | SMTP safety | PASS; no-socket dry-run, test-recipient isolation, auth／timeout／uncertain acceptance／attachment failure and duplicate guard covered |
 | Workflow source contracts | PASS; daily／weekly schedule, manual dispatch, secrets-only configuration and required commands are source-validated |
 | Production simulation | PASS with synthetic public-safe records and temporary storage; no Neon or Gmail connection |
-| GitHub-only fresh clone | Required after push and before final tag; must use `feat/zero-cost-runtime-v1` |
+| GitHub-only fresh clone | PASS; remote `feat/zero-cost-runtime-v1` at `0adc454fe515db79ac3c028a9b38073f486701d5`; 37 tests, build, audit, blocked gates, health and synthetic simulation verified |
 | Live Neon／Gmail integration | `EXTERNAL_CONFIGURATION_REQUIRED` |
 | GitHub Actions activation | `EXTERNAL_CONFIGURATION_REQUIRED` |
 | Deployment／paid resources | Not performed; no paid resource required for PASS |
