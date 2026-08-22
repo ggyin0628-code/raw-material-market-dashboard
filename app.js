@@ -5,6 +5,7 @@ const els = {
   exportMaterialSelect: $("#exportMaterialSelect"), exportPeriodSelect: $("#exportPeriodSelect"), exportExcelButton: $("#exportExcelButton"), exportAllExcelButton: $("#exportAllExcelButton"), exportStatus: $("#exportStatus"),
   historyMaterialSelect: $("#historyMaterialSelect"), historyPeriodSelect: $("#historyPeriodSelect"), historyLoadButton: $("#historyLoadButton"), historyState: $("#historyState"), historySource: $("#historySource"), historyPosition: $("#historyPosition"), historyRange: $("#historyRange"), historySignal: $("#historySignal"), historyAction: $("#historyAction"), historyUpdated: $("#historyUpdated"), trendChart: $("#trendChart"),
   liveCount: $("#liveCount"), errorCount: $("#errorCount"), topGainer: $("#topGainer"), topLoser: $("#topLoser"), rowCount: $("#rowCount"), disclaimer: $("#disclaimer"), materialRows: $("#materialRows"),
+  weeklyRefreshButton: $("#weeklyRefreshButton"), weeklyPreviewLink: $("#weeklyPreviewLink"), weeklyExcelLink: $("#weeklyExcelLink"), weeklyStatus: $("#weeklyStatus"), weeklyRisers: $("#weeklyRisers"), weeklyRisersDetail: $("#weeklyRisersDetail"), weeklyDecliners: $("#weeklyDecliners"), weeklyDeclinersDetail: $("#weeklyDeclinersDetail"), weeklyVolatility: $("#weeklyVolatility"), weeklyVolatilityDetail: $("#weeklyVolatilityDetail"), weeklyWarningCount: $("#weeklyWarningCount"), weeklyWarnings: $("#weeklyWarnings"),
   detailCategory: $("#detailCategory"), detailName: $("#detailName"), detailSignal: $("#detailSignal"), detailSymbol: $("#detailSymbol"), detailSource: $("#detailSource"), detailStatus: $("#detailStatus"), detailUsage: $("#detailUsage"), detailHistory: $("#detailHistory"),
 };
 
@@ -88,6 +89,42 @@ function renderDetail() {
   els.detailHistory.textContent = r.history?.length ? r.history.map((x) => `${x.date}: ${n(x.close, 4)}`).join(" / ") : "--";
 }
 function renderAll() { populateSelectors(); renderSummary(); renderTable(); renderDetail(); }
+function weeklyItemText(items, suffix = "") { return items.length ? `${items[0].materialName} ${p(items[0].weeklyChangePct)}` : "目前沒有足夠資料"; }
+function weeklyItemDetail(items) { return items.length > 1 ? items.slice(1, 3).map((item) => `${item.materialName} ${p(item.weeklyChangePct)}`).join("、") : "--"; }
+async function loadWeeklyReport() {
+  els.weeklyRefreshButton.disabled = true;
+  els.weeklyStatus.textContent = "正在載入本週公開市場情報...";
+  try {
+    const res = await fetch("/api/weekly/report", { cache: "no-store" });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
+    const report = await res.json();
+    const risers = report.marketSummary?.biggestRisers || [];
+    const decliners = report.marketSummary?.biggestDecliners || [];
+    const volatile = report.marketSummary?.highVolatility || [];
+    const warnings = report.marketSummary?.dataQualityWarnings || [];
+    els.weeklyStatus.textContent = `${report.reportingWeek}｜${report.reportingPeriod?.start || "--"}～${report.reportingPeriod?.end || "--"}｜公開資料覆蓋 ${n(report.sourceCoverage?.coveragePct, 0)}%`;
+    els.weeklyRisers.textContent = weeklyItemText(risers);
+    els.weeklyRisersDetail.textContent = weeklyItemDetail(risers);
+    els.weeklyDecliners.textContent = weeklyItemText(decliners);
+    els.weeklyDeclinersDetail.textContent = weeklyItemDetail(decliners);
+    els.weeklyVolatility.textContent = volatile.length ? volatile[0].materialName : "目前沒有";
+    els.weeklyVolatilityDetail.textContent = volatile.length ? `${p(volatile[0].weeklyChangePct)}｜${volatile[0].reason || "高波動參考"}` : "未跨越波動參考門檻";
+    els.weeklyWarningCount.textContent = warnings.length;
+    els.weeklyWarnings.innerHTML = warnings.length ? `<strong>資料品質提醒：</strong> ${warnings.map((item) => `${escapeHtml(item.materialName)}：${escapeHtml(item.signal)}（${escapeHtml(item.reason || "需檢視來源")})`).join("；")}` : "";
+    const weekQuery = encodeURIComponent(report.reportingWeek);
+    els.weeklyPreviewLink.href = `/weekly/preview?week=${weekQuery}`;
+    els.weeklyExcelLink.href = `/weekly/export.xlsx?week=${weekQuery}`;
+  } catch (error) {
+    els.weeklyStatus.textContent = `週報載入失敗：${error.message}`;
+    els.weeklyRisers.textContent = "--";
+    els.weeklyDecliners.textContent = "--";
+    els.weeklyVolatility.textContent = "--";
+    els.weeklyWarningCount.textContent = "--";
+    els.weeklyWarnings.textContent = "目前無法取得週報資料。";
+  } finally {
+    els.weeklyRefreshButton.disabled = false;
+  }
+}
 async function loadMarketData() {
   els.refreshButton.disabled = true;
   els.refreshButton.textContent = "更新中";
@@ -194,5 +231,7 @@ els.refreshSelect.addEventListener("change", scheduleRefresh);
 els.exportExcelButton.addEventListener("click", () => downloadExport(false));
 els.exportAllExcelButton.addEventListener("click", () => downloadExport(true));
 els.historyLoadButton.addEventListener("click", loadHistoryDecision);
+els.weeklyRefreshButton.addEventListener("click", loadWeeklyReport);
 scheduleRefresh();
 loadMarketData();
+loadWeeklyReport();

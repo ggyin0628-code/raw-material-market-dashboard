@@ -10,10 +10,12 @@
 | --- | --- |
 | 行情看板 | 顯示 14 個已註冊原物料的價格、漲跌、資料時間、來源、狀態與 TWD 市場參考值。 |
 | 公開來源階層 | Yahoo Finance 為主要來源；個別材料可依 registry 使用 Stooq 報價備援；歷史 Yahoo 路徑另有受限的 Jina 公開代理備援；USD/TWD 使用 Yahoo Finance 後備援 open.er-api.com。 |
-| 狀態可見性 | 使用 `OK`、`FALLBACK`、`STALE`、`NO_DATA`、`API_ERROR` 等狀態，禁止把備援或舊快取標成即時 `LIVE`。 |
+| 狀態可見性 | Legacy market API 保留 `OK` 相容狀態；Weekly V1 使用 `LIVE`、`FALLBACK`、`STALE`、`NO_DATA`、`API_ERROR`，禁止把備援或舊快取標成即時 `LIVE`。 |
 | 歷史分析 | 支援 1、2、3 年公開歷史資料，提供日期序列、月均價、年度比較、位階與市場趨勢參考訊號。 |
 | Excel 匯出 | 支援單一材料與全部材料匯出，工作簿包含來源、單位、期間、狀態、換算欄位及公開資料免責聲明。 |
 | 前端操作 | 搜尋、分類篩選、訊號篩選、排序、列選取、歷史查詢、趨勢圖、單一／全部匯出與更新控制。 |
+| Weekly Market Intelligence V1 | 以每日公開資料快照建立完成週的上升／下降、高波動、資料品質、變化窗口、HTML 週報與四工作表 XLSX。 |
+| 週報預覽與交付 | `/weekly/preview`、`/weekly/export.xlsx`、safe preview CLI、SMTP dry-run、fail-closed delivery 與 duplicate-week ledger。 |
 
 ## 架構與目錄
 
@@ -26,7 +28,8 @@
 | `lib/marketData/dataContract.js` | canonical status、公開市場免責聲明、單位驗證與 TWD reference 計算。 |
 | `lib/marketData/marketService.js` | FX／材料刷新、fallback、stale hydration、快取及 snapshot 狀態。 |
 | `lib/marketData/exportService.js` | 歷史列驗證、月／年度分析、訊號計算與 XLSX 工作簿。 |
-| `test/dashboard.test.js` | Node 內建 test runner 的離線 deterministic contract、領域、API 與 XLSX 測試。 |
+| `lib/weekly/` | 每日 snapshot ledger、weekly analytics、report／HTML／XLSX、backfill、mail safety 與 scheduler CLI。 |
+| `test/dashboard.test.js` | Node 內建 test runner 的離線 deterministic contract、領域、API、XLSX 與 Weekly V1 測試。 |
 
 ## 目前材料 registry
 
@@ -93,8 +96,23 @@ npm start
 | `/api/history?symbol=HG%3DF&period=1y` | GET | 取得指定 registry symbol 的 1y／2y／3y 歷史、月分析與參考訊號。 |
 | `/api/export/excel?symbol=HG%3DF&period=1y` | GET | 產生單一材料 XLSX。 |
 | `/api/export/all?period=1y` | GET | 產生全部材料 XLSX。 |
+| `/api/weekly/report?week=YYYY-Www` | GET | 回傳 canonical Weekly V1 JSON report。 |
+| `/weekly/preview?week=YYYY-Www` | GET | 回傳 Traditional Chinese HTML 週報預覽，不寄信。 |
+| `/weekly/export.xlsx?week=YYYY-Www` | GET | 下載四工作表 public-market intelligence XLSX，不寄信。 |
 
 `symbol` 必須是 registry 中的已知 symbol，`period` 僅接受 `1y`、`2y`、`3y`。不合法輸入會得到 400；外部資料格式錯誤或 timeout 會以明確的 `API_ERROR` 與相應 HTTP status 回傳，不會回傳假資料。
+
+## Weekly V1 操作命令
+
+```bash
+npm run daily:snapshot
+npm run weekly:backfill -- --period 3y
+npm run weekly:report -- --week YYYY-Www --out-dir data/weekly-reports
+npm run weekly:preview -- --week YYYY-Www --out /tmp/weekly-preview.html
+DRY_RUN=1 npm run weekly:send -- --week YYYY-Www --dry-run --out-dir /tmp/weekly-send
+```
+
+`MARKET_SNAPSHOT_FILE` 可指向持久化快照路徑；`WEEKLY_DELIVERY_LEDGER` 可指向持久化寄信 ledger。Daily snapshot、report、preview 與 backfill 不寄送 email。Live SMTP 只接受 environment-only 設定，缺少或格式錯誤時 fail closed。完成週預設以 `Asia/Taipei` 的前一個 Monday–Sunday ISO week 計算。完整模型、訊號順序、SMTP 與 scheduler 說明見 [`docs/WEEKLY_MARKET_INTELLIGENCE.md`](docs/WEEKLY_MARKET_INTELLIGENCE.md)、[`docs/WEEKLY_REPORT_CONTRACT.md`](docs/WEEKLY_REPORT_CONTRACT.md)、[`docs/EMAIL_DELIVERY.md`](docs/EMAIL_DELIVERY.md) 與 [`docs/SCHEDULER_RUNBOOK.md`](docs/SCHEDULER_RUNBOOK.md)。
 
 ## 測試與驗證
 
@@ -126,3 +144,7 @@ npm audit --omit=dev
 | [`docs/PRICE_UNIT_CONTRACT.md`](docs/PRICE_UNIT_CONTRACT.md) | 材料單位、conversion factor、FX 與 TWD reference 規則。 |
 | [`docs/PURCHASING_SIGNAL_CONTRACT.md`](docs/PURCHASING_SIGNAL_CONTRACT.md) | 歷史訊號輸入、門檻與非採購指示邊界。 |
 | [`docs/RUNTIME_VERIFICATION.md`](docs/RUNTIME_VERIFICATION.md) | deterministic、live smoke、runtime、UI、security 與 fresh-clone 證據。 |
+| [`docs/WEEKLY_MARKET_INTELLIGENCE.md`](docs/WEEKLY_MARKET_INTELLIGENCE.md) | Weekly V1 架構、快照、分析與限制。 |
+| [`docs/WEEKLY_REPORT_CONTRACT.md`](docs/WEEKLY_REPORT_CONTRACT.md) | Canonical JSON、公式、品質狀態與訊號門檻。 |
+| [`docs/EMAIL_DELIVERY.md`](docs/EMAIL_DELIVERY.md) | SMTP dry-run、fail-closed、ledger 與 live mail 操作。 |
+| [`docs/SCHEDULER_RUNBOOK.md`](docs/SCHEDULER_RUNBOOK.md) | Asia/Taipei weekly scheduler、backfill 與持久化 runbook。 |

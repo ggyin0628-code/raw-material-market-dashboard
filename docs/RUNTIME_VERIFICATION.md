@@ -12,7 +12,7 @@ npm run build
 npm audit --omit=dev
 ```
 
-預期的 `npm test` 是 Node 內建 test runner 的 15 個 deterministic tests；`npm run check` 與 `npm run build` 都執行 Node syntax checks，保持 CommonJS 與最小工具鏈。`npm audit --omit=dev` 用來檢查 production dependency tree。
+預期的 `npm test` 是 Node 內建 test runner 的 25 個 deterministic tests；`npm run check` 與 `npm run build` 都執行 Node syntax checks，保持 CommonJS 與最小工具鏈。`npm audit --omit=dev` 用來檢查 production dependency tree。
 
 ## 已完成的離線／API 測試範圍
 
@@ -72,3 +72,36 @@ HTTP boundary 已加入 path traversal 防護、symbol／period allowlist、輸�
 ## Fresh clone
 
 GitHub-only fresh clone 已由 `gh repo clone ggyin0628-code/raw-material-market-dashboard /home/ubuntu/raw-material-dashboard-fresh -- --branch feat/raw-material-dashboard-hardening-v1` 建立，clone SHA 與 remote branch SHA 均為 `0750f6d068bfe4749211678799de569fdb84a1e8`。在該 clone 中，`npm ci` 通過、`npm run check` 通過、`npm test` 為 15 passed／0 failed、`npm run build` 通過、`npm audit --omit=dev` 為 0 vulnerabilities（98 production dependencies），受控啟動後 `/health` 回傳 `OK`，且 clone worktree clean。此結果驗證的是 GitHub 內容，不依賴本機未追蹤檔案或 Manus-only artifact。
+
+## Weekly V1 validation
+
+Weekly V1 local validation was rerun after the final implementation corrections using `npm ci`, `npm run check`, all weekly module syntax checks, `npm test`, `npm run build` and `npm audit --omit=dev`. Results were 25 tests passed／0 failed, build PASS and production dependency audit 0 vulnerabilities. A controlled empty-ledger command run generated JSON／HTML／XLSX report artifacts, generated a safe HTML preview and returned `DRY_RUN` with `sent: false`; no SMTP socket or email was used.
+
+The Weekly V1 test suite covers atomic snapshot persistence, provenance, same-day identity deduplication, quality-preserving upsert, missing days, Asia/Taipei reporting weeks, fresh-only comparison windows, volatility, FX separation, `LIVE`／`FALLBACK`／`STALE`／`NO_DATA`／`API_ERROR`, signal threshold boundaries, reason codes, canonical JSON, Traditional Chinese HTML, inline SVG, four-sheet XLSX, invalid-week HTTP 400, safe preview／XLSX routes, public-history backfill idempotence, malformed／missing SMTP configuration, dry-run, duplicate-week delivery guard and scheduler CLI parsing.
+
+## Weekly V1 live public-data smoke
+
+A bounded public smoke ran at `2026-08-22T17:04:53.392Z` with `MARKET_TIMEOUT_MS=5000` and `MARKET_RETRIES=1`. It persisted 15 records (14 configured materials plus the independent FX record) and generated the `2026-W33` JSON／HTML／XLSX weekly artifacts outside the repository.
+
+| Observation | Result |
+| --- | ---: |
+| configured materials | 14 |
+| public snapshot records | 15 |
+| `LIVE` material rows | 14 |
+| `FALLBACK` material rows | 0 |
+| `STALE` material rows | 0 |
+| `NO_DATA` material rows | 0 |
+| `API_ERROR` material rows | 0 |
+| finite material prices | 14 |
+| snapshot state | `OK` |
+| report week | `2026-W33` |
+
+All 14 material quote observations were `LIVE` from their configured Yahoo Finance labels in this run, including `HG=F`, `ALI=F`, `HRC=F`, `TIO=F`, `CL=F`, `BZ=F`, `NG=F`, `GC=F`, `SI=F`, `PL=F`, `ZC=F`, `ZS=F`, `KC=F` and `CT=F`. This is an observation of provider availability at that run time, not a guarantee of future uptime or market freshness. The exact raw summary is retained outside the repository at `/home/ubuntu/raw-material-weekly-live-smoke.json`.
+
+## Weekly V1 browser verification
+
+The local dashboard at `http://127.0.0.1:4176/` rendered the minimum Weekly V1 panel without redesigning the existing visual identity. With an intentionally empty ledger it showed `2026-W33`, public-data coverage `0%`, 14 visible `DATA_INSUFFICIENT` warnings, the `預覽 HTML` link and the `下載週報 Excel` link; it did not fabricate a price or issue a purchasing instruction. Clicking `載入本週摘要` refreshed the panel without changing the legacy dashboard controls. The `/weekly/preview?week=2026-W33` route rendered the Traditional Chinese report title, public-market disclaimer, riser／decliner／high-volatility／quality sections and complete indicator table. Detailed observations are saved outside the repository at `/home/ubuntu/weekly-ui-verification.md`.
+
+## Weekly V1 fresh-clone requirement
+
+Before the final checkpoint tag, clone `feat/weekly-market-intelligence-v1` directly from GitHub into a new temporary directory and rerun `npm ci`, `npm run check`, `npm test`, `npm run build`, `npm audit --omit=dev`, safe report／preview／dry-run commands and `/health`. Confirm that the clone works without local files, contains no generated data or credentials, and remains clean after validation.

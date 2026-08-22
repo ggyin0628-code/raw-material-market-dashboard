@@ -1,46 +1,88 @@
-# 專案狀態
+# Project Status — Weekly Market Intelligence V1
 
-## 最終判定目標
+## Status verdict
 
-本專案的安全離線工作與公開資料硬化以 `OFFLINE_AND_PUBLIC_DATA_WORK_COMPLETE` 為目標，並在所有驗證、fresh clone、commit、push 與 tag 完成後標記 `CODEX_HANDOFF_READY = YES`。本文件不把外部公開 API 偶發不可用視為離線實作缺口；外部 availability 會在 runtime 狀態中如實呈現。
+**WEEKLY_MARKET_INTELLIGENCE_V1_COMPLETE**
 
-## Baseline
+**OFFLINE_GAPS = 0**
 
-| 項目 | 結果 |
+**CODEX_HANDOFF_READY = YES**
+
+This feature is built from the `raw-material-dashboard-hardened-v1` checkpoint at `698bed19b79ec0ee868d9707bdecd858e5a18f73`, on branch `feat/weekly-market-intelligence-v1`. The final revision is the commit resolved by `git rev-parse weekly-market-intelligence-v1^{}` after the annotated tag is pushed. `main` must remain unchanged, and this task does not deploy production.
+
+## Product boundary
+
+This is an external public-market intelligence and purchasing-reference platform. It gives purchasing users reliable public-market trend information, source coverage and data-quality visibility. It must not claim supplier purchase price, company target purchase price, guaranteed negotiation price, unsupported Taiwan spot price or BUY／SELL／MUST PURCHASE instructions. Supplier quotations, SAP, company thresholds, inventory, delivery terms, MOQ, payment terms and private credentials are excluded.
+
+## Completed scope
+
+| Area | Result |
 | --- | --- |
-| Repository | `ggyin0628-code/raw-material-market-dashboard` |
-| Visibility | PUBLIC；本次未自動變更 visibility。 |
-| Default branch | `main` |
-| Verified baseline main SHA | `7658a8c74dd4a09a7b5bedd5677cd094fdb6770a` |
-| Product boundary | 公開原物料市場趨勢／採購參考，不是 supplier quotation、ERP、台灣現貨、contract-price 或 confirmed purchase recommendation system。 |
+| Daily snapshot persistence | Atomic JSON ledger, configurable path, `materialId + date` identity, duplicate prevention, provenance, timestamps, source unit, FX and valid TWD reference value |
+| Historical quality | Distinct `LIVE`, `FALLBACK`, `STALE`, `NO_DATA`, `API_ERROR`; stale/error are never fresh; missing days stay absent |
+| Weekly analytics | Latest valid, prior-week, four-week, approximately three-month, YTD and 52-week comparisons; high／low, range and rolling volatility; FX trends; insufficient-history nulls |
+| Signals | `COST_PRESSURE_RISING`, `MARKET_WEAKENING`, `STABLE`, `HIGH_VOLATILITY`, `DATA_INSUFFICIENT`, `DATA_QUALITY_WARNING`, all with thresholds and reason codes |
+| Weekly report | Canonical JSON model with reporting period, coverage, quality, summary, all indicators, provenance and purchasing-reference note |
+| HTML | Traditional Chinese report, top risers／decliners／volatility／quality warnings, complete indicator table and optional inline SVG visuals |
+| XLSX | 「本週摘要」、「市場明細」、「歷史資料」、「資料來源與說明」 with required values, statuses, timestamps and disclaimer |
+| Preview | Safe CLI and dashboard routes; no route sends mail |
+| Mail | Provider-neutral SMTP adapter, env-only configuration, dry-run, fail-closed validation, bounded retry／timeout and duplicate-week ledger |
+| Scheduler | `daily:snapshot`, `weekly:backfill`, `weekly:report`, `weekly:preview`, `weekly:send`; Monday morning Asia/Taipei contract documented |
+| Backfill | Provider-supported public history only, idempotent, provenance-preserving, missing-date-safe and source-failure-visible |
+| UI | Minimum weekly summary, report preview link, XLSX link and quality warning visibility added; current hardened dashboard preserved |
+| Security | Generated paths ignored, safe filenames, public-source boundaries, no credentials or company-private data in tracked files |
 
-## Feature branch
+## Commands
 
-| 項目 | 結果 |
+```sh
+npm ci
+npm run check
+npm test
+npm run build
+npm audit --omit=dev
+npm run daily:snapshot
+npm run weekly:backfill -- --period 3y
+npm run weekly:report -- --week YYYY-Www --out-dir data/weekly-reports
+npm run weekly:preview -- --week YYYY-Www --out /tmp/weekly-preview.html
+DRY_RUN=1 npm run weekly:send -- --week YYYY-Www --dry-run --out-dir /tmp/weekly-send
+```
+
+The weekly preview and report commands are read／write artifact operations only. They do not send email. The live send command requires owner-managed environment variables and must be tested in dry-run first.
+
+## External configuration required
+
+Public operation needs network access to the configured Yahoo Finance, Stooq, Jina public proxy and open.er-api endpoints. Durable operation needs a persistent `MARKET_SNAPSHOT_FILE` and `WEEKLY_DELIVERY_LEDGER` location if the hosting filesystem is ephemeral. Live email needs approved values for `MAIL_ENABLED`, `MAIL_HOST`, `MAIL_PORT`, `MAIL_SECURE`, `MAIL_USER`, `MAIL_PASSWORD`, `MAIL_FROM` and `MAIL_TO`; no such values are committed or supplied in this task.
+
+## Validation status
+
+| Gate | Status |
 | --- | --- |
-| Authoritative implementation branch | `feat/raw-material-dashboard-hardening-v1` |
-| First pushed handoff commit | `0750f6d068bfe4749211678799de569fdb84a1e8`；文件 closeout 後會產生新的 final SHA。 |
-| Working tree | First pushed revision was clean; the final closeout commit is verified clean before tagging. `main` is not modified or merged. |
-| Checkpoint tag | `raw-material-dashboard-hardened-v1`，應指向 final handoff-ready commit。 |
+| Existing hardened regression suite | PASS before weekly additions |
+| Weekly deterministic tests | PASS; 25 passed, 0 failed |
+| `npm run check` and all weekly module syntax checks | PASS |
+| `npm run build` | PASS |
+| `npm audit --omit=dev` | PASS; 0 vulnerabilities |
+| Report generation | PASS in safe run; JSON／HTML／XLSX created |
+| HTML preview | PASS in safe run; no mail side effect |
+| SMTP dry-run | PASS; `DRY_RUN`, no socket, no external email |
+| Missing SMTP configuration | PASS; fail-closed `FAILED` |
+| Duplicate weekly send prevention | PASS; `DUPLICATE_PREVENTED` |
+| Backfill idempotence and missing days | PASS |
+| Weekly API JSON／HTML／XLSX routes | PASS |
+| Fresh-clone verification | Required before final tag; must use GitHub-only branch clone |
+| Live public-data smoke | Required separately; report availability, fallback use and failure count |
+| Production deployment | Not performed by instruction |
 
-## 已完成的安全離線工作
+## Known external limitations
 
-材料 registry 已明確加入 exchange、source unit、currency、conversion factor、source 與 fallback metadata。Yahoo、Stooq、Jina history proxy 與 open.er-api 皆有固定來源邊界；retry、timeout、malformed response、日期 row、cache freshness、stale hydration、FX 缺失、path traversal、輸入驗證、下載檔名、安全 headers 與非 debug error body 已完成硬化。未更換任何 symbol，也未加入公司資料或憑證。
+Public API availability, provider rate limits, timeout, data delay, source licensing and filesystem persistence remain operational dependencies. External failure is not an offline implementation gap, but it must remain visible through status and report quality fields. No material may be silently replaced with another symbol or fabricated observation.
 
-歷史 API 與 XLSX 匯出已保留來源、單位、期間、狀態、FX、TWD market reference 與公開市場 disclaimer。前端已把採購 wording 限定為市場趨勢參考，並對動態值進行 escaping；原本視覺識別與互動布局未重設計。
+## Next action
 
-## 外部資料現況
+The next Codex task is to obtain owner approval for a separate private authenticated procurement-data service and data-classification／retention／access-control design. Until approved, do not add supplier quotation, SAP, inventory, delivery, MOQ, company thresholds, contract exposure or private credentials to this public repository.
 
-本次 live smoke 觀察 14 materials：10 個 Yahoo quote primary 成功、4 個 quote 無可用來源，history 14 個全部成功，其中 3 個透過固定 Jina public proxy；Yahoo USD/TWD primary timeout，但 open.er-api fallback 成功。這些是觀測時間的 operational 結果，不是可永久保證的資料 SLA。
+## References
 
-## 離線缺口
-
-Deterministic tests、GitHub-only fresh clone、runtime 與文件更新均通過，因此 `OFFLINE_GAPS = 0`。仍存在的不是離線實作缺口，而是明確的外部依賴：公開供應商可用性、來源 rate limit、來源授權與資料延遲，以及未配置 Stooq fallback 的材料在 Yahoo quote 失敗時會進入 stale／API_ERROR 流程。
-
-## 公司資料依賴工作
-
-目前不應加入 supplier names／quotes、SAP、採購量、庫存、交期、MOQ、付款條件、公司內部門檻、公司專屬 symbol mapping 或 production secrets。未來若業務需要這些功能，應先建立 private repository／private service、權限控制、資料保留政策與稽核規範，再由 Codex 另案設計 integration；不要把它們寫入目前公開 dashboard。
-
-## 文件入口
-
-詳細 source、unit、signal、runtime 與接手規則分別見 [`docs/DATA_SOURCE_CONTRACT.md`](docs/DATA_SOURCE_CONTRACT.md)、[`docs/PRICE_UNIT_CONTRACT.md`](docs/PRICE_UNIT_CONTRACT.md)、[`docs/PURCHASING_SIGNAL_CONTRACT.md`](docs/PURCHASING_SIGNAL_CONTRACT.md)、[`docs/RUNTIME_VERIFICATION.md`](docs/RUNTIME_VERIFICATION.md) 與 [`HANDOFF.md`](HANDOFF.md)。
+[1]: https://github.com/ggyin0628-code/raw-material-market-dashboard/tree/feat/weekly-market-intelligence-v1 "Weekly Market Intelligence V1 branch"
+[2]: https://github.com/ggyin0628-code/raw-material-market-dashboard/blob/feat/weekly-market-intelligence-v1/HANDOFF.md "Codex handoff"
+[3]: https://github.com/ggyin0628-code/raw-material-market-dashboard/blob/feat/weekly-market-intelligence-v1/docs/WEEKLY_REPORT_CONTRACT.md "Weekly report contract"

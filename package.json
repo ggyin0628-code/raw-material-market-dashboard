@@ -11,7 +11,12 @@
     "start": "node server.js",
     "test": "node --test",
     "build": "npm run check",
-    "check": "node --check server.js && node --check app.js"
+    "check": "node --check server.js && node --check app.js",
+    "daily:snapshot": "node lib/weekly/cli.js daily:snapshot",
+    "weekly:backfill": "node lib/weekly/cli.js weekly:backfill",
+    "weekly:report": "node lib/weekly/cli.js weekly:report",
+    "weekly:preview": "node lib/weekly/cli.js weekly:preview",
+    "weekly:send": "node lib/weekly/cli.js weekly:send"
   },
   "dependencies": {
     "exceljs": "^4.4.0"

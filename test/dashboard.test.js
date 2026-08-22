@@ -37,14 +37,44 @@ const {
 } = require("../lib/marketData/cacheManager");
 const { markSnapshotStale } = require("../lib/marketData/staleManager");
 const { handleRequest } = require("../server");
+const { snapshotToRecords } = require("../lib/weekly/dailySnapshotService");
+const { readStore, upsertSnapshots, clearWriteQueue } = require("../lib/weekly/snapshotStore");
+const { buildWeeklyReport, renderWeeklyHtml, createWeeklyWorkbook } = require("../lib/weekly/reportService");
+const { buildSignal } = require("../lib/weekly/weeklyAnalytics");
+const { backfillPublicHistory } = require("../lib/weekly/backfillService");
+const { parseArgs, run: runWeeklyCommand } = require("../lib/weekly/cli");
+const { sendWeeklyEmail, readMailConfig, validateMailConfig, writeLedger } = require("../lib/weekly/mailService");
 
 const originalFetch = global.fetch;
+const originalSnapshotFile = process.env.MARKET_SNAPSHOT_FILE;
+const tempPaths = [];
 
 test.afterEach(async () => {
   global.fetch = originalFetch;
   clearMemoryCache();
+  clearWriteQueue();
+  if (originalSnapshotFile === undefined) delete process.env.MARKET_SNAPSHOT_FILE;
+  else process.env.MARKET_SNAPSHOT_FILE = originalSnapshotFile;
   await fs.rm(cacheDir, { recursive: true, force: true });
+  while (tempPaths.length) await fs.rm(tempPaths.pop(), { recursive: true, force: true });
 });
+
+async function tempDirectory() {
+  const directory = await fs.mkdtemp(path.join("/tmp", "weekly-dashboard-test-"));
+  tempPaths.push(directory);
+  return directory;
+}
+
+function weeklyFixtureRecords() {
+  return [
+    { materialId: "copper", materialName: "銅", symbol: "HG=F", category: "工業金屬", exchange: "COMEX", date: "2026-07-19", marketPrice: 100, sourceUnit: "USD/lb", currency: "USD", usdTwdRate: 32, twdReferenceValue: 3200, source: "fixture", status: "LIVE", collectedAt: "2026-07-19T12:00:00Z", lastTradeTimestamp: "2026-07-19T12:00:00Z" },
+    { materialId: "copper", materialName: "銅", symbol: "HG=F", category: "工業金屬", exchange: "COMEX", date: "2026-08-03", marketPrice: 100, sourceUnit: "USD/lb", currency: "USD", usdTwdRate: 32, twdReferenceValue: 3200, source: "fixture", status: "LIVE", collectedAt: "2026-08-03T12:00:00Z", lastTradeTimestamp: "2026-08-03T12:00:00Z" },
+    { materialId: "copper", materialName: "銅", symbol: "HG=F", category: "工業金屬", exchange: "COMEX", date: "2026-08-10", marketPrice: 110, sourceUnit: "USD/lb", currency: "USD", usdTwdRate: 32, twdReferenceValue: 3520, source: "fixture", status: "LIVE", collectedAt: "2026-08-10T12:00:00Z", lastTradeTimestamp: "2026-08-10T12:00:00Z" },
+    { materialId: "copper", materialName: "銅", symbol: "HG=F", category: "工業金屬", exchange: "COMEX", date: "2026-08-16", marketPrice: 120, sourceUnit: "USD/lb", currency: "USD", usdTwdRate: 32, twdReferenceValue: 3840, source: "fixture", status: "LIVE", collectedAt: "2026-08-16T12:00:00Z", lastTradeTimestamp: "2026-08-16T12:00:00Z" },
+    { materialId: "__fx_usd_twd__", materialName: "USD/TWD", symbol: "TWD=X", category: "匯率", exchange: "PUBLIC FX", date: "2026-08-03", marketPrice: 32, sourceUnit: "TWD/USD", currency: "TWD", usdTwdRate: 32, twdReferenceValue: 32, source: "fixture", status: "LIVE", collectedAt: "2026-08-03T12:00:00Z", lastTradeTimestamp: "2026-08-03T12:00:00Z" },
+    { materialId: "__fx_usd_twd__", materialName: "USD/TWD", symbol: "TWD=X", category: "匯率", exchange: "PUBLIC FX", date: "2026-08-16", marketPrice: 32.2, sourceUnit: "TWD/USD", currency: "TWD", usdTwdRate: 32.2, twdReferenceValue: 32.2, source: "fixture", status: "LIVE", collectedAt: "2026-08-16T12:00:00Z", lastTradeTimestamp: "2026-08-16T12:00:00Z" },
+  ];
+}
 
 test("material registry has explicit supported source-unit contracts", () => {
   assert.equal(materials.length, 14);
@@ -305,4 +335,160 @@ test("malformed and timeout history providers become explicit API_ERROR response
   res = await request("/api/history?symbol=HG%3DF&period=1y");
   assert.equal(res.statusCode, 502);
   assert.equal(JSON.parse(res.body).state, "API_ERROR");
+});
+
+test("daily snapshots persist provenance and canonical public statuses", async () => {
+  const directory = await tempDirectory();
+  const filePath = path.join(directory, "snapshots.json");
+  const snapshot = {
+    generatedAt: "2026-08-17T01:00:00.000Z",
+    state: "OK",
+    fx: { rate: 32, status: "OK", source: "fixture FX", lastTradeAt: "2026-08-16T12:00:00Z" },
+    rows: [{ id: "copper", name: "銅", symbol: "HG=F", category: "工業金屬", exchange: "COMEX", price: 6.25, unit: "USD/lb", currency: "USD", twdEstimate: 200, source: "fixture", status: "OK", lastTradeAt: "2026-08-15T12:00:00Z" }, { id: "aluminum", name: "鋁", symbol: "ALI=F", category: "工業金屬", exchange: "COMEX", price: null, unit: "USD/metric ton", currency: "USD", twdEstimate: null, source: "fixture", status: "API_ERROR", error: "timeout" }],
+  };
+  const records = snapshotToRecords(snapshot, "2026-08-17T01:00:00.000Z");
+  assert.equal(records.length, 3);
+  assert.equal(records[0].date, "2026-08-17");
+  assert.equal(records[1].status, "LIVE");
+  assert.equal(records[2].status, "API_ERROR");
+  await upsertSnapshots(records, { filePath });
+  const stored = await readStore(filePath);
+  assert.equal(stored.records.length, 3);
+  assert.equal(stored.records.find((record) => record.materialId === "copper").provenance.provider, "fixture");
+});
+
+test("snapshot identity prevents same-day downgrade and preserves missing days", async () => {
+  const directory = await tempDirectory();
+  const filePath = path.join(directory, "snapshots.json");
+  const base = { materialId: "copper", materialName: "銅", symbol: "HG=F", category: "工業金屬", exchange: "COMEX", date: "2026-08-17", marketPrice: 6.25, sourceUnit: "USD/lb", currency: "USD", source: "fixture", collectedAt: "2026-08-17T01:00:00Z" };
+  const first = await upsertSnapshots({ ...base, status: "LIVE" }, { filePath });
+  const second = await upsertSnapshots({ ...base, status: "STALE", collectedAt: "2026-08-17T02:00:00Z" }, { filePath });
+  assert.equal(first.inserted, 1);
+  assert.equal(second.ignored, 1);
+  const stored = await readStore(filePath);
+  assert.equal(stored.records.length, 1);
+  assert.equal(stored.records[0].status, "LIVE");
+  assert.equal(stored.records.some((record) => record.date === "2026-08-18"), false);
+});
+
+test("weekly analytics expose deterministic comparisons, volatility, and explainable signals", () => {
+  const report = buildWeeklyReport({ records: weeklyFixtureRecords(), reportingWeek: "2026-W33", generatedAt: "2026-08-17T01:00:00Z" });
+  assert.equal(report.reportingPeriod.start, "2026-08-10");
+  assert.equal(report.reportingPeriod.end, "2026-08-16");
+  const copper = report.indicators.find((item) => item.materialId === "copper");
+  assert.equal(copper.weeklyChangePct, 20);
+  assert.equal(copper.fourWeekChangePct, 20);
+  assert.equal(copper.signal, "HIGH_VOLATILITY");
+  assert.ok(copper.reasonCodes.includes("ROLLING_VOLATILITY_AT_OR_ABOVE_3PCT"));
+  assert.equal(copper.latestObservation.status, "LIVE");
+  assert.equal(report.historyRows.some((row) => row.date === "2026-08-04"), false);
+  assert.equal(report.fx.latestObservation.status, "LIVE");
+});
+
+test("weekly quality states stay distinct and threshold boundaries are deterministic", () => {
+  const records = weeklyFixtureRecords().concat([
+    { materialId: "aluminum", materialName: "鋁", symbol: "ALI=F", category: "工業金屬", exchange: "COMEX", date: "2026-08-16", marketPrice: 200, sourceUnit: "USD/metric ton", currency: "USD", source: "fixture", status: "STALE", collectedAt: "2026-08-16T12:00:00Z" },
+    { materialId: "steel-hrc", materialName: "熱軋鋼捲", symbol: "HRC=F", category: "鋼鐵", exchange: "CME", date: "2026-08-16", marketPrice: null, sourceUnit: "USD/short ton", currency: "USD", source: "fixture", status: "NO_DATA", collectedAt: "2026-08-16T12:00:00Z" },
+    { materialId: "iron-ore", materialName: "鐵礦砂", symbol: "TIO=F", category: "鋼鐵", exchange: "SGX", date: "2026-08-16", marketPrice: null, sourceUnit: "USD/metric ton", currency: "USD", source: "fixture", status: "API_ERROR", collectedAt: "2026-08-16T12:00:00Z", error: "timeout" },
+  ]);
+  const report = buildWeeklyReport({ records, reportingWeek: "2026-W33", generatedAt: "2026-08-17T01:00:00Z" });
+  assert.equal(report.indicators.find((item) => item.materialId === "aluminum").signal, "DATA_QUALITY_WARNING");
+  assert.equal(report.indicators.find((item) => item.materialId === "steel-hrc").signal, "DATA_INSUFFICIENT");
+  assert.equal(report.indicators.find((item) => item.materialId === "iron-ore").signal, "DATA_QUALITY_WARNING");
+  const current = { latestObservation: { status: "LIVE" }, latestValidObservation: { marketPrice: 100 }, weeklyChangePct: 2, fourWeekChangePct: 0, rollingVolatilityPct: 1 };
+  assert.equal(buildSignal(current).signal, "COST_PRESSURE_RISING");
+  assert.equal(buildSignal({ ...current, weeklyChangePct: -2 }).signal, "MARKET_WEAKENING");
+  assert.equal(buildSignal({ ...current, weeklyChangePct: 1.99 }).signal, "STABLE");
+  assert.equal(buildSignal({ ...current, weeklyChangePct: 0, rollingVolatilityPct: 3 }).signal, "HIGH_VOLATILITY");
+});
+
+test("weekly report HTML and XLSX are complete and remain understandable without images", async () => {
+  const report = buildWeeklyReport({ records: weeklyFixtureRecords(), reportingWeek: "2026-W33", generatedAt: "2026-08-17T01:00:00Z" });
+  const html = renderWeeklyHtml(report);
+  assert.match(html, /採購市場情報週報｜2026-W33/);
+  assert.match(html, /公開市場參考資訊/);
+  assert.match(html, /主要指標明細/);
+  assert.match(html, /非採購指示/);
+  const workbook = createWeeklyWorkbook(report);
+  const buffer = await workbook.xlsx.writeBuffer();
+  assert.equal(buffer.subarray(0, 2).toString(), "PK");
+  assert.deepEqual(workbook.worksheets.map((sheet) => sheet.name), ["本週摘要", "市場明細", "歷史資料", "資料來源與說明"]);
+  assert.ok(workbook.getWorksheet("市場明細").rowCount >= 15);
+});
+
+test("weekly backfill is public-only, idempotent, and leaves missing dates absent", async () => {
+  const directory = await tempDirectory();
+  const filePath = path.join(directory, "snapshots.json");
+  const material = materials.find((item) => item.id === "copper");
+  const fetchHistory = async () => ({ sourceType: "primary", source: "fixture history", rows: [{ date: "2026-08-03", close: 100 }, { date: "2026-08-05", close: 105 }] });
+  const options = { period: "1y", filePath, materials: [material], fxRows: [{ date: "2026-08-03", close: 32 }, { date: "2026-08-05", close: 32.1 }], fetchHistory, collectedAt: "2026-08-17T01:00:00Z" };
+  const first = await backfillPublicHistory(options);
+  const second = await backfillPublicHistory(options);
+  assert.equal(first.failureCount, 0);
+  assert.equal(first.results[0].rows, 2);
+  assert.equal(second.inserted, 0);
+  const stored = await readStore(filePath);
+  assert.equal(stored.records.filter((record) => record.materialId === "copper").length, 2);
+  assert.equal(stored.records.some((record) => record.date === "2026-08-04"), false);
+});
+
+test("mail dry-run validates configuration without connecting and fails closed when missing", async () => {
+  const report = buildWeeklyReport({ records: weeklyFixtureRecords(), reportingWeek: "2026-W33", generatedAt: "2026-08-17T01:00:00Z" });
+  const validEnv = { MAIL_ENABLED: "1", MAIL_HOST: "smtp.example.com", MAIL_PORT: "587", MAIL_SECURE: "0", MAIL_USER: "fixture-user", MAIL_PASSWORD: "fixture-password", MAIL_FROM: "sender@example.com", MAIL_TO: "buyer@example.com" };
+  const dry = await sendWeeklyEmail({ report, html: "<p>fixture</p>", xlsxBuffer: Buffer.from("xlsx"), dryRun: true, env: validEnv, ledgerPath: path.join(await tempDirectory(), "ledger.json") });
+  assert.equal(dry.state, "DRY_RUN");
+  assert.equal(dry.configValid, true);
+  assert.equal(dry.sent, false);
+  const failed = await sendWeeklyEmail({ report, html: "<p>fixture</p>", xlsxBuffer: Buffer.from("xlsx"), dryRun: false, env: { MAIL_ENABLED: "1" }, ledgerPath: path.join(await tempDirectory(), "ledger.json") });
+  assert.equal(failed.state, "FAILED");
+  assert.equal(failed.configValid, false);
+});
+
+test("mail delivery ledger prevents duplicate weekly sends and CLI arguments stay scheduler-safe", async () => {
+  const directory = await tempDirectory();
+  const ledgerPath = path.join(directory, "ledger.json");
+  await writeLedger({ weeks: { "2026-W33": { state: "SENT", sentAt: "2026-08-17T01:00:00Z" } } }, ledgerPath);
+  const report = buildWeeklyReport({ records: weeklyFixtureRecords(), reportingWeek: "2026-W33", generatedAt: "2026-08-17T01:00:00Z" });
+  const duplicate = await sendWeeklyEmail({ report, html: "<p>fixture</p>", xlsxBuffer: Buffer.from("xlsx"), env: { MAIL_ENABLED: "1", MAIL_HOST: "smtp.example.com", MAIL_PORT: "587", MAIL_USER: "u", MAIL_PASSWORD: "p", MAIL_FROM: "sender@example.com", MAIL_TO: "buyer@example.com" }, ledgerPath });
+  assert.equal(duplicate.state, "DUPLICATE_PREVENTED");
+  assert.deepEqual(parseArgs(["--period", "3y", "--dry-run", "--out-dir", "/tmp/reports"]), { period: "3y", dryRun: true, out_dir: "/tmp/reports" });
+  assert.equal(readMailConfig({ MAIL_PORT: "bad" }).port, null);
+  assert.equal(validateMailConfig(readMailConfig({})).valid, false);
+});
+
+test("weekly API routes validate the reporting week and return report preview and workbook without sending mail", async () => {
+  let res = await request("/api/weekly/report?week=bad");
+  assert.equal(res.statusCode, 400);
+  res = await request("/weekly/export.xlsx?week=2026-W00");
+  assert.equal(res.statusCode, 400);
+  const directory = await tempDirectory();
+  const filePath = path.join(directory, "snapshots.json");
+  process.env.MARKET_SNAPSHOT_FILE = filePath;
+  await upsertSnapshots(weeklyFixtureRecords(), { filePath });
+  res = await request("/api/weekly/report?week=2026-W33");
+  assert.equal(res.statusCode, 200);
+  const report = JSON.parse(res.body);
+  assert.equal(report.reportingWeek, "2026-W33");
+  assert.equal(report.indicators.find((item) => item.materialId === "copper").signal, "HIGH_VOLATILITY");
+  res = await request("/weekly/preview?week=2026-W33");
+  assert.equal(res.statusCode, 200);
+  assert.match(res.headers["content-type"], /text\/html/);
+  assert.match(res.body.toString(), /公開市場參考資訊/);
+  res = await request("/weekly/export.xlsx?week=2026-W33");
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.subarray(0, 2).toString(), "PK");
+});
+
+test("weekly command generates preview and report artifacts without email", async () => {
+  const directory = await tempDirectory();
+  const filePath = path.join(directory, "snapshots.json");
+  const outputDir = path.join(directory, "reports");
+  await upsertSnapshots(weeklyFixtureRecords(), { filePath });
+  const previewPath = path.join(directory, "preview.html");
+  const preview = await runWeeklyCommand("weekly:preview", ["--week", "2026-W33", "--file", filePath, "--out", previewPath]);
+  assert.equal(preview.reportingWeek, "2026-W33");
+  assert.match(await fs.readFile(previewPath, "utf8"), /採購市場情報週報/);
+  const generated = await runWeeklyCommand("weekly:report", ["--week", "2026-W33", "--file", filePath, "--out-dir", outputDir]);
+  assert.equal(generated.reportingWeek, "2026-W33");
+  assert.equal((await fs.stat(generated.artifacts.xlsxPath)).isFile(), true);
 });

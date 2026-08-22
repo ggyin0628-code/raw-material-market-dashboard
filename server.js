@@ -8,6 +8,7 @@ const { createHistoricalWorkbook, createHistoryPayload } = require("./lib/market
 const { getMarketSnapshot } = require("./lib/marketData/marketService");
 const { DEBUG } = require("./lib/marketData/logger");
 const { canonicalizeSnapshot } = require("./lib/marketData/dataContract");
+const { getWeeklyPreview, getWeeklyWorkbook, generateWeeklyReport } = require("./lib/weekly/weeklyEngine");
 
 dns.setDefaultResultOrder("ipv4first");
 
@@ -37,6 +38,16 @@ function sendJson(res, status, payload) {
   res.writeHead(status, {
     ...securityHeaders(),
     "content-type": "application/json; charset=utf-8",
+    "cache-control": "no-store",
+    "content-length": Buffer.byteLength(body),
+  });
+  res.end(body);
+}
+
+function sendHtml(res, status, body) {
+  res.writeHead(status, {
+    ...securityHeaders(),
+    "content-type": "text/html; charset=utf-8",
     "cache-control": "no-store",
     "content-length": Buffer.byteLength(body),
   });
@@ -86,6 +97,11 @@ function getQueryParam(requestUrl, key, defaultValue = "") {
     throw error;
   }
   return value;
+}
+
+function getWeeklyOptions(requestUrl) {
+  const week = getQueryParam(requestUrl, "week", "");
+  return week ? { reportingWeek: week } : {};
 }
 
 async function serveStatic(req, res) {
@@ -193,6 +209,34 @@ async function handleRequest(req, res) {
     try {
       const period = getQueryParam(requestUrl, "period", "3y");
       const result = await createHistoricalWorkbook({ period, all: true });
+      sendExcel(res, result.filename, result.buffer);
+    } catch (error) {
+      sendApiError(res, error);
+    }
+    return;
+  }
+
+  if (requestUrl.pathname === "/api/weekly/report") {
+    try {
+      sendJson(res, 200, (await generateWeeklyReport({ ...getWeeklyOptions(requestUrl), writeFiles: false })).report);
+    } catch (error) {
+      sendApiError(res, error);
+    }
+    return;
+  }
+
+  if (requestUrl.pathname === "/weekly/preview") {
+    try {
+      sendHtml(res, 200, (await getWeeklyPreview(getWeeklyOptions(requestUrl))).html);
+    } catch (error) {
+      sendApiError(res, error);
+    }
+    return;
+  }
+
+  if (requestUrl.pathname === "/weekly/export.xlsx") {
+    try {
+      const result = await getWeeklyWorkbook(getWeeklyOptions(requestUrl));
       sendExcel(res, result.filename, result.buffer);
     } catch (error) {
       sendApiError(res, error);

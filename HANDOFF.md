@@ -1,76 +1,92 @@
-# Codex Handoff
+# Codex Handoff — Weekly Market Intelligence V1
 
-## Repository and authoritative revision
+## Delivery identity
 
-Repository: `ggyin0628-code/raw-material-market-dashboard`.
+| Item | Value |
+| --- | --- |
+| Repository | [`ggyin0628-code/raw-material-market-dashboard`](https://github.com/ggyin0628-code/raw-material-market-dashboard) |
+| Starting checkpoint | `raw-material-dashboard-hardened-v1` |
+| Starting checkpoint target | `698bed19b79ec0ee868d9707bdecd858e5a18f73` |
+| Authoritative feature branch | `feat/weekly-market-intelligence-v1` |
+| Checkpoint tag to resolve after delivery | `weekly-market-intelligence-v1` |
+| Product boundary | External public-market intelligence and purchasing-reference platform |
+| Deployment | Not performed in this task |
 
-The audited baseline was public `main` at `7658a8c74dd4a09a7b5bedd5677cd094fdb6770a`. The implementation branch is `feat/raw-material-dashboard-hardening-v1`; it is authoritative for this hardening change. The first pushed handoff revision was `0750f6d068bfe4749211678799de569fdb84a1e8`, and the final tag target is the exact handoff revision after the documentation-only closeout commit. To resolve that final revision without relying on conversation history, run `git rev-parse raw-material-dashboard-hardened-v1^{}`. `main` must not be merged or modified by this task.
+The weekly feature branch must be based on the hardened checkpoint tag, not on `main`. `main` must remain unmodified and must never receive a merge from this task. The final immutable revision is the commit resolved by `git rev-parse weekly-market-intelligence-v1^{}` after the annotated tag has been pushed. This command keeps the document self-verifying without depending on conversation history.
 
 ## Product boundary
 
-This repository implements a **raw-material public market-trend / purchasing-reference dashboard**. It is not a supplier quotation service, an ERP purchasing module, a Taiwan spot-price database, a contract-price system, or a confirmed purchase recommendation engine. Public futures prices and converted TWD values are market references only. Supplier quotes, taxes, freight, delivery terms, inventory, company thresholds, SAP and purchase approvals are outside this repository.
+> This system summarizes public market information for purchasing context. It is not a supplier quotation service, a company target-price system, a Taiwan spot-price database, an ERP purchasing module, or a buy／sell decision engine.
+
+The implementation must not claim supplier purchase prices, company target purchase prices, guaranteed negotiation prices, unsupported Taiwan spot prices, or BUY／SELL／MUST PURCHASE instructions. Public status, source, unit, FX and provenance must remain visible. Company purchasing data, SAP, supplier quotations, private thresholds, inventory, delivery terms, MOQ and credentials are explicitly out of scope.
 
 ## Architecture
 
-The service is a small CommonJS Node.js application with no frontend framework. `server.js` uses the built-in HTTP, filesystem, path, URL and OS modules to serve static assets and API routes. `index.html`, `styles.css` and `app.js` provide the browser dashboard. `lib/marketData/` contains the material registry, public provider adapters, normalization, bounded retry and timeout, status contract, cache, stale manager, historical calculations and ExcelJS export. `test/dashboard.test.js` uses Node’s built-in test runner and mocks global fetch so the core suite does not depend on live Yahoo availability.
+The existing Node.js CommonJS service remains the application boundary. `lib/weekly/snapshotStore.js` owns the atomic JSON ledger, `dailySnapshotService.js` converts the hardened live snapshot to canonical daily records, `backfillService.js` imports provider-supported public history idempotently, `weeklyAnalytics.js` calculates completed-week comparisons and reason-coded signals, `reportService.js` owns the canonical report plus Traditional Chinese HTML and XLSX renderers, `mailService.js` owns fail-closed SMTP delivery and the weekly delivery ledger, and `cli.js` exposes scheduler-compatible commands.
 
-| Area | Implementation |
-| --- | --- |
-| Current snapshot | `GET /api/market`; compatibility alias `GET /api/materials`. |
-| Health | `GET /health`. |
-| Historical analysis | `GET /api/history?symbol=HG%3DF&period=1y`, supporting `1y`, `2y`, `3y`. |
-| XLSX | `GET /api/export/excel?symbol=HG%3DF&period=1y` and `GET /api/export/all?period=1y`. |
-| Cache | Memory, ignored local `cache/market-cache.json`, and public `market-seed.json`; fresh TTL 15 minutes, stale TTL 24 hours by default. |
-| Frontend | Search, category and signal filters, sorting, row selection, detail panel, history SVG chart, refresh and both export controls. |
+The default durable ledger path is `data/market-snapshots/snapshots.json`, overridable by `MARKET_SNAPSHOT_FILE`. The default report output directory is `data/weekly-reports`. Both generated paths are ignored by Git. Writes use a temporary file followed by an atomic rename; identities are `materialId + date`. A higher-quality `LIVE` or `FALLBACK` record cannot be silently downgraded by a later same-day `STALE`, `NO_DATA` or `API_ERROR` attempt. Missing market days remain missing.
 
-## Source hierarchy
+## Canonical statuses and public sources
 
-Yahoo Finance Chart API is the primary provider for commodity quotes, commodity history and USD/TWD `TWD=X`. The Yahoo adapter allows only `query1.finance.yahoo.com` and `query2.finance.yahoo.com`. Materials with explicit `stooqSymbol` may use Stooq CSV as quote fallback. Direct Yahoo history failure may use the fixed `r.jina.ai` public proxy path for the same encoded Yahoo chart target. FX fallback is `open.er-api.com/v6/latest/USD`.
+Weekly status names are `LIVE`, `FALLBACK`, `STALE`, `NO_DATA` and `API_ERROR`. Existing market-service `OK` is canonicalized to weekly `LIVE`; the weekly layer never presents `STALE` or `API_ERROR` as fresh. Yahoo Finance remains the primary public source, registry-configured Stooq is the quote fallback, the fixed Jina public proxy is the historical fallback, and open.er-api is the USD/TWD fallback. A source failure is retained in the record and report rather than replaced by a fabricated price.
 
-Provider results are never hidden behind a false live label. `OK` means primary success, `FALLBACK` means a configured public fallback succeeded, `STALE` means a last-successful public snapshot was used, and `NO_DATA`／`API_ERROR` mean no acceptable current data or an upstream failure. Legacy `LIVE` input is canonicalized to `OK` only for compatibility; the runtime does not manufacture `LIVE` output.
+Each snapshot record contains material id, symbol, category, exchange, date, market price, source unit, currency, USD/TWD rate when available, TWD reference value when valid, source, weekly status, last trade timestamp, collected timestamp, source reliability, error metadata and provenance. The separate `__fx_usd_twd__` record preserves the FX history used by analytics.
 
-## Unit and price rules
+## Analytics contract
 
-Every registry row has explicit `exchange`, `unit`, `currency`, `conversionFactor` and source metadata. The TWD reference formula is `sourcePrice × conversionFactor × usdTwdRate`. `US cents/bushel` and `US cents/lb` use factor `0.01`; USD-denominated units use factor `1`. Historical FX aligns by same-day or nearest-prior valid rate. Missing or non-finite FX results in a null TWD reference, not a fabricated value.
+The report week is an ISO week in `Asia/Taipei`, and the default report is the completed prior Monday–Sunday week. Latest and comparison values use only finite `LIVE` or `FALLBACK` records. Weekly, four-week, approximately three-month, YTD and approximately 52-week changes use the latest valid observation at or before each target date; if the comparable record is absent or outside the documented gap tolerance, the result is `null` and the report exposes a data-insufficient state. Weekly high and low use only observations inside the reporting week. Rolling volatility is sample standard deviation of daily percentage returns over up to the latest 20 valid returns.
 
-The application does not convert pounds, metric tons, short tons, barrels, MMBtu, troy ounces or bushels into a Taiwan delivery unit. The original source unit remains visible in API, UI and XLSX, and every TWD value is explicitly a market-reference value rather than a supplier purchase quotation. See `docs/PRICE_UNIT_CONTRACT.md`.
+Signal precedence is deterministic. Missing current or required comparison data produces `DATA_INSUFFICIENT`; stale or error latest status produces `DATA_QUALITY_WARNING`; rolling volatility at or above 3 percentage points produces `HIGH_VOLATILITY`; weekly change at or above 2% or four-week change at or above 4% produces `COST_PRESSURE_RISING`; weekly change at or below -2% or four-week change at or below -4% produces `MARKET_WEAKENING`; all other sufficient observations produce `STABLE`. The report stores reason codes and a Traditional Chinese explanation for each signal. These signals describe external-market observations only.
 
-## Purchasing-signal rules
+## Commands and routes
 
-Live row signals are based on normalized quote `changePercent` in percentage points: `>= 2` is a cost-rising reference, `<= -2` is a negotiable reference, and other finite values are stable. History signals use current position in the observed high／low range and latest historical change ratio, in this precedence: high risk at position `>= .85` or change `>= .05`; cost rising at position `>= .70` or change `>= .02`; cost declining at change `<= -.04`; negotiable at position `<= .30` or change `<= -.02`; staged purchasing at volatility above 25%; otherwise stable. Insufficient or absent history adds an explicit data warning or observation state.
+| Command or route | Purpose | Sends email? |
+| --- | --- | --- |
+| `npm run daily:snapshot` | Refresh the public snapshot and atomically upsert one daily record per configured material plus FX | No |
+| `npm run weekly:backfill -- --period 3y` | Import provider-supported public history idempotently | No |
+| `npm run weekly:report -- --week YYYY-Www --out-dir data/weekly-reports` | Build canonical JSON, HTML and XLSX artifacts | No |
+| `npm run weekly:preview -- --week YYYY-Www --out preview.html` | Generate a safe HTML preview | No |
+| `npm run weekly:send -- --week YYYY-Www --dry-run` | Build artifacts and validate mail configuration without external delivery | No |
+| `GET /api/weekly/report?week=YYYY-Www` | Return canonical weekly report JSON | No |
+| `GET /weekly/preview?week=YYYY-Www` | Render Traditional Chinese report HTML | No |
+| `GET /weekly/export.xlsx?week=YYYY-Www` | Download the four-sheet weekly XLSX | No |
 
-These are deterministic market-trend heuristics. They are not purchase instructions and should not be tuned to force a particular business outcome. See `docs/PURCHASING_SIGNAL_CONTRACT.md`.
+Preview and report routes are safe read operations. They never send email. The dashboard adds only a compact weekly summary, preview link, Excel link and data-quality visibility; the existing hardened market table and decision panel remain intact.
 
-## Cache and failure behavior
+## Mail safety
 
-A snapshot is eligible for fresh cache only when at least 70% of rows are finite numeric `OK`／`FALLBACK` rows. Stale reads may use rows with any usable public status, but are rewritten to `STALE`, retain last-success timestamps and add the stale disclaimer. A shared refresh promise prevents concurrent requests from multiplying the same upstream refresh. Failed materials are isolated; row-level stale hydration occurs only when an ID-matched last-success row exists.
+SMTP configuration comes only from environment variables. `MAIL_ENABLED` must be truthy for live delivery; `MAIL_HOST`, `MAIL_PORT`, `MAIL_SECURE`, `MAIL_USER`, `MAIL_PASSWORD`, `MAIL_FROM` and `MAIL_TO` are validated. `DRY_RUN=1` or `--dry-run` produces the report, attachment and configuration result but does not open a socket or send mail. Live delivery is fail-closed for missing or malformed configuration, has a bounded timeout and retry policy, writes only redacted delivery metadata, and records `SENT` by reporting week to prevent duplicate sends.
 
-Timeouts, retries, malformed JSON／CSV and missing finite prices are bounded and explicit. The service does not save low-quality snapshots as fresh cache and does not turn missing public data into zeros or fake prices.
+## Validation commands
 
-## Validation record
+Run the following from a clean checkout:
 
-Run from the repository root:
-
-```bash
+```sh
 npm ci
 npm run check
 npm test
 npm run build
 npm audit --omit=dev
+npm run weekly:report -- --week 2026-W33 --file /path/to/snapshots.json --out-dir /tmp/weekly-report
+npm run weekly:preview -- --week 2026-W33 --file /path/to/snapshots.json --out /tmp/weekly-preview.html
+DRY_RUN=1 npm run weekly:send -- --week 2026-W33 --file /path/to/snapshots.json --out-dir /tmp/weekly-send --dry-run
 ```
 
-The deterministic suite contains 15 tests covering material and unit contracts, cents normalization, malformed response handling, bounded retry, signal thresholds, historical calculations, nearest-prior FX, period sufficiency, cache freshness／staleness／canonicalization, health and validation routes, primary and fallback market paths, total source failure, history, single/all XLSX exports, malformed history and timeout. The public smoke is separate: 14 materials were observed, 10 primary quotes succeeded, 4 quote symbols were unavailable, all 14 histories succeeded, 3 histories used the Jina proxy, Yahoo FX failed by timeout and open.er-api fallback succeeded.
+The deterministic suite must cover snapshot persistence, duplicate prevention, missing days, stale and API-error separation, partial and insufficient history, FX calculations, threshold boundaries, reason codes, report model, HTML, XLSX, dry-run email, missing mail configuration, duplicate weekly sends, scheduler command parsing and history backfill normalization. A separate public smoke records configured indicators, quote and history availability, source, fallback use and failure count; public API failure is not by itself an offline implementation failure.
 
-The local runtime verification returned HTTP 200 for `/health`, `/api/market`, `/api/materials`, `/api/history?symbol=HG%3DF&period=1y` and `/api/export/excel?symbol=HG%3DF&period=1y`. Browser verification covered load, search, category and signal filters, sorting, row selection, detail panel, history chart, single/all export initiation, stale and public-data labels, and an empty console check. The GitHub-only fresh clone at `0750f6d068bfe4749211678799de569fdb84a1e8` completed `npm ci`, `npm run check`, `npm test` (15/15), `npm run build`, `npm audit --omit=dev` (0 vulnerabilities, 98 production dependencies), and a controlled `/health` check returning `OK` with a clean worktree. The final documentation-only closeout commit is revalidated before the checkpoint tag; its exact SHA is the tag target resolved by `git rev-parse raw-material-dashboard-hardened-v1^{}`.
+## Fresh-clone rule
 
-## Known external-data limitations
+Final validation must clone only from GitHub using the feature branch. No Manus-only file, local cache, external fixture or untracked artifact may be required. The fresh clone must run `npm ci`, `npm run check`, `npm test`, `npm run build`, the production dependency audit, the safe report commands and a local `/health` check. The clone working tree must remain clean after the checks.
 
-Live public availability is not guaranteed. The observed quote unavailable symbols were `ALI=F`, `HRC=F`, `TIO=F` and `GC=F`; no symbol was silently changed. Three historical materials needed the fixed Jina proxy. Some materials have no configured Stooq quote fallback. Provider rate limits, timeouts, source licensing, and stale data age remain operational dependencies and must be monitored outside this codebase.
+## External configuration required
 
-## Company-data-dependent work remaining
+For public-data operation, the scheduler needs network access to the fixed public providers and a persistent `MARKET_SNAPSHOT_FILE` location. For live email, an owner must supply the SMTP environment variables and approved recipients outside the repository. No real address, password, token or private endpoint may be committed. A Render-style external scheduler can run the commands; this task does not create or activate a production cron.
 
-If the business later requires supplier quotations, Taiwan spot prices, ERP／SAP data, inventory, MOQ, delivery, tax／freight, contract exposure, company-specific mappings or internal approval thresholds, that work must be designed as a separate private integration. It must not be added to this public repository or encoded into the public heuristic without a new data classification, access-control, secrets, audit and retention review.
+## Next Codex task
 
-## Exact next Codex task
+Before any private data integration, obtain owner approval for a separate private authenticated procurement-data service and a data-classification／retention／access-control design. Do not add supplier quotation, SAP, inventory, delivery, MOQ, company thresholds or private credentials to this public repository. Preserve the weekly public-data semantics and source-status contract.
 
-After this handoff commit is available, the next Codex task is: **review the public-data contracts and connect an approved private procurement data service behind a separate authenticated boundary, without changing the public market snapshot semantics; first produce a data-classification and API design, and do not implement or import private data until the owner approves the design.**
+## References
+
+[1]: https://github.com/ggyin0628-code/raw-material-market-dashboard/tree/raw-material-dashboard-hardened-v1 "Starting hardened checkpoint"
+[2]: https://github.com/ggyin0628-code/raw-material-market-dashboard/tree/feat/weekly-market-intelligence-v1 "Weekly Market Intelligence V1 feature branch"
