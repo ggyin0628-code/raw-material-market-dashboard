@@ -47,7 +47,8 @@ const { sendWeeklyEmail, readMailConfig, validateMailConfig, writeLedger, readLe
 const { getStorageConfig, assertProductionStorage } = require("../lib/weekly/storageConfig");
 const { ensureStorageDirectories, getStorageStatus, backupPublicStorage, readJobState } = require("../lib/weekly/storageService");
 const { evaluateWeeklyQuality } = require("../lib/weekly/qualityGate");
-const { runProductionBootstrap, runProductionWeekly, readProductionStatus } = require("../lib/weekly/productionService");
+const { runProductionBootstrap, runProductionWeekly, readProductionStatus, runDatabaseMigration } = require("../lib/weekly/productionService");
+const postgres = require("../lib/weekly/postgresAdapter");
 
 const originalFetch = global.fetch;
 const originalSnapshotFile = process.env.MARKET_SNAPSHOT_FILE;
@@ -618,6 +619,176 @@ test("weekly health exposes storage state without filesystem paths or secrets", 
   const body = JSON.parse(res.body);
   assert.equal(body.status, "STORAGE_CONFIGURATION_REQUIRED");
   assert.match(body.warnings.join(" "), /STORAGE_CONFIGURATION_REQUIRED/);
+  assert.equal(body.readiness.web, "WEB_READY");
+  assert.equal(body.readiness.database, "DATABASE_NOT_USED");
+  assert.equal(body.readiness.mailConfiguration, "MAIL_CONFIGURATION_REQUIRED");
   assert.equal(JSON.stringify(body).includes("/home/ubuntu"), false);
   assert.equal(JSON.stringify(body).includes("MAIL_PASSWORD"), false);
+});
+
+class FakePostgresPool {
+  constructor() {
+    this.snapshots = new Map();
+    this.delivery = new Map();
+    this.metadata = new Map();
+    this.jobs = new Map();
+    this.queries = [];
+    this.failOn = null;
+    this.transactionBackup = null;
+    this.schemaReady = false;
+  }
+
+  async connect() {
+    return { query: (sql, params) => this.query(sql, params), release: () => {} };
+  }
+
+  async end() {}
+
+  async query(sql, params = []) {
+    const normalized = String(sql).replace(/\s+/g, " ").trim();
+    this.queries.push(normalized);
+    if (this.failOn && this.failOn.test(normalized)) throw new Error("synthetic database failure password=never-log");
+    if (normalized === "BEGIN") {
+      this.transactionBackup = {
+        snapshots: new Map(this.snapshots),
+        delivery: new Map(this.delivery),
+        metadata: new Map(this.metadata),
+        jobs: new Map(this.jobs),
+      };
+      return { rows: [] };
+    }
+    if (normalized === "COMMIT") { this.transactionBackup = null; return { rows: [] }; }
+    if (normalized === "ROLLBACK") {
+      if (this.transactionBackup) {
+        this.snapshots = this.transactionBackup.snapshots;
+        this.delivery = this.transactionBackup.delivery;
+        this.metadata = this.transactionBackup.metadata;
+        this.jobs = this.transactionBackup.jobs;
+      }
+      this.transactionBackup = null;
+      return { rows: [] };
+    }
+    if (normalized.startsWith("CREATE TABLE")) { this.schemaReady = true; return { rows: [] }; }
+    if (normalized.startsWith("CREATE INDEX")) return { rows: [] };
+    if (normalized.startsWith("SELECT to_regclass")) {
+      const value = this.schemaReady ? "present" : null;
+      return { rows: [{ market_snapshots: value, weekly_delivery_ledger: value, weekly_report_metadata: value, weekly_job_state: value }] };
+    }
+    if (normalized === "SELECT 1 AS ok") return { rows: [{ ok: 1 }] };
+    if (normalized.startsWith("SELECT payload FROM market_snapshots WHERE material_id")) {
+      const item = this.snapshots.get(`${params[0]}|${params[1]}`);
+      return { rows: item ? [{ payload: item }] : [] };
+    }
+    if (normalized.startsWith("SELECT payload FROM market_snapshots")) return { rows: [...this.snapshots.values()].map((payload) => ({ payload })) };
+    if (normalized.startsWith("SELECT reporting_week, payload FROM weekly_delivery_ledger")) return { rows: [...this.delivery.entries()].sort().map(([reporting_week, payload]) => ({ reporting_week, payload })) };
+    if (normalized.startsWith("SELECT reporting_week, payload FROM weekly_report_metadata")) return { rows: [...this.metadata.entries()].sort().map(([reporting_week, payload]) => ({ reporting_week, payload })) };
+    if (normalized.startsWith("SELECT job_name, payload FROM weekly_job_state")) return { rows: [...this.jobs.entries()].sort().map(([job_name, payload]) => ({ job_name, payload })) };
+    if (normalized.startsWith("INSERT INTO market_snapshots")) {
+      this.snapshots.set(`${params[0]}|${params[1]}`, JSON.parse(params[2]));
+      return { rows: [] };
+    }
+    if (normalized.startsWith("INSERT INTO weekly_delivery_ledger")) { this.delivery.set(params[0], JSON.parse(params[1])); return { rows: [] }; }
+    if (normalized.startsWith("INSERT INTO weekly_report_metadata")) { this.metadata.set(params[0], JSON.parse(params[1])); return { rows: [] }; }
+    if (normalized.startsWith("INSERT INTO weekly_job_state")) { this.jobs.set(params[0], JSON.parse(params[1])); return { rows: [] }; }
+    throw new Error(`unsupported synthetic query: ${normalized}`);
+  }
+}
+
+test("Postgres adapter is migration-idempotent and parity-compatible with filesystem analytics", async () => {
+  const env = { STORAGE_PROVIDER: "postgres", DATABASE_URL: "postgres://fixture.invalid/market", DATABASE_SSL: "true" };
+  const pool = new FakePostgresPool();
+  const first = await postgres.migratePostgres({ env, pool });
+  const second = await postgres.migratePostgres({ env, pool });
+  assert.equal(first.state, "DATABASE_MIGRATED");
+  assert.equal(second.statementCount, first.statementCount);
+  const fixture = weeklyFixtureRecords();
+  const pgWrite = await upsertSnapshots(fixture, { env, storageConfig: getStorageConfig(env), pool });
+  assert.equal(pgWrite.inserted, fixture.length);
+  const stale = { ...fixture.find((record) => record.materialId === "copper" && record.date === "2026-08-10"), status: "STALE", collectedAt: "2026-08-12T12:00:00Z" };
+  const ignored = await upsertSnapshots([stale], { env, storageConfig: getStorageConfig(env), pool });
+  assert.equal(ignored.ignored, 1);
+  const pgRecords = await postgres.listSnapshots({ env, pool });
+  assert.equal(pgRecords.find((record) => record.materialId === "copper" && record.date === "2026-08-10").status, "LIVE");
+
+  const directory = await tempDirectory();
+  const filePath = path.join(directory, "snapshots.json");
+  await upsertSnapshots(fixture, { filePath, env: { STORAGE_PROVIDER: "filesystem" } });
+  const pgReport = buildWeeklyReport({ records: pgRecords, reportingWeek: "2026-W33", generatedAt: "2026-08-17T01:00:00Z" });
+  const fsReport = buildWeeklyReport({ records: (await readStore(filePath)).records, reportingWeek: "2026-W33", generatedAt: "2026-08-17T01:00:00Z" });
+  assert.deepEqual(pgReport.indicators, fsReport.indicators);
+  assert.deepEqual(pgReport.qualitySummary, fsReport.qualitySummary);
+});
+
+test("Postgres adapter persists public ledger, metadata, job state and rolls back partial failure", async () => {
+  const env = { STORAGE_PROVIDER: "postgres", DATABASE_URL: "postgres://fixture.invalid/market" };
+  const pool = new FakePostgresPool();
+  await postgres.writeDeliveryLedger({ weeks: { "2026-W33": { state: "DRY_RUN", sent: false } } }, { env, pool });
+  assert.equal((await postgres.readDeliveryLedger({ env, pool })).weeks["2026-W33"].state, "DRY_RUN");
+  await postgres.writeReportMetadata({ reportingWeek: "2026-W33", qualitySummary: { usable: 1 } }, { env, pool });
+  assert.equal((await postgres.readReportMetadata({ env, pool })).reports[0].reportingWeek, "2026-W33");
+  await postgres.writeJobState("weeklyReport", { state: "SEND_WITH_WARNINGS" }, { env, pool });
+  assert.equal((await postgres.readJobState({ env, pool })).jobs.weeklyReport.state, "SEND_WITH_WARNINGS");
+
+  const failing = new FakePostgresPool();
+  failing.failOn = /INSERT INTO weekly_delivery_ledger/;
+  await assert.rejects(() => postgres.writeDeliveryLedger({ weeks: { "2026-W33": { state: "SENT" } } }, { env, pool: failing }), (error) => error.code === "DATABASE_WRITE_FAILED");
+  assert.equal(failing.delivery.size, 0);
+  assert.ok(failing.queries.includes("ROLLBACK"));
+});
+
+test("Postgres health reports database readiness without exposing credentials", async () => {
+  const env = { STORAGE_PROVIDER: "postgres", DATABASE_URL: "postgres://fixture.invalid/market", MAIL_ENABLED: "0" };
+  const pool = new FakePostgresPool();
+  await postgres.migratePostgres({ env, pool });
+  await postgres.writeJobState("dailySnapshot", { state: "SUCCEEDED" }, { env, pool });
+  const status = await readProductionStatus({ env, forceProduction: true, pool });
+  assert.equal(status.storage.ready, true);
+  assert.equal(status.storage.database.state, "DATABASE_READY");
+  assert.equal(status.readiness.web, "WEB_READY");
+  assert.equal(status.readiness.database, "DATABASE_READY");
+  assert.equal(status.readiness.dailyData, "DAILY_DATA_READY");
+  assert.equal(status.readiness.mailConfiguration, "MAIL_CONFIGURATION_REQUIRED");
+  assert.equal(JSON.stringify(status).includes("fixture.invalid"), false);
+  assert.equal(JSON.stringify(status).includes("DATABASE_URL"), false);
+});
+
+test("Postgres production configuration fails closed without DATABASE_URL", async () => {
+  const config = getStorageConfig({ STORAGE_PROVIDER: "postgres", NODE_ENV: "production" }, { forceProduction: true });
+  assert.equal(config.state, "DATABASE_URL_REQUIRED");
+  assert.equal(config.durableConfigured, false);
+  await assert.rejects(() => runDatabaseMigration({ env: { STORAGE_PROVIDER: "postgres", NODE_ENV: "production" } }), (error) => error.code === "DATABASE_URL_REQUIRED");
+  assert.equal(errorExitCode({ code: "DATABASE_URL_REQUIRED", statusCode: 503 }), 2);
+});
+
+test("GitHub Actions workflows expose safe daily and weekly runtime contracts", async () => {
+  const daily = await fs.readFile(path.join(ROOT, ".github/workflows/market-daily.yml"), "utf8");
+  const weekly = await fs.readFile(path.join(ROOT, ".github/workflows/market-weekly.yml"), "utf8");
+  assert.match(daily, /workflow_dispatch/);
+  assert.match(daily, /17 23 \* \* 1-5/);
+  assert.match(daily, /npm ci/);
+  assert.match(daily, /npm run db:migrate/);
+  assert.match(daily, /npm run production:daily/);
+  assert.doesNotMatch(daily, /production:weekly|MAIL_PASSWORD/);
+  assert.match(weekly, /workflow_dispatch/);
+  assert.match(weekly, /17 1 \* \* 1/);
+  assert.match(weekly, /WEEKLY_MAIL_TEST_MODE/);
+  assert.match(weekly, /secrets\.DATABASE_URL/);
+  assert.match(weekly, /secrets\.MAIL_PASSWORD/);
+  assert.match(weekly, /npm run production:weekly/);
+  assert.doesNotMatch(`${daily}\n${weekly}`, /postgres:\/\/[^$\s]+|BEGIN (RSA|EC|OPENSSH) PRIVATE KEY/);
+  assert.equal(commandExitCode({ state: "SEND_WITH_WARNINGS", mail: { state: "FAILED" } }), 2);
+});
+
+test("Postgres CLI status and storage-check stay machine-readable when unconfigured", async () => {
+  const env = { NODE_ENV: "production", STORAGE_PROVIDER: "postgres" };
+  const status = await runWeeklyCommand("production:status", [], env);
+  const check = await runWeeklyCommand("production:storage-check", [], env);
+  assert.equal(status.storage.state, "DATABASE_URL_REQUIRED");
+  assert.equal(status.storage.ready, false);
+  assert.equal(status.readiness.database, "DATABASE_URL_REQUIRED");
+  assert.match(status.warnings.join(" "), /DATABASE_URL_REQUIRED/);
+  assert.equal(check.state, "DATABASE_URL_REQUIRED");
+  assert.equal(check.ready, false);
+  assert.equal(commandExitCode(status), 2);
+  assert.equal(commandExitCode(check), 2);
 });

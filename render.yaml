@@ -11,3 +11,9 @@ services:
         value: production
       - key: REQUIRE_DURABLE_STORAGE
         value: "1"
+      - key: STORAGE_PROVIDER
+        value: postgres
+      - key: DATABASE_SSL
+        value: "true"
+      - key: DATABASE_URL
+        sync: false

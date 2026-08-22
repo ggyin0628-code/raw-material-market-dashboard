@@ -2,7 +2,7 @@
 
 ## 定義
 
-本模組將既有公開原物料行情看板延伸為**外部市場情報與採購參考平台**。它的輸入是 Yahoo Finance、registry-configured Stooq、固定 Jina public proxy 與 open.er-api 的公開市場資料；它的輸出是每日快照、完成週的變化分析、Traditional Chinese HTML／XLSX 週報與可供外部 scheduler 執行的命令。
+本模組將既有公開原物料行情看板延伸為**外部市場情報與採購參考平台**。輸入是 Yahoo Finance、registry-configured Stooq、固定 Jina public proxy 與 open.er-api 的公開市場資料；輸出是每日快照、完成週的變化分析、Traditional Chinese HTML／XLSX 週報與可由 GitHub Actions 執行的命令。
 
 它不提供供應商採購價、公司目標採購價、保證議價價、未經明確來源支持的台灣現貨價，也不提供 BUY／SELL／MUST PURCHASE 指示。任何資料不足、來源錯誤或 stale 狀態都必須在資料、訊號、報告與匯出中保持可見。
 
@@ -15,20 +15,24 @@
     ↓
 dailySnapshotService（canonical daily record）
     ↓
-snapshotStore（atomic JSON ledger，materialId + date identity）
+Storage provider boundary
+    ├── filesystem（local／deterministic tests）
+    └── postgres（Neon-compatible durable production）
     ↓
 weeklyAnalytics（completed ISO week，fresh-only comparisons）
     ↓
-canonical report model
+唯一 canonical report model
     ├── Traditional Chinese HTML / optional inline SVG
     ├── four-sheet XLSX
     ├── dashboard preview routes
-    └── SMTP dry-run / fail-closed delivery
+    └── GitHub Actions Gmail dry-run／test delivery／approved delivery
 ```
+
+Postgres mode 不複製 analytics；provider 只負責 canonical record、delivery ledger、report metadata、job state 的 persistence。`buildWeeklyReport`、quality gate、HTML 與 XLSX renderer 在兩種 provider 間共用。
 
 ## 每日快照
 
-預設檔案是 `data/market-snapshots/snapshots.json`，可由 `MARKET_SNAPSHOT_FILE` 指向持久化掛載路徑。每筆資料以 `materialId + date` 去重，並由 temporary file 與 atomic rename 寫回，避免程序中斷留下半份 JSON。每日收集日期是 `Asia/Taipei` 的 collection date；實際交易時間另以 `lastTradeTimestamp` 保存。
+`STORAGE_PROVIDER=filesystem` 時，local default 是 ignored `data/market-snapshots/snapshots.json`，可由 `MARKET_SNAPSHOT_FILE` 指定測試路徑。`STORAGE_PROVIDER=postgres` 時，快照寫入 `market_snapshots`，由 secret-managed `DATABASE_URL` 指向 Neon-compatible PostgreSQL。每筆資料以 `material_id + observation_date` 去重；filesystem 使用 atomic rename，Postgres 使用 transaction／row lock／conflict-safe upsert。
 
 | 欄位 | 語意 |
 | --- | --- |
@@ -77,25 +81,29 @@ Weekly analytics 僅使用 `LIVE` 與 `FALLBACK` 進行數值比較；`STALE`、
 
 這些訊號描述公開市場觀察，不是買進、賣出、停買、必須採購、議價承諾或公司決策。產品不讀取、不保存也不延伸至 supplier quotation、交期、MOQ、付款條件、庫存或內部政策；上述私人資料永久不屬於本產品。
 
-## 產出
+## 產出與 quality gate
 
 `reportService.js` 建立唯一 canonical weekly report，再由 HTML、inline SVG 與 XLSX renderer 消費。HTML 先展示主要上升、主要下降、高波動與資料品質警示，再展示全部 tracked indicators；即使圖片無法載入，表格與文字仍包含必要資訊。XLSX 固定有「本週摘要」、「市場明細」、「歷史資料」、「資料來源與說明」四個工作表。
 
-## 外部限制
+Weekly quality gate 在任何 mail attempt 前評估 `SEND_OK`、`SEND_WITH_WARNINGS` 或 `SEND_BLOCKED`。它統計 tracked／usable／`STALE`／`API_ERROR`／`NO_DATA`、insufficient history、missing FX 與 artifact integrity。無 usable data、usable ratio 低於 50% 或 artifact 不完整時為 `SEND_BLOCKED` 且不得送信；可用但 degraded 時保留所有 warnings。
 
-Public provider availability、rate limit、timeout、資料延遲、來源授權與 runtime filesystem persistence 都是 operational dependency。若部署環境的本地檔案系統會在 instance replacement 後消失，production jobs 必須先配置 owner-approved durable storage root；未配置時一律 `STORAGE_CONFIGURATION_REQUIRED`，不得把 ephemeral filesystem 當成 durable。本次沒有新增公司資料庫、私人 connector、付費資源或 production cron。
+## Production runtime
+
+Postgres production 由 GitHub Actions 執行 `db:migrate`、`production:bootstrap`、`production:daily`、`production:weekly` 與 `production:backup`。Daily workflow 約於週二至週六 `07:17 Asia/Taipei`，UTC cron 為 `17 23 * * 1-5`；weekly workflow 約於週一 `09:17 Asia/Taipei`，UTC cron 為 `17 1 * * 1`。兩者都提供 manual dispatch。Weekly Gmail delivery 僅使用 owner-approved personal Gmail SMTP，且 first live workflow 必須以 `MAIL_TEST_MODE=1`／`MAIL_TEST_TO` 開始。
+
+Render Free 只作 optional dashboard hosting，不承擔 scheduled SMTP，也不依賴 local filesystem durability。缺少 `DATABASE_URL` 時 production 回 `DATABASE_URL_REQUIRED`；filesystem production 未配置 approved durable root 時回 `STORAGE_CONFIGURATION_REQUIRED`。不會將 ephemeral filesystem 假裝成 durable。
+
+## 外部限制與 recovery
+
+Public provider availability、rate limit、timeout、資料延遲與來源授權都是 operational dependencies。Postgres connection failure、migration failure、query timeout、transaction rollback、malformed payload、Gmail authentication failure、SMTP timeout、attachment failure 與 duplicate delivery 都必須以明確 failure state 可觀測。Provider-supported public re-backfill 與 public export 是 recovery source；不得製造資料或使用私有採購資料補洞。
+
+## Explicit owner activation
+
+本次不建立 Neon project、不設定 GitHub Actions secrets、不取得 Gmail App Password、不發送 real mail、不啟用 schedule、不部署或啟用 paid resources。Owner 後續需建立 owner-approved Neon Free project，將 `DATABASE_URL` 與 Gmail credentials 僅放在 Actions secrets，執行 manual bootstrap，完成一次 `MAIL_TEST_MODE=1` live send 並驗證收件與 attachment，最後才啟用 daily／weekly schedules。
 
 ## References
 
-[1]: https://github.com/ggyin0628-code/raw-material-market-dashboard/tree/feat/weekly-market-intelligence-production-v1 "Weekly Market Intelligence V1 source branch"
+[1]: https://github.com/ggyin0628-code/raw-material-market-dashboard/tree/feat/zero-cost-runtime-v1 "Zero-Cost Runtime V1 source branch"
 [2]: https://query1.finance.yahoo.com/ "Yahoo Finance public chart host used by the existing adapter"
 [3]: https://r.jina.ai/ "Fixed public proxy used only for Yahoo history fallback"
 [4]: https://open.er-api.com/ "Public FX fallback endpoint used by the existing adapter"
-
-## Production activation contract
-
-Production storage paths are resolved by the shared storage configuration. `PRODUCTION_STORAGE_ROOT` must be an absolute owner-approved durable mount when `NODE_ENV=production` or `REQUIRE_DURABLE_STORAGE=1`; otherwise every production command fails closed with `STORAGE_CONFIGURATION_REQUIRED`. Snapshot, job state, report metadata, delivery ledger and report artifacts use atomic file replacement; backup exports only public-market data and safe operational metadata.
-
-Before an email attempt, the weekly report evaluates the quality gate. `SEND_OK` means usable public observations and complete artifacts; `SEND_WITH_WARNINGS` means the report is materially usable but exposes fallback, stale, provider error, insufficient-history or FX warnings; `SEND_BLOCKED` means no usable data, usable ratio below the documented threshold or incomplete artifact integrity. Blocked reports never send.
-
-The production commands are `production:storage-check`, `production:status`, `production:bootstrap`, `production:daily`, `production:weekly` and `production:backup`. SMTP remains provider-neutral, environment-only and staged through dry-run → `MAIL_TEST_MODE=1`／`MAIL_TEST_TO` → approved recipients. No production scheduler or live recipient send is enabled by this repository task. The explicit next human action is to configure approved persistent storage and SMTP variables, perform TEST_RECIPIENT live email verification, and then enable the Asia/Taipei weekly scheduler.

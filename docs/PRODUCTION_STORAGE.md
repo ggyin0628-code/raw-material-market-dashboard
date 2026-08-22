@@ -2,63 +2,76 @@
 
 ## Purpose and boundary
 
-Weekly V1 只持久化公開市場資料、公開來源 provenance、報告 metadata、job state 與 delivery state。任何 supplier quotation、SAP、company purchase history、inventory、MOQ、payment terms、private threshold、personal email 或 credential 都不允許進入這個 storage boundary。
+This storage boundary persists only external public market observations, public-source provenance, report metadata, job state and delivery state. SAP, company procurement history, supplier quotations or names, inventory, MOQ, payment terms, company target prices, private thresholds, company email data, personal credentials and private runtime reports are permanently excluded.
 
-## Storage modes
+## Provider modes
 
-| Mode | 判定 | 行為 |
+| Mode | Configuration | Behavior |
 | --- | --- | --- |
-| `LOCAL_DEVELOPMENT` | 未設定 `NODE_ENV=production`、`REQUIRE_DURABLE_STORAGE` 或 `PRODUCTION_STORAGE_ROOT` | 使用 repository 下 ignored `data/`，適合本機與 deterministic tests；不得宣稱跨 redeploy durable。 |
-| `PERSISTENT_CONFIGURED` | production mode 且 `PRODUCTION_STORAGE_ROOT` 是 absolute path，或所有明確 storage paths 都是 absolute | production commands 可執行；owner 必須證明該 mount 跨 restart、instance replacement 與 redeploy 保留。 |
-| `STORAGE_CONFIGURATION_REQUIRED` | production mode 但沒有 durable root 或完整 absolute storage paths | `/health/weekly` 回 HTTP 503；production bootstrap、daily、weekly、backup fail closed；不得寫 ephemeral production ledger。 |
+| `filesystem` | Default local adapter; production requires an owner-approved absolute durable root | Atomic JSON compatibility path for local development／deterministic tests; not a zero-cost scheduled production source unless the host proves durable filesystem |
+| `postgres` | `STORAGE_PROVIDER=postgres` plus secret-managed `DATABASE_URL` | Neon-compatible durable production path for GitHub Actions and optional Render dashboard; no paid persistent filesystem required |
 
-Production readiness 使用 `NODE_ENV=production` 或 `REQUIRE_DURABLE_STORAGE=1` 作為 guard。單純將 `MARKET_SNAPSHOT_FILE` 指到 container 內的普通路徑，若 host 未保證 persistence，不足以成為 durable proof。
+With `STORAGE_PROVIDER=filesystem`, local default `data/` remains useful but must never be called durable across redeploy. In filesystem production mode, missing `PRODUCTION_STORAGE_ROOT` returns `STORAGE_CONFIGURATION_REQUIRED`. With `STORAGE_PROVIDER=postgres`, missing `DATABASE_URL` returns `DATABASE_URL_REQUIRED`. Both are fail-closed states.
 
-## Configuration
+## Postgres configuration
 
-建議 production 只設定一個 absolute root：
-
-```sh
-PRODUCTION_STORAGE_ROOT=/persistent/raw-material-market-dashboard
-REQUIRE_DURABLE_STORAGE=1
+```bash
+STORAGE_PROVIDER=postgres
+DATABASE_URL=<secret-managed-standard-postgresql-url>
+DATABASE_SSL=true
+DB_POOL_MAX=2
+DB_CONNECTION_TIMEOUT_MS=8000
+DB_QUERY_TIMEOUT_MS=8000
 ```
 
-系統會建立以下 public-only layout：
+The URL and any password are runtime secrets only. The adapter uses a small bounded pool suitable for short-lived GitHub Actions jobs, bounded connection／query timeouts and SSL support for Neon-compatible endpoints. Status and errors redact credentials.
 
-```text
-/persistent/raw-material-market-dashboard/
-├── market-snapshots/snapshots.json
-├── weekly-reports/delivery-ledger.json
-├── weekly-reports/report-metadata.json
-├── weekly-reports/job-state.json
-├── weekly-reports/weekly-market-intelligence-YYYY-Www.{json,html,xlsx}
-└── backups/weekly-public-backup-<backup-id>/
-```
+## Durable schema
 
-以下 variables 可在需要時覆寫相對 layout，但 production override 必須是 absolute path：`MARKET_SNAPSHOT_FILE`、`WEEKLY_DELIVERY_LEDGER`、`WEEKLY_REPORT_DIR`、`WEEKLY_REPORT_METADATA`、`WEEKLY_JOB_STATE` 與 `WEEKLY_BACKUP_DIR`。不應在 repository 內提交這些 production values。
+`npm run db:migrate` creates missing tables and indexes without dropping, truncating or resetting data:
+
+| Table | Primary key | Content |
+| --- | --- | --- |
+| `market_snapshots` | `(material_id, observation_date)` | Canonical public market snapshot JSONB, status and collection timestamp |
+| `weekly_delivery_ledger` | `reporting_week` | Delivery state JSONB and update timestamp |
+| `weekly_report_metadata` | `reporting_week` | Public artifact names, quality summary, period and coverage |
+| `weekly_job_state` | `job_name` | Sanitized job state, warnings and quality summary |
+
+`market_snapshots` includes date and status indexes. Snapshot payloads preserve material id／name, symbol, category, exchange, price, unit, currency, valid FX／TWD reference, source, status, source reliability, last trade time, collected time, error and provenance metadata.
 
 ## Write guarantees
 
-Snapshot、delivery ledger、report metadata、job state 與 report artifacts 都先寫入同一目錄下的 unique temporary file，再透過 atomic rename 取代目標檔案。Snapshot identity 是 `materialId + date`；同一天較低品質的 `STALE`、`NO_DATA` 或 `API_ERROR` 不會覆蓋既有 `LIVE`／`FALLBACK`。每個 record 保留日期、source、status、unit、currency、collected time、last trade time、error 與 provenance。
+Snapshot writes use a transaction. Each deterministic identity is locked before comparison. `LIVE` and `FALLBACK` rank above `STALE`, `API_ERROR` and `NO_DATA`, so lower-quality records cannot silently replace better same-identity data. Duplicate identities are upserted rather than inserted twice. Invalid payloads are rejected. Any database or validation error rolls back the batch and returns a non-zero state. Filesystem writes retain the existing temp-file plus atomic-rename guarantee.
 
-JSON 解析失敗會產生 `SNAPSHOT_STORE_INVALID`、`DELIVERY_LEDGER_INVALID`、`REPORT_METADATA_INVALID` 或 `JOB_STATE_INVALID`，不會靜默清空檔案。Production operator 必須保留原檔供鑑識，使用最近一次 public-only backup 或 provider-supported history backfill 復原，再執行 quality gate；不得手動刪除未知狀態的 ledger entry 來繞過 duplicate protection。
+Delivery ledger, report metadata and job state use conflict-safe key upserts. The weekly analytics and report implementation is shared across providers; only storage I/O changes. The same fixture data therefore produces deterministic parity results in filesystem and Postgres tests.
 
-## Validation and backup commands
+## Migration and bootstrap
 
-```sh
-npm run production:storage-check
-npm run production:status
-npm run production:backup -- --backup-id 2026-08-24T0930-taipei
+```bash
+STORAGE_PROVIDER=postgres DATABASE_URL="$DATABASE_URL" npm run db:migrate
+STORAGE_PROVIDER=postgres DATABASE_URL="$DATABASE_URL" npm run production:bootstrap -- --period 3y
 ```
 
-`production:storage-check` 只回報 safe readiness metadata，不輸出 secret 或 recipient。`production:backup` 複製 snapshot、delivery ledger 與 report metadata，並寫入 `manifest.json`；backup 本身仍是 public-market data only。Backup 目錄必須位於 owner 核准、可持久化且可存取控制的位置。
+Migration is safe to rerun. Bootstrap runs migration, provider-supported public history backfill, canonical validation, completed prior-week report generation and job-state update without email. It is idempotent and leaves missing provider dates absent.
+
+## Health and backup
+
+`npm run production:storage-check` returns `DATABASE_READY`, `DATABASE_URL_REQUIRED` or `DATABASE_UNAVAILABLE` without returning the URL. `/health/weekly` reports safe readiness states and never exposes paths, URLs, passwords, SMTP credentials or recipient lists.
+
+`npm run production:backup -- --backup-id <owner-approved-id>` writes a lightweight public Postgres export and manifest. The export contains public snapshots, delivery ledger, report metadata and sanitized job state only. No paid backup service is required; provider-supported public re-backfill is the primary recovery source.
+
+## Failure recovery
+
+| Failure | Result | Recovery |
+| --- | --- | --- |
+| Missing `DATABASE_URL` | `DATABASE_URL_REQUIRED`, exit 2 | Add Actions secret and rerun migration |
+| Neon unavailable／connection failure | `DATABASE_UNAVAILABLE`, non-zero | Correct secret／service condition and use manual workflow dispatch |
+| Migration failure | `DATABASE_MIGRATION_FAILED`, rollback | Correct schema access and rerun idempotent migration |
+| Query timeout／disconnect | Bounded read／write failure | Rerun after transient condition; no fabricated data |
+| Invalid JSONB／canonical record | `SNAPSHOT_PAYLOAD_INVALID` or contract error | Reject payload and investigate public provider response |
+| Partial batch failure | Transaction rollback | Correct cause and rerun; no partial commit claim |
+| Filesystem corruption | Existing `*_INVALID` state | Preserve source, restore public export or re-backfill |
 
 ## Render posture
 
-目前 `render.yaml` 使用 free web service，沒有本次驗證的 persistent volume；因此 production 設定明確保持 `STORAGE_CONFIGURATION_REQUIRED`。這是有意的安全狀態，不是部署失敗。Owner 必須先提供可靠的 persistent mount 或核准另一個相容 durable adapter，再重新執行完整 fresh-clone 與 production simulation。
-
-## References
-
-- [`PRODUCTION_ACTIVATION.md`](PRODUCTION_ACTIVATION.md)
-- [`OPERATIONS_RUNBOOK.md`](OPERATIONS_RUNBOOK.md)
-- [`SCHEDULER_RUNBOOK.md`](SCHEDULER_RUNBOOK.md)
+Render Free is optional dashboard hosting. When its environment is configured with `STORAGE_PROVIDER=postgres` and owner-provided `DATABASE_URL`, it can read the same Postgres public history; it does not require a persistent disk. It never owns scheduled SMTP delivery. No Render deployment or paid resource activation is performed by this task.

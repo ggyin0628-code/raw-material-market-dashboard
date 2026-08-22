@@ -17,6 +17,7 @@
     "weekly:report": "node lib/weekly/cli.js weekly:report",
     "weekly:preview": "node lib/weekly/cli.js weekly:preview",
     "weekly:send": "node lib/weekly/cli.js weekly:send",
+    "db:migrate": "node lib/weekly/cli.js db:migrate",
     "production:storage-check": "node lib/weekly/cli.js production:storage-check",
     "production:status": "node lib/weekly/cli.js production:status",
     "production:bootstrap": "node lib/weekly/cli.js production:bootstrap",
@@ -25,7 +26,8 @@
     "production:backup": "node lib/weekly/cli.js production:backup"
   },
   "dependencies": {
-    "exceljs": "^4.4.0"
+    "exceljs": "^4.4.0",
+    "pg": "8.16.3"
   },
   "overrides": {
     "uuid": ">=11.1.1"

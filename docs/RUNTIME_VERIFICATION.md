@@ -1,6 +1,6 @@
 # 執行期與驗證紀錄
 
-本文件記錄本次 hardening 的可重現驗證。所有 deterministic test 都 mock 外部 fetch；live smoke 則另行觀測目前配置的 PUBLIC MARKET DATA。兩者不可混為一談：前者證明程式契約與 failure handling，後者只代表觀測時間的外部來源可用性。
+本文件記錄 dashboard hardening、Weekly V1 與 Zero-Cost Runtime V1 的可重現驗證。所有 deterministic test 都 mock 外部 fetch／database；live smoke 則另行觀測目前配置的 PUBLIC MARKET DATA。兩者不可混為一談：前者證明程式契約與 failure handling，後者只代表觀測時間的外部來源可用性。
 
 ## 驗證命令
 
@@ -12,7 +12,7 @@ npm run build
 npm audit --omit=dev
 ```
 
-預期的 `npm test` 是 Node 內建 test runner 的 30 個 deterministic tests；`npm run check` 與 `npm run build` 都執行 Node syntax checks，保持 CommonJS 與最小工具鏈。`npm audit --omit=dev` 用來檢查 production dependency tree。
+目前預期的 `npm test` 是 Node 內建 test runner 的 36 個 deterministic tests；`npm run check` 與 `npm run build` 都執行 Node syntax checks，保持 CommonJS 與最小工具鏈。`npm audit --omit=dev` 用來檢查 production dependency tree。
 
 ## 已完成的離線／API 測試範圍
 
@@ -69,7 +69,7 @@ npm audit --omit=dev
 
 HTTP boundary 已加入 path traversal 防護、symbol／period allowlist、輸入長度限制、固定下載檔名、安全 `Content-Disposition`、`X-Content-Type-Options`、`X-Frame-Options`、`Referrer-Policy`、`Cache-Control: no-store` 與非 debug error body。外部 URL 使用固定 public host allowlist 與 encoded registry symbol。production dependency audit 在 UUID override 後為 0 vulnerabilities；repository 仍不含憑證或公司私有資料。
 
-## Fresh clone
+## Historical filesystem fresh clone
 
 GitHub-only fresh clone 已由 `gh repo clone ggyin0628-code/raw-material-market-dashboard /home/ubuntu/raw-material-dashboard-fresh -- --branch feat/raw-material-dashboard-hardening-v1` 建立，clone SHA 與 remote branch SHA 均為 `0750f6d068bfe4749211678799de569fdb84a1e8`。在該 clone 中，`npm ci` 通過、`npm run check` 通過、`npm test` 為 15 passed／0 failed、`npm run build` 通過、`npm audit --omit=dev` 為 0 vulnerabilities（98 production dependencies），受控啟動後 `/health` 回傳 `OK`，且 clone worktree clean。此結果驗證的是 GitHub 內容，不依賴本機未追蹤檔案或 Manus-only artifact。
 
@@ -102,11 +102,11 @@ All 14 material quote observations were `LIVE` from their configured Yahoo Finan
 
 The local dashboard at `http://127.0.0.1:4176/` rendered the minimum Weekly V1 panel without redesigning the existing visual identity. With an intentionally empty ledger it showed `2026-W33`, public-data coverage `0%`, 14 visible `DATA_INSUFFICIENT` warnings, the `預覽 HTML` link and the `下載週報 Excel` link; it did not fabricate a price or issue a purchasing instruction. Clicking `載入本週摘要` refreshed the panel without changing the legacy dashboard controls. The `/weekly/preview?week=2026-W33` route rendered the Traditional Chinese report title, public-market disclaimer, riser／decliner／high-volatility／quality sections and complete indicator table. Detailed observations are saved outside the repository at `/home/ubuntu/weekly-ui-verification.md`.
 
-## Weekly V1 fresh-clone requirement
+## Historical Weekly V1 fresh-clone evidence
 
 GitHub-only fresh clone verification completed from `feat/weekly-market-intelligence-production-v1` at `85697cdcad9c7c6c126722b61a550713816b627a`. In `/home/ubuntu/raw-material-dashboard-production-fresh`, `npm ci`, `npm run check`, `npm test` (31 passed／0 failed), `npm run build` and `npm audit --omit=dev` (0 vulnerabilities) passed. Unconfigured production storage／daily commands returned expected exit 2; `/health` returned HTTP 200; clone-targeted synthetic production simulation passed; the fresh clone remained clean and did not require local artifacts.
 
-## Production activation verification contract
+## Historical filesystem production activation verification contract
 
 | Gate | Required result | Classification |
 | --- | --- | --- |
@@ -134,3 +134,24 @@ A separate bounded live public smoke may report current source availability, mat
 Local production simulation completed with synthetic public-safe records on `feat/weekly-market-intelligence-production-v1`: unconfigured storage returned `STORAGE_CONFIGURATION_REQUIRED`／not ready; configured absolute temporary root returned `DURABLE_CONFIGURED`; bootstrap returned `BOOTSTRAP_COMPLETE` with 45 persisted records; daily snapshot returned `OK` with 15 records／15 inserted; weekly generated JSON／HTML／XLSX and returned `SEND_WITH_WARNINGS` plus mail `DRY_RUN`／`sent: false`; duplicate guard returned `DUPLICATE_PREVENTED`; `/health/weekly` returned HTTP 200 with no path or secret leak; public-only backup manifest was created. No SMTP socket or real email was used. Exact safe output is retained outside the repository at `/home/ubuntu/raw-material-production-simulation.md`.
 
 The current local final deterministic gate is `31 passed／0 failed`; `npm run check`, `npm run build` and `npm audit --omit=dev` pass with 0 vulnerabilities. Production storage, SMTP credentials, approved sender／recipients, TEST_RECIPIENT receipt and scheduler activation remain `EXTERNAL_CONFIGURATION_REQUIRED` by design.
+
+## Zero-Cost Runtime V1 verification
+
+The current zero-cost branch is `feat/zero-cost-runtime-v1`, based on `weekly-market-intelligence-production-ready-v1` target `222e1a2a7a602d3700260f83753bf024708b47d6`. Its deterministic suite is **36 passed／0 failed**. `npm run check`, `npm run build` and `npm audit --omit=dev` pass; the Postgres adapter tests do not require a real Neon account.
+
+| Area | Verification |
+| --- | --- |
+| Provider boundary | `filesystem` local/test adapter and `postgres` Neon-compatible adapter use shared canonical records and shared analytics |
+| Database migration | `db:migrate` creates required tables/indexes idempotently and non-destructively |
+| Postgres semantics | Snapshot uniqueness, quality-preserving upsert, transaction rollback, invalid payload, database failure, query timeout contract and safe redaction |
+| Parity | Same fixture data produces equivalent weekly indicators and quality summary through filesystem／Postgres reads |
+| Durable operational state | PostgreSQL delivery ledger, report metadata, job state and public export／manifest |
+| Actions daily | `market-daily.yml` has schedule／manual dispatch, npm ci, migration, storage check, daily collection and no mail |
+| Actions weekly | `market-weekly.yml` has Monday schedule／manual dispatch, migration, quality gate, JSON／HTML／XLSX, Gmail delivery and duplicate guard |
+| Gmail safety | Personal Gmail configuration only; `MAIL_TEST_MODE`／`MAIL_TEST_TO`, dry-run, failure recovery and no automatic uncertain acceptance retry |
+| Health | `/health/weekly` readiness states and redaction; database URL／password／recipient lists absent |
+| Product boundary | Public external market intelligence only; no company or supplier private data |
+
+A controlled production simulation uses only a synthetic public-safe fixture and a temporary root／fake pool. It verifies migration contract, storage provider selection, bootstrap／daily／weekly lifecycle, quality gate, dry-run, duplicate guard, health and public export. No real Neon connection, Gmail connection, Actions activation, paid resource or deployment is used.
+
+The final GitHub-only fresh clone must be created from `feat/zero-cost-runtime-v1` after push and before the final tag. It must run `npm ci`, `npm run check`, `npm test`, `npm run build`, `npm audit --omit=dev`, `db:migrate` contract checks, workflow source checks and safe production simulation. Remaining Neon project creation, Actions secrets, first `MAIL_TEST_MODE=1` live send and workflow activation are `EXTERNAL_CONFIGURATION_REQUIRED`, not offline code gaps.

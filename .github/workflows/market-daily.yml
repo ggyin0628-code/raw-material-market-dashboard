@@ -1,0 +1,47 @@
+name: Market Daily Public Collection
+
+on:
+  schedule:
+    # 07:17 Asia/Taipei Tuesday-Saturday = 23:17 UTC Monday-Friday.
+    - cron: "17 23 * * 1-5"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: market-daily
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NODE_ENV: production
+      STORAGE_PROVIDER: postgres
+      DATABASE_SSL: "true"
+      REQUIRE_DURABLE_STORAGE: "1"
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      MARKET_TIMEOUT_MS: "10000"
+      MARKET_RETRIES: "2"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Validate code
+        run: npm run check
+      - name: Migrate PostgreSQL schema
+        run: npm run db:migrate
+      - name: Verify database and storage readiness
+        run: npm run production:storage-check
+      - name: Collect public market snapshot
+        run: npm run production:daily
+      - name: Verify daily job status
+        run: npm run production:status

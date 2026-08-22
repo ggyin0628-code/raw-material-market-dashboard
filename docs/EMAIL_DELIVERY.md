@@ -1,89 +1,90 @@
-# Email Delivery Runbook
+# Gmail SMTP Delivery Contract
 
 ## Boundary
 
 Weekly email contains only external public-market intelligence, source/status/provenance, market-reference values, quality warnings and the non-purchasing-instruction disclaimer. It must not contain supplier quotations, company purchase history, SAP, inventory, MOQ, payment terms, company thresholds, credentials or private metadata.
 
-## Environment-only configuration
+The intended external mail provider is **owner-approved personal Gmail SMTP only**. Microsoft Graph, company email systems and Render Free SMTP responsibility are out of scope. The scheduled sender is GitHub Actions; Render Free remains dashboard hosting only.
 
-No SMTP value is stored in Git. The adapter reads:
+## Environment／Actions secret configuration
 
-| Variable | Required for live send | Meaning |
+No SMTP value is stored in Git. GitHub Actions injects these values from repository secrets or variables:
+
+| Variable | Required | Meaning |
 | --- | --- | --- |
-| `MAIL_ENABLED` | Yes | Must be truthy before any live connection |
-| `MAIL_HOST` | Yes | Approved SMTP host |
-| `MAIL_PORT` | Yes | Integer 1–65535; default 587 |
-| `MAIL_SECURE` | No | TLS connection mode |
-| `MAIL_USER` | Yes | Secret-managed SMTP user |
-| `MAIL_PASSWORD` | Yes | Secret-managed password; never logged |
-| `MAIL_FROM` | Yes | Approved sender address |
-| `MAIL_TO` | Yes | Production recipient list |
-| `MAIL_CC` | No | Optional additional recipients |
-| `MAIL_REPLY_TO` | No | Optional valid reply-to address |
-| `MAIL_TEST_MODE` | No | When truthy, ignore `MAIL_TO` and use only `MAIL_TEST_TO` |
-| `MAIL_TEST_TO` | Required in test mode | Approved test recipient list |
-| `DRY_RUN` | No | When truthy, generate and validate without SMTP socket |
-| `ALLOW_WEEKLY_RESEND` | No | Must be truthy together with explicit `--allow-resend` to bypass duplicate guard |
+| `MAIL_ENABLED` | Yes | Truthy before any live connection |
+| `MAIL_HOST` | Yes | `smtp.gmail.com` for intended Gmail runtime |
+| `MAIL_PORT` | Yes | `465` for Gmail secure TLS |
+| `MAIL_SECURE` | Yes | `true` for Gmail TLS |
+| `MAIL_USER` | Yes | Owner-approved personal Gmail user; Actions secret |
+| `MAIL_PASSWORD` | Yes | Gmail App Password only; Actions secret, never logged |
+| `MAIL_FROM` | Yes | Owner-approved sender; Actions secret |
+| `MAIL_TO` | After test | Approved production recipient; Actions secret |
+| `MAIL_CC` | Optional | Approved production CC list |
+| `MAIL_REPLY_TO` | Optional | Approved production reply-to |
+| `MAIL_TEST_MODE` | First live run | Truthy to ignore production recipients |
+| `MAIL_TEST_TO` | First live run | Owner-approved personal test recipient; Actions secret |
+| `DRY_RUN` | Optional | Truthy for no-socket validation |
+| `ALLOW_WEEKLY_RESEND` | Optional | Truthy together with explicit `--allow-resend` only |
 
-Recipient parsing accepts comma, semicolon or whitespace separators, trims whitespace and removes case-insensitive duplicates. `MAIL_FROM`, `MAIL_TO`, `MAIL_CC`, `MAIL_REPLY_TO` and `MAIL_TEST_TO` are validated; malformed configuration fails closed.
+Recipient parsing accepts comma, semicolon or whitespace separators, trims whitespace and removes case-insensitive duplicates. Test mode uses only `MAIL_TEST_TO` and omits production CC／Reply-To headers. The Gmail App Password must be supplied only at workflow runtime; it is never committed, printed or included in error output.
 
-## Required staged activation
+## Postgres-backed ledger
+
+When `STORAGE_PROVIDER=postgres`, the delivery ledger is stored in the durable `weekly_delivery_ledger` table. When `STORAGE_PROVIDER=filesystem`, the existing atomic JSON ledger remains the local／test adapter. Both paths are keyed by `reporting_week`, and duplicate state is preserved across GitHub Actions job runs. No Render local filesystem is used as the durable ledger.
+
+## Staged activation
 
 ### Stage A — dry-run
 
-```sh
-DRY_RUN=1 npm run production:weekly -- --dry-run --send
+```bash
+STORAGE_PROVIDER=postgres DATABASE_URL="$DATABASE_URL" DRY_RUN=1 npm run production:weekly -- --dry-run --send
 ```
 
-The command must generate JSON／HTML／XLSX, evaluate the quality gate, write `DRY_RUN` state, return `sent: false` and never create an SMTP socket. A dry-run does not prove credentials or network reachability.
+The command must generate JSON／HTML／XLSX, evaluate the quality gate, write `DRY_RUN`, return `sent: false` and never create an SMTP socket. It does not prove Gmail credentials or network reachability.
 
-### Stage B — real SMTP with test recipient only
+### Stage B — live Gmail test recipient
 
-Set `MAIL_ENABLED=1`, approved host／port／secure mode, secret-managed user／password, approved sender, `MAIL_TEST_MODE=1` and `MAIL_TEST_TO=<approved-test-address>`. The configured production `MAIL_TO` is ignored in this mode. Do not set production recipients as a substitute for `MAIL_TEST_TO`.
+Keep the repository variable `WEEKLY_MAIL_TEST_MODE=1`. Configure `MAIL_ENABLED=1`, `MAIL_HOST=smtp.gmail.com`, `MAIL_PORT=465`, `MAIL_SECURE=true`, secret-managed `MAIL_USER`／`MAIL_PASSWORD`, approved `MAIL_FROM` and `MAIL_TEST_TO`. The configured production `MAIL_TO` is ignored in this mode. Run the weekly workflow manually; do not send this first test from Manus.
 
-### Stage C — actual receipt review
+### Stage C — receipt and attachment review
 
-Send one explicitly approved test week. Confirm subject `採購市場情報週報｜YYYY-Www`, sender, HTML at desktop and narrow/mobile widths, attachment opening, timestamps, source labels, status warnings and public-data disclaimer. Do not advance if any item is wrong.
+Confirm the subject `採購市場情報週報｜YYYY-Www`, sender, test recipient, HTML at desktop and narrow/mobile widths, XLSX opening, timestamps, source labels, status warnings and public-data disclaimer. Do not advance if any item is wrong.
 
-### Stage D — approved production recipients
+### Stage D — approved production recipient
 
-After Stage C passes, disable test mode and provide the owner-approved `MAIL_TO` and optional `MAIL_CC`. Run one explicitly approved production-recipient send for a known reporting week. The system still applies the duplicate guard.
+After Stage C passes, set `WEEKLY_MAIL_TEST_MODE=0`, provide the owner-approved `MAIL_TO` and optional `MAIL_CC`, and run one explicitly approved production-recipient workflow for a known completed week. The duplicate guard remains active.
 
-### Stage E — scheduler enablement
+### Stage E — scheduled workflow activation
 
-Only after Stage D passes may the owner activate the weekly external scheduler. The scheduler must run the readiness/storage check first and must stop on `STORAGE_CONFIGURATION_REQUIRED` or `SEND_BLOCKED`.
+Only after Stage D passes may the owner rely on the scheduled weekly workflow. The workflow performs database migration and storage check before report generation and stops on `DATABASE_URL_REQUIRED`, `DATABASE_UNAVAILABLE`, `SEND_BLOCKED` or other materially unsuccessful state.
 
 ## Delivery states
 
 | State | Meaning | Safe retry |
 | --- | --- | --- |
-| `DRY_RUN` | Report and attachment built; no network delivery | Repeat freely; ledger records simulation |
-| `TEST_SENT` | Live SMTP send used `MAIL_TEST_MODE` | Do not resend automatically |
-| `SENT` | Live SMTP sent to approved recipients | Duplicate guard blocks same week |
-| `FAILED` | Configuration, authentication, timeout or other delivery failure | Follow recovery below |
-| `DUPLICATE_PREVENTED` | Same week already `SENT` or `TEST_SENT` | Requires explicit owner-approved resend |
+| `DRY_RUN` | Report／attachment built; no network delivery | Repeat freely |
+| `TEST_SENT` | Live Gmail SMTP used `MAIL_TEST_MODE` | Do not resend automatically |
+| `SENT` | Live Gmail SMTP sent to approved recipients | Same week is duplicate-blocked |
+| `FAILED` | Configuration, authentication, timeout, attachment or other failure | Follow recovery below |
+| `DUPLICATE_PREVENTED` | Same week already `SENT` or `TEST_SENT` | Explicit owner-approved resend only |
 
-The ledger is atomic and keyed by reporting week. It stores state, timestamp, test-mode flag, recipient count, attachment count and a redacted error only. It does not store passwords or full recipient lists.
+The durable ledger stores state, timestamp, test-mode flag, recipient count, attachment count and redacted error only. It does not store passwords or full recipient lists.
 
 ## Retry and uncertain acceptance
 
-Market data retry remains bounded and provider-visible. SMTP retry is limited to transient connection／pre-DATA failures. Once the SMTP `DATA` body has been submitted, the adapter does not automatically retry an uncertain response because the message may already have been accepted and a retry could duplicate it. An authentication failure is non-transient and is not retried.
-
-For an SMTP timeout or connection reset, inspect the ledger and provider logs. If the failure occurred after DATA submission, treat delivery as uncertain and require owner confirmation before any resend. If the failure occurred before DATA submission, correct the configuration or transient network issue and retry only with explicit operational approval.
+SMTP retry is limited to transient connection／pre-DATA failures. Once the SMTP `DATA` body has been submitted, the adapter does not automatically retry an uncertain response because the message may already have been accepted. Authentication failure is non-transient and is not retried. For an uncertain timeout or connection reset, inspect the Postgres ledger and Gmail mailbox before considering a resend.
 
 ## Controlled resend
 
-A legitimate resend requires owner approval, a known reporting week and an explicit command:
+A legitimate resend requires owner approval, a known reporting week and both controls:
 
-```sh
-ALLOW_WEEKLY_RESEND=1 npm run production:weekly -- --week YYYY-Www --send --allow-resend
+```bash
+ALLOW_WEEKLY_RESEND=1 STORAGE_PROVIDER=postgres DATABASE_URL="$DATABASE_URL" npm run production:weekly -- --week YYYY-Www --send --allow-resend
 ```
 
-Never delete arbitrary ledger files to bypass the guard. Preserve the previous ledger for audit and use the documented backup/recovery procedure.
+Never delete arbitrary ledger rows to bypass the guard. Preserve the existing public ledger and use the documented database export／re-backfill recovery procedure.
 
-## References
+## Security rules
 
-- [`PRODUCTION_ACTIVATION.md`](PRODUCTION_ACTIVATION.md)
-- [`PRODUCTION_STORAGE.md`](PRODUCTION_STORAGE.md)
-- [`OPERATIONS_RUNBOOK.md`](OPERATIONS_RUNBOOK.md)
-- [`WEEKLY_REPORT_CONTRACT.md`](WEEKLY_REPORT_CONTRACT.md)
+Never commit a real Gmail address, App Password, `DATABASE_URL`, SMTP credential or recipient list. Never echo secret environment variables. Use placeholders and repository secret injection only.

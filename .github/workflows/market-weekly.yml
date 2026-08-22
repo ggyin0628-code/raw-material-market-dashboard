@@ -1,0 +1,69 @@
+name: Market Weekly Intelligence Report
+
+on:
+  schedule:
+    # 09:17 Asia/Taipei Monday = 01:17 UTC Monday; avoid top-of-hour load.
+    - cron: "17 1 * * 1"
+  workflow_dispatch:
+    inputs:
+      reporting_week:
+        description: "Completed ISO week YYYY-Www; blank uses prior completed Asia/Taipei week"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: market-weekly
+  cancel-in-progress: false
+
+env:
+  NODE_ENV: production
+  STORAGE_PROVIDER: postgres
+  DATABASE_SSL: "true"
+  REQUIRE_DURABLE_STORAGE: "1"
+  DATABASE_URL: ${{ secrets.DATABASE_URL }}
+  MAIL_ENABLED: "1"
+  MAIL_HOST: smtp.gmail.com
+  MAIL_PORT: "465"
+  MAIL_SECURE: "true"
+  MAIL_USER: ${{ secrets.MAIL_USER }}
+  MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
+  MAIL_FROM: ${{ secrets.MAIL_FROM }}
+  MAIL_TO: ${{ secrets.MAIL_TO }}
+  MAIL_TEST_TO: ${{ secrets.MAIL_TEST_TO }}
+  # Repository variable defaults to test mode; owner may set WEEKLY_MAIL_TEST_MODE=0 only after receipt verification.
+  MAIL_TEST_MODE: ${{ vars.WEEKLY_MAIL_TEST_MODE || '1' }}
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Validate code
+        run: npm run check
+      - name: Migrate PostgreSQL schema
+        run: npm run db:migrate
+      - name: Verify database and storage readiness
+        run: npm run production:storage-check
+      - name: Generate completed prior-week report and send
+        env:
+          REPORTING_WEEK: ${{ inputs.reporting_week }}
+        run: |
+          if [ -n "$REPORTING_WEEK" ]; then
+            npm run production:weekly -- --week "$REPORTING_WEEK" --send
+          else
+            npm run production:weekly -- --send
+          fi
+      - name: Verify weekly operational status
+        run: npm run production:status

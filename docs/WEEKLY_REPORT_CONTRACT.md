@@ -2,7 +2,7 @@
 
 ## Contract identity
 
-`buildWeeklyReport({ records, reportingWeek, generatedAt })` returns the single source of truth consumed by the JSON route, Traditional Chinese HTML preview, XLSX export and mail adapter. The report is public-market reference information only.
+`buildWeeklyReport({ records, reportingWeek, generatedAt })` returns the single source of truth consumed by the JSON route, Traditional Chinese HTML preview, XLSX export and Gmail mail adapter. Records may come from the local filesystem adapter or the Neon-compatible PostgreSQL adapter, but analytics and rendering are shared. The report is public-market reference information only.
 
 | Field | Type | Meaning |
 | --- | --- | --- |
@@ -90,8 +90,14 @@ The HTML report begins with biggest weekly risers, biggest decliners, high-volat
 
 The XLSX report contains exactly these minimum sheets: 「本週摘要」、「市場明細」、「歷史資料」、「資料來源與說明」。 It includes indicator identity, source, unit, current value, weekly／four-week／three-month／YTD／52-week metrics, high／low, volatility, signal, reason, status and timestamps, plus a disclaimer and source explanation.
 
+## Storage and delivery integration
+
+The report generator does not know whether persistence uses `STORAGE_PROVIDER=filesystem` or `STORAGE_PROVIDER=postgres`. Both providers return the canonical records described above. PostgreSQL stores public report metadata keyed by `reporting_week`; filesystem stores the equivalent atomic JSON metadata for local／test use. HTML／XLSX artifacts are generated before any delivery attempt, and the quality gate is evaluated before Gmail SMTP.
+
+The production delivery path is GitHub Actions using owner-approved personal Gmail SMTP. The first live run must keep `MAIL_TEST_MODE=1` and use only `MAIL_TEST_TO`; production recipients remain an owner-controlled external configuration. Render Free is not the scheduler or durable storage provider.
+
 ## References
 
-[1]: https://github.com/ggyin0628-code/raw-material-market-dashboard/tree/feat/weekly-market-intelligence-production-v1 "Weekly report implementation branch"
-[2]: https://github.com/ggyin0628-code/raw-material-market-dashboard/blob/feat/weekly-market-intelligence-production-v1/lib/weekly/weeklyAnalytics.js "Analytics implementation"
-[3]: https://github.com/ggyin0628-code/raw-material-market-dashboard/blob/feat/weekly-market-intelligence-production-v1/lib/weekly/reportService.js "Report, HTML and XLSX implementation"
+[1]: https://github.com/ggyin0628-code/raw-material-market-dashboard/tree/feat/zero-cost-runtime-v1 "Weekly report implementation branch"
+[2]: https://github.com/ggyin0628-code/raw-material-market-dashboard/blob/feat/zero-cost-runtime-v1/lib/weekly/weeklyAnalytics.js "Analytics implementation"
+[3]: https://github.com/ggyin0628-code/raw-material-market-dashboard/blob/feat/zero-cost-runtime-v1/lib/weekly/reportService.js "Report, HTML and XLSX implementation"

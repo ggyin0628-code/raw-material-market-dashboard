@@ -1,111 +1,82 @@
-# Production Activation Readiness
+# Zero-Cost Production Activation
 
 ## Verdict semantics
 
-Weekly V1 的 **production-ready** 意義是程式、storage boundary、quality gate、mail safety、observability、recovery runbook 與 scheduler contract 已可被 owner 配置與驗證；它不表示本次已替 owner 購買 persistent storage、取得 SMTP credentials、批准 recipients 或啟用 production cron。
+`ZERO_COST_RUNTIME_READY` means the provider boundary, Postgres adapter, migration, Actions workflows, quality gate, Gmail safety, observability, recovery documentation and offline validation are complete. It does not mean that an owner-approved Neon project, GitHub Actions secrets, Gmail App Password, personal recipient or workflow activation has been supplied during this task.
 
-| 狀態 | 意義 | 排程／寄信行為 |
+| State | Meaning | Runtime behavior |
 | --- | --- | --- |
-| `READY` | 程式與現有 configuration gate 通過 | 可進入 owner-approved activation stage |
-| `CONFIG_REQUIRED` | local／production configuration 尚未完整 | 不啟用 live operation |
-| `STORAGE_CONFIGURATION_REQUIRED` | production 沒有 durable root | `/health/weekly` 503；production jobs fail closed |
-| `SEND_OK` | 全部 tracked indicators 可用且 artifacts 完整 | 可在 mail stage 寄出 |
-| `SEND_WITH_WARNINGS` | report 可用但含 fallback／stale／API error／insufficient history／missing FX warning | 可選擇寄送，但 warning 必須留在 report；不可靜默遮蔽 |
-| `SEND_BLOCKED` | report 沒有 tracked indicators、usable ratio < 50% 或 artifacts 不完整 | 不寄信；job state 可恢復 |
+| `DATABASE_URL_REQUIRED` | Postgres selected without secret-managed URL | Database jobs fail closed with non-zero exit |
+| `DATABASE_UNAVAILABLE` | Postgres cannot be reached | Workflow stops; no fabricated data or mail |
+| `DATABASE_READY` | Postgres health check succeeds | Migration／jobs may continue |
+| `SEND_OK` | Report quality and artifacts are complete | Mail may proceed in the approved stage |
+| `SEND_WITH_WARNINGS` | Report usable but contains visible quality warnings | Mail may proceed; warnings stay in report／job state |
+| `SEND_BLOCKED` | No usable report, usable ratio below gate or artifact failure | No SMTP attempt; non-zero workflow |
+| `EXTERNAL_CONFIGURATION_REQUIRED` | Owner runtime configuration has not been supplied | Offline code is complete; owner action remains |
 
-## Activation sequence
+## Target architecture
 
-### Stage 0 — owner configuration review
-
-Owner 先確認 host 提供 persistent storage mount、network egress 至公開 providers、Node.js 20+、`npm ci`、`npm start`、`/health` 與 external cron capability。Render free 現況沒有已驗證的 persistent volume，因此只可作為 public UI／API host，不能直接啟用 production snapshot scheduler。
-
-設定：
-
-```sh
-NODE_ENV=production
-REQUIRE_DURABLE_STORAGE=1
-PRODUCTION_STORAGE_ROOT=/approved/persistent/path
+```text
+Public market APIs → GitHub Actions → Node.js runtime → Postgres adapter → Neon-compatible PostgreSQL
+                                                            ↓
+                                                  Gmail personal SMTP
 ```
 
-確認：
+Render Free remains optional dashboard hosting only. It does not provide durable local storage and does not run scheduled SMTP. `STORAGE_PROVIDER=filesystem` remains local／test compatibility; `STORAGE_PROVIDER=postgres` is the zero-cost production path.
 
-```sh
-npm run production:storage-check
-npm run production:status
-curl -fsS https://<host>/health
-curl -i https://<host>/health/weekly
+## Stage 0 — owner configuration review
+
+The owner creates or selects an owner-approved free PostgreSQL project and adds `DATABASE_URL` as a GitHub Actions secret. Add `MAIL_USER`, `MAIL_PASSWORD` as a Gmail App Password, `MAIL_FROM`, `MAIL_TO` and `MAIL_TEST_TO` as Actions secrets. Keep the repository variable `WEEKLY_MAIL_TEST_MODE=1`. No secret belongs in source, issue text, logs or committed configuration.
+
+The intended Gmail runtime is `smtp.gmail.com`, port `465`, secure TLS. Do not use a company email system or Microsoft Graph. The product boundary remains external public market intelligence and purchasing reference only.
+
+## Stage 1 — database migration and bootstrap
+
+Run the manual workflow or an owner-controlled checkout with secret injection:
+
+```bash
+STORAGE_PROVIDER=postgres DATABASE_URL="$DATABASE_URL" npm run db:migrate
+STORAGE_PROVIDER=postgres DATABASE_URL="$DATABASE_URL" npm run production:storage-check
+STORAGE_PROVIDER=postgres DATABASE_URL="$DATABASE_URL" npm run production:bootstrap -- --period 3y
+STORAGE_PROVIDER=postgres DATABASE_URL="$DATABASE_URL" npm run production:status
 ```
 
-`/health/weekly` 必須回 `status: OK`、`storage.state: DURABLE_CONFIGURED`，並且只顯示 safe job／coverage metadata。它不會顯示 absolute paths、recipient list、password 或 token。
+Migration is idempotent and non-destructive. Bootstrap performs migration, provider-supported public history backfill, canonical validation, completed prior-week report generation and job-state update without email. Snapshot identity remains `material_id + observation_date`; missing dates remain missing and source failures remain visible.
 
-### Stage 1 — public history bootstrap
+## Stage 2 — daily workflow
 
-執行：
+Run `.github/workflows/market-daily.yml` by manual dispatch first. It installs locked dependencies, validates source, migrates schema, checks database readiness, captures public daily data and validates status. It does not invoke the mail command. A database or process failure is non-zero; partial public-source failures remain explicit per row.
 
-```sh
-npm run production:bootstrap -- --period 3y
-npm run production:status
+The scheduled daily expression is `17 23 * * 1-5` UTC, approximately 07:17 Tuesday–Saturday in Taiwan. GitHub schedule is best-effort and may be delayed; use manual dispatch for recovery.
+
+## Stage 3 — weekly dry-run
+
+Run the weekly workflow in its default test-mode configuration or execute:
+
+```bash
+STORAGE_PROVIDER=postgres DATABASE_URL="$DATABASE_URL" DRY_RUN=1 npm run production:weekly -- --dry-run --send
 ```
 
-Bootstrap 順序固定為 public history backfill → normalize → atomic persist → quality validation → first completed-week report artifact。Backfill 只使用 provider-supported history；missing market dates 保持缺失，FX 缺失時 TWD reference 保持 null。命令可重跑，same identity 不會產生 duplicate record。
+The runtime calculates only the completed prior Monday–Sunday week in `Asia/Taipei`, generates JSON／HTML／XLSX, evaluates the quality gate, writes `DRY_RUN` to the durable ledger and returns `sent: false`. No SMTP socket is opened. Confirm tracked count, usable count, source/status coverage, FX availability, warnings and artifact integrity.
 
-若某些 provider 失敗，結果必須保留 `API_ERROR`／`NO_DATA` 與 reason；只有 material usable ratio < 50% 或 artifact integrity failure 才會成為 `BOOTSTRAP_REPORT_BLOCKED`。
+## Stage 4 — live TEST_RECIPIENT
 
-### Stage 2 — daily job
+Keep `WEEKLY_MAIL_TEST_MODE=1` and configure `MAIL_TEST_TO` to the owner-approved personal test recipient. Run one manual weekly workflow with no `--dry-run`. In test mode, production `MAIL_TO`, CC and Reply-To are not forwarded. Do not run this live test from Manus; use the owner-controlled GitHub Actions workflow.
 
-建議在台灣工作日 `18:30 Asia/Taipei` 執行：
+Review the received email subject `採購市場情報週報｜YYYY-Www`, sender, recipient, public-only content, HTML at desktop and narrow/mobile widths, XLSX attachment, timestamps, source labels, warnings and disclaimer. If any item fails, keep test mode enabled and recover through manual workflow dispatch.
 
-```sh
-npm run production:daily
-npm run production:status
-```
+## Stage 5 — approved production recipients
 
-這個時間點是在主要公開市場日內資料通常可取得後的實務窗口，但不同 exchange close 不同，因此 `LIVE` 只代表當次 provider response；不代表所有市場已同步收盤。每次執行都保留 `lastAttemptedAt`、`lastSuccessfulAt`、snapshot date、record count、coverage、status 與 error count。
+Only after manual receipt and attachment review pass may the owner set `WEEKLY_MAIL_TEST_MODE=0` and use the approved personal `MAIL_TO`. Run one explicitly approved completed-week send. The Postgres delivery ledger and duplicate guard remain active. Uncertain SMTP acceptance after `DATA` requires mailbox／ledger review before any resend.
 
-### Stage 3 — weekly dry-run
+## Stage 6 — scheduled workflow activation
 
-建議每週一 `09:30 Asia/Taipei`，先執行：
+After the controlled production-recipient send passes, the owner may rely on the weekly schedule `17 1 * * 1` UTC, approximately Monday 09:17 Asia/Taipei. The workflow performs migration, storage check, quality-gated report generation, Gmail delivery and final status validation. It stops on database failure, `SEND_BLOCKED`, attachment failure, failed SMTP or any other materially unsuccessful state.
 
-```sh
-npm run production:weekly -- --dry-run --send
-```
+## Recovery and non-destructive behavior
 
-它只會對 completed prior Monday–Sunday week 建立 canonical JSON／HTML／XLSX、評估 quality gate、寫 `DRY_RUN` ledger state 並回報 `sent: false`。不會連 SMTP，也不會將資料寄到任何地址。報告檢查項目至少包括 tracked count、usable count、API_ERROR、NO_DATA、STALE、FALLBACK、insufficient history、missing FX 與 artifact integrity。
+Migration uses non-destructive create-if-missing operations. Transactional Postgres snapshot upsert rolls back on batch failure. Provider re-backfill and public Postgres export are the recovery sources of truth. Filesystem adapter corruption remains explicit and does not silently become valid data. Delivery duplicate protection remains keyed by reporting week. There is no paid backup requirement.
 
-### Stage 4 — controlled test recipient
+## Required final human action
 
-先設定只允許測試地址的 environment：
-
-```sh
-MAIL_ENABLED=1
-MAIL_HOST=<approved-smtp-host>
-MAIL_PORT=587
-MAIL_SECURE=0
-MAIL_USER=<secret-managed-user>
-MAIL_PASSWORD=<secret-managed-password>
-MAIL_FROM=<approved-sender>
-MAIL_TO=<production-list-is-ignored-in-test-mode>
-MAIL_TEST_MODE=1
-MAIL_TEST_TO=<approved-test-recipient>
-```
-
-保留 `DRY_RUN=1` 直到 Stage 3 完成。接著僅以 `MAIL_TEST_MODE=1` 執行 live test，確認實收郵件的 subject、sender、HTML、mobile readability、XLSX attachment、timestamps、source labels 與 public-data disclaimer。任何 failure 都回到 Stage 3／Stage 4，不得直接切換 production recipients。
-
-### Stage 5 — approved recipients
-
-Owner 確認 Stage 4 實收無誤後，移除 `MAIL_TEST_MODE` 或設為 false，提供 approved `MAIL_TO`／optional `MAIL_CC`，再以一個指定 week 做 owner-approved live send。Recipient parser 會 trim、拆分逗號／分號／空白、去除 case-insensitive duplicates，任何 invalid address 都 fail closed。
-
-### Stage 6 — scheduler activation
-
-最後才啟用外部 scheduler。Scheduler 必須先執行 readiness／storage check，失敗即停止後續 job；weekly 流程順序固定為 history／snapshot readiness → completed week → analytics → quality gate → HTML → XLSX → mail or dry-run → ledger。實際 scheduler expression 與 UTC 換算見 [`SCHEDULER_RUNBOOK.md`](SCHEDULER_RUNBOOK.md)。
-
-## Explicit next human action
-
-**Configure approved persistent storage and SMTP environment variables, perform TEST_RECIPIENT live-email verification, then enable the weekly scheduler.** Do not add company/private purchasing data. The next product feature after activation remains external machining／sheet-metal market reference intelligence using public sources only.
-
-## References
-
-- [`PRODUCTION_STORAGE.md`](PRODUCTION_STORAGE.md)
-- [`EMAIL_DELIVERY.md`](EMAIL_DELIVERY.md)
-- [`SCHEDULER_RUNBOOK.md`](SCHEDULER_RUNBOOK.md)
-- [`OPERATIONS_RUNBOOK.md`](OPERATIONS_RUNBOOK.md)
+Create the owner-approved Neon Free project, configure `DATABASE_URL` and Gmail credentials only as GitHub Actions secrets, run the manual bootstrap workflow, execute one `MAIL_TEST_MODE=1` live weekly send to the approved personal recipient, verify receipt and attachment, then enable scheduled daily and weekly workflows.

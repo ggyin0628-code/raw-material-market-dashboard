@@ -1,62 +1,71 @@
-# Operations Runbook
+# Zero-Cost Operations Runbook
 
 ## Scope and safety
 
-This service is permanently limited to external public market intelligence and procurement reference context. It is not a procurement system and must never ingest SAP, private purchasing data, supplier names or quotations, inventory, MOQ, payment terms, company target prices, private thresholds, credentials or private runtime reports.
+This service is permanently limited to external public market intelligence and purchasing-reference context. It is not a procurement system and must never ingest SAP, private purchasing data, supplier names or quotations, inventory, MOQ, payment terms, company target prices, private thresholds, company email data, credentials or private runtime reports.
+
+The scheduled runtime is GitHub Actions. Render Free is optional dashboard hosting only; it is not the durable storage provider and it does not send scheduled SMTP. The zero-cost durable provider is Neon-compatible PostgreSQL selected by `STORAGE_PROVIDER=postgres` and secret-managed `DATABASE_URL`.
 
 ## Safe observability
 
-Use these read-only checks:
+Use the read-only checks from a secret-managed environment:
 
-```sh
-npm run production:storage-check
-npm run production:status
+```bash
+STORAGE_PROVIDER=postgres DATABASE_URL="$DATABASE_URL" npm run production:storage-check
+STORAGE_PROVIDER=postgres DATABASE_URL="$DATABASE_URL" npm run production:status
 curl -i https://<host>/health/weekly
 ```
 
-`/health/weekly` returns a sanitized summary containing readiness state, storage state, current completed-week label, last job state, coverage/status counts and warnings. It must not expose absolute filesystem paths, environment variable values, SMTP host credentials, sender, recipients, message body or stack traces. Expected unconfigured production response is HTTP 503 with `STORAGE_CONFIGURATION_REQUIRED`. A synthetic durable-root test response is HTTP 200 only when the root is configured and accessible.
+`/health/weekly` returns sanitized readiness fields for `WEB_READY`, database, daily data, weekly report and mail configuration, together with public job states, completed-week label and warnings. It never exposes `DATABASE_URL`, `MAIL_PASSWORD`, SMTP credentials, recipient lists, message body, absolute paths or stack traces. Missing Postgres configuration returns HTTP 503 with `DATABASE_URL_REQUIRED`; a database outage returns a safe unavailable state. `/health` only proves that the web process responds.
 
 ## Failure matrix and recovery
 
-| Failure | Expected state | Recovery | Do not do |
+| Failure | Expected state | Recovery | Prohibited response |
 | --- | --- | --- | --- |
-| No durable root in production | `STORAGE_CONFIGURATION_REQUIRED` | Configure owner-approved persistent mount, rerun storage check, then bootstrap if needed | Do not treat Render free filesystem as durable; do not activate scheduler |
-| Storage permission／mount failure | `STORAGE_CONFIGURATION_REQUIRED` or non-zero exit | Fix mount ownership/permissions, preserve existing files, rerun check | Do not change to repository `data/` in production |
-| Corrupt snapshot JSON | `SNAPSHOT_STORE_INVALID` | Preserve original, inspect last backup, restore public-only backup, rerun status and quality checks | Do not silently reset ledger or fabricate values |
-| Corrupt report／job metadata | `*_INVALID` or non-zero exit | Preserve artifact, restore matching public-only metadata backup, rerun the interrupted job in dry-run | Do not mark `SENT` manually |
-| Provider timeout / HTTP failure | Row-level `API_ERROR`, `NO_DATA` or `STALE` | Retry only within bounded policy; rerun daily/backfill if safe; keep visible source status | Do not invent a date, price, FX or Taiwan spot value |
-| Partial daily failure | Successful rows retained; failed rows visible | Review coverage and rerun; same `materialId + date` identity is idempotent | Do not delete successful rows |
-| Weekly insufficient data | `SEND_BLOCKED` | Obtain more provider-supported public history or wait for provider recovery; rerun dry-run | Do not interpolate or import private procurement data |
-| Weekly degraded but usable | `SEND_WITH_WARNINGS` | Review warning list and approve delivery if appropriate | Do not hide warning status |
-| Missing or malformed SMTP config | `FAILED` before socket | Correct environment-only config; run dry-run first | Do not put secrets in Git or command-line args |
-| SMTP auth／permission failure | `FAILED`, non-transient | Fix approved account/sender authorization; repeat test mode | Do not retry blindly |
-| SMTP pre-DATA timeout | `FAILED`, transient eligible | Fix network/provider issue; retry once approved | Do not exceed bounded retry policy |
-| SMTP timeout after DATA | `FAILED` with uncertain acceptance | Check provider logs and recipient mailbox; owner decides whether resend is safe | Do not automatic retry; duplicate risk exists |
-| Duplicate week | `DUPLICATE_PREVENTED` | Confirm ledger and owner-approved resend process | Do not delete ledger entry |
-| Backup failure | non-zero exit | Fix destination mount/permissions; rerun and verify manifest | Do not claim backup exists without manifest |
-
-## Backup and restoration
-
-Run:
-
-```sh
-npm run production:backup -- --backup-id <owner-approved-id>
-```
-
-A backup must include snapshot ledger, delivery ledger, report metadata and a manifest with safe file names, sizes and timestamps. Keep backups in an approved durable location with access control. Restore only public-market data and operational metadata from a known-good backup, preserve the damaged source files for investigation, then run `production:storage-check`, `production:status`, weekly dry-run and duplicate review before any live send.
-
-## Quality gate operations
-
-The gate counts tracked indicators and classifies rows as usable (`LIVE`／`FALLBACK`), `STALE`, `API_ERROR`, `NO_DATA`, plus insufficient history and missing FX. It blocks when there is no usable data, usable ratio is below 50%, or required report artifacts are incomplete. Otherwise it returns `SEND_OK` for clean coverage or `SEND_WITH_WARNINGS` when the report is usable but degraded. Quality warnings remain in JSON／HTML／XLSX and are never removed merely to pass.
+| Missing `DATABASE_URL` | `DATABASE_URL_REQUIRED`, exit 2 | Add secret-managed Actions URL and rerun migration／job | Never put URL in source or logs |
+| Neon unavailable／connection failure | `DATABASE_UNAVAILABLE`, non-zero | Check owner secret／service availability, then use `workflow_dispatch` | Do not fall back to ephemeral Render storage |
+| Migration failure | `DATABASE_MIGRATION_FAILED`, transaction rollback | Correct permissions/schema access and rerun non-destructive migration | Do not drop, truncate or reset tables |
+| Query timeout／disconnect | bounded database read/write failure | Rerun after transient condition; inspect safe logs | No infinite retry or fabricated data |
+| Invalid public payload | `SNAPSHOT_PAYLOAD_INVALID` or explicit contract error | Preserve failure, investigate provider normalization, rerun | Do not insert malformed rows |
+| Partial Postgres batch failure | transaction rollback; no partial commit | Correct cause and rerun idempotent batch | Do not claim partial batch persisted |
+| Public API timeout／HTTP failure | `API_ERROR`, `NO_DATA` or `STALE` per row | Use bounded retry and next workflow window | Do not invent dates, prices or FX |
+| Partial daily failure | successful rows retained; failed rows visible | Review coverage and rerun daily | Do not delete successful rows |
+| Weekly insufficient data | `SEND_BLOCKED`, non-zero | Obtain provider-supported public history or wait, then dry-run | Do not interpolate or use private data |
+| Weekly degraded but usable | `SEND_WITH_WARNINGS` | Review warnings and approve delivery if appropriate | Do not hide warnings |
+| Missing／malformed Gmail config | `FAILED` before socket | Correct Actions secrets; run dry-run first | Do not pass secrets as committed args |
+| Gmail authentication failure | `FAILED`, non-transient | Correct personal Gmail App Password／sender authorization; repeat test mode | Do not retry blindly |
+| SMTP pre-DATA timeout | `FAILED`, bounded transient retry | Review connectivity and rerun after approval | Do not exceed bounded retry |
+| SMTP timeout after DATA | `FAILED`, acceptance uncertain | Inspect Postgres ledger and Gmail mailbox before resend | Do not automatic retry |
+| Attachment failure | `FAILED`, no successful send | Regenerate public artifacts and rerun controlled test | Do not mark sent manually |
+| Duplicate week | `DUPLICATE_PREVENTED` | Review ledger; owner-approved resend only | Do not delete ledger row |
+| Public export failure | non-zero | Correct destination／database access and rerun export | Do not claim backup exists without manifest |
 
 ## Daily incident procedure
 
-First capture the safe command output and timestamp. Check storage readiness, job state, row status counts and provider error summaries. If storage is healthy, rerun daily once; the atomic identity merge preserves prior successes. If the provider is unavailable, leave the explicit error status and allow the next scheduled window. If storage is unhealthy, fix the persistent mount before any rerun.
+Capture workflow run URL, timestamp and safe status output. Check `DATABASE_READY`, the `dailySnapshot` job state, source coverage and row-level statuses. If the database is healthy, rerun the daily workflow once with `workflow_dispatch`; deterministic snapshot identity preserves prior successes. If a public provider is unavailable, leave explicit `API_ERROR`／`NO_DATA`／`STALE` state and allow the next scheduled window. If Postgres is unhealthy, correct the secret or service condition before rerunning.
 
 ## Weekly incident procedure
 
-Do not send on an unknown or partial week. Start with `production:status`, inspect the completed-week label and delivery state, then execute a dry-run. If artifacts are valid but mail fails, preserve them and correct SMTP without regenerating private content. For uncertain acceptance, wait for owner confirmation. For duplicate prevention, require `ALLOW_WEEKLY_RESEND=1` plus explicit `--allow-resend`; document the reason outside the repository.
+Confirm the completed prior Monday–Sunday week in `production:status`. Run the weekly workflow in default test mode or run a dry-run. If quality is `SEND_BLOCKED`, inspect coverage／FX／history and do not send. If report artifacts are valid but Gmail fails, preserve public artifacts and correct secrets. If SMTP acceptance is uncertain after DATA, inspect the mailbox and ledger before any owner-approved resend. If the state is `DUPLICATE_PREVENTED`, require both `ALLOW_WEEKLY_RESEND=1` and explicit `--allow-resend` after reviewing the existing delivery state.
+
+## Backup and restoration
+
+Run the public-only Postgres export command through a secret-managed environment:
+
+```bash
+STORAGE_PROVIDER=postgres DATABASE_URL="$DATABASE_URL" npm run production:backup -- --backup-id <owner-approved-id>
+```
+
+The export contains public market snapshots, delivery ledger, public report metadata and sanitized job state with a manifest. No paid backup service is required. Because public market history is reproducible, provider-supported re-backfill is the primary recovery source. Preserve damaged data for investigation, restore only known-good public data and metadata, then rerun migration／storage check／status／dry-run before any live send.
+
+## Quality gate operations
+
+The quality gate counts tracked indicators and classifies usable `LIVE`／`FALLBACK`, `STALE`, `API_ERROR` and `NO_DATA`, plus insufficient history, missing FX and artifact integrity. It blocks when there is no usable data, usable ratio is below 50% or required artifacts are incomplete. Otherwise it returns `SEND_OK` for clean coverage or `SEND_WITH_WARNINGS` when the report remains usable but degraded. Warnings remain in JSON／HTML／XLSX and job state.
+
+## Workflow operations
+
+GitHub Actions schedules are best-effort and may be delayed. Public repositories may have scheduled workflows disabled after extended inactivity. `workflow_dispatch` is the manual recovery path. Do not create artificial commits merely to hide inactivity. Keep `WEEKLY_MAIL_TEST_MODE=1` until the first live test receipt and attachment review pass; only then may the owner set it to `0` and enable approved production-recipient operation.
 
 ## Owner activation handoff
 
-The explicit next human action is: **configure approved persistent storage and SMTP environment variables; perform TEST_RECIPIENT live email verification; then enable the weekly scheduler.** The next functional expansion remains external machining／sheet-metal market reference intelligence from public sources only.
+The explicit next human action is: **create the owner-approved Neon Free project, configure `DATABASE_URL` and Gmail credentials only as GitHub Actions secrets, run the manual bootstrap workflow, execute one `MAIL_TEST_MODE=1` live weekly send to the approved personal recipient, verify receipt and attachment, then enable scheduled daily and weekly workflows.**

@@ -112,18 +112,19 @@ npm run weekly:preview -- --week YYYY-Www --out /tmp/weekly-preview.html
 DRY_RUN=1 npm run weekly:send -- --week YYYY-Www --dry-run --out-dir /tmp/weekly-send
 ```
 
-Production jobs 必須先通過 durable storage gate：
+Production jobs 可選擇 local/test filesystem adapter 或 zero-cost Postgres adapter。`STORAGE_PROVIDER=filesystem` 保留既有 local／deterministic compatibility；`STORAGE_PROVIDER=postgres` 使用 secret-managed `DATABASE_URL` 連接 Neon-compatible PostgreSQL，production 不再要求 paid persistent filesystem：
 
 ```bash
-npm run production:storage-check
-npm run production:status
-npm run production:bootstrap -- --period 3y
-npm run production:daily
-npm run production:weekly -- --dry-run --send
-npm run production:backup -- --backup-id <owner-approved-id>
+# Postgres mode；DATABASE_URL 只由 secret manager／Actions secret 注入
+STORAGE_PROVIDER=postgres DATABASE_SSL=true DATABASE_URL="$DATABASE_URL" npm run db:migrate
+STORAGE_PROVIDER=postgres DATABASE_URL="$DATABASE_URL" npm run production:storage-check
+STORAGE_PROVIDER=postgres DATABASE_URL="$DATABASE_URL" npm run production:bootstrap -- --period 3y
+STORAGE_PROVIDER=postgres DATABASE_URL="$DATABASE_URL" npm run production:daily
+STORAGE_PROVIDER=postgres DATABASE_URL="$DATABASE_URL" npm run production:weekly -- --dry-run --send
+STORAGE_PROVIDER=postgres DATABASE_URL="$DATABASE_URL" npm run production:backup -- --backup-id <owner-approved-id>
 ```
 
-在 `NODE_ENV=production` 或 `REQUIRE_DURABLE_STORAGE=1` 時，`PRODUCTION_STORAGE_ROOT` 必須是 owner-approved absolute durable mount；否則回 `STORAGE_CONFIGURATION_REQUIRED`，不可將 Render free／container ephemeral filesystem 當成 durable。Production weekly 先產生 JSON／HTML／XLSX、評估 `SEND_OK`／`SEND_WITH_WARNINGS`／`SEND_BLOCKED`，再依 dry-run → `MAIL_TEST_MODE=1`／`MAIL_TEST_TO` → approved recipients 的 staged workflow 進行 SMTP。完成週預設以 `Asia/Taipei` 的前一個 Monday–Sunday ISO week 計算。完整模型、品質、儲存、SMTP 與 scheduler 說明見 [`docs/WEEKLY_MARKET_INTELLIGENCE.md`](docs/WEEKLY_MARKET_INTELLIGENCE.md)、[`docs/WEEKLY_REPORT_CONTRACT.md`](docs/WEEKLY_REPORT_CONTRACT.md)、[`docs/PRODUCTION_STORAGE.md`](docs/PRODUCTION_STORAGE.md)、[`docs/PRODUCTION_ACTIVATION.md`](docs/PRODUCTION_ACTIVATION.md)、[`docs/EMAIL_DELIVERY.md`](docs/EMAIL_DELIVERY.md)、[`docs/OPERATIONS_RUNBOOK.md`](docs/OPERATIONS_RUNBOOK.md) 與 [`docs/SCHEDULER_RUNBOOK.md`](docs/SCHEDULER_RUNBOOK.md)。
+`STORAGE_PROVIDER=filesystem` 的 production mode 仍要求 owner-approved absolute `PRODUCTION_STORAGE_ROOT`；未配置時回 `STORAGE_CONFIGURATION_REQUIRED`。`STORAGE_PROVIDER=postgres` 未配置 `DATABASE_URL` 時回 `DATABASE_URL_REQUIRED`。Production weekly 先產生 JSON／HTML／XLSX、評估 `SEND_OK`／`SEND_WITH_WARNINGS`／`SEND_BLOCKED`，再依 dry-run → `MAIL_TEST_MODE=1`／`MAIL_TEST_TO` → approved personal Gmail recipient 的 staged workflow 進行 SMTP。GitHub Actions workflows 位於 [`.github/workflows/market-daily.yml`](.github/workflows/market-daily.yml) 與 [`.github/workflows/market-weekly.yml`](.github/workflows/market-weekly.yml)；Render Free 僅作 optional dashboard hosting，不承擔排程 SMTP，也不提供 durable local filesystem。完成週預設以 `Asia/Taipei` 的前一個 Monday–Sunday ISO week 計算。完整模型、品質、儲存、SMTP 與 scheduler 說明見 [`docs/ZERO_COST_RUNTIME.md`](docs/ZERO_COST_RUNTIME.md)、[`docs/POSTGRES_STORAGE.md`](docs/POSTGRES_STORAGE.md)、[`docs/GITHUB_ACTIONS_OPERATIONS.md`](docs/GITHUB_ACTIONS_OPERATIONS.md)、[`docs/WEEKLY_MARKET_INTELLIGENCE.md`](docs/WEEKLY_MARKET_INTELLIGENCE.md)、[`docs/WEEKLY_REPORT_CONTRACT.md`](docs/WEEKLY_REPORT_CONTRACT.md)、[`docs/PRODUCTION_ACTIVATION.md`](docs/PRODUCTION_ACTIVATION.md)、[`docs/EMAIL_DELIVERY.md`](docs/EMAIL_DELIVERY.md)、[`docs/OPERATIONS_RUNBOOK.md`](docs/OPERATIONS_RUNBOOK.md) 與 [`docs/SCHEDULER_RUNBOOK.md`](docs/SCHEDULER_RUNBOOK.md)。
 
 ## 測試與驗證
 
@@ -158,4 +159,7 @@ npm audit --omit=dev
 | [`docs/WEEKLY_MARKET_INTELLIGENCE.md`](docs/WEEKLY_MARKET_INTELLIGENCE.md) | Weekly V1 架構、快照、分析與限制。 |
 | [`docs/WEEKLY_REPORT_CONTRACT.md`](docs/WEEKLY_REPORT_CONTRACT.md) | Canonical JSON、公式、品質狀態與訊號門檻。 |
 | [`docs/EMAIL_DELIVERY.md`](docs/EMAIL_DELIVERY.md) | SMTP dry-run、fail-closed、ledger 與 live mail 操作。 |
-| [`docs/SCHEDULER_RUNBOOK.md`](docs/SCHEDULER_RUNBOOK.md) | Asia/Taipei weekly scheduler、backfill 與持久化 runbook。 |
+| [`docs/SCHEDULER_RUNBOOK.md`](docs/SCHEDULER_RUNBOOK.md) | Asia/Taipei workflow／scheduler、backfill 與 recovery runbook。 |
+| [`docs/ZERO_COST_RUNTIME.md`](docs/ZERO_COST_RUNTIME.md) | GitHub Actions、Postgres、Gmail SMTP 與 Render Free boundary。 |
+| [`docs/POSTGRES_STORAGE.md`](docs/POSTGRES_STORAGE.md) | Postgres schema、migration、transaction、upsert 與 export。 |
+| [`docs/GITHUB_ACTIONS_OPERATIONS.md`](docs/GITHUB_ACTIONS_OPERATIONS.md) | daily／weekly workflow、secrets、test mode、failure recovery。 |

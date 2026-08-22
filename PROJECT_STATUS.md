@@ -1,104 +1,112 @@
-# Project Status — Weekly Market Intelligence Production Activation
+# Project Status — Zero-Cost Production Runtime V1
 
 ## Status verdict
 
-**WEEKLY_MARKET_INTELLIGENCE_PRODUCTION_READY**
+**ZERO_COST_RUNTIME_READY**
 
 **OFFLINE_GAPS = 0**
 
 **CODEX_HANDOFF_READY = YES**
 
-This production readiness work starts exactly from `weekly-market-intelligence-v1` at `b78ba1e6302a30b8231711c15d5945d3223687c5`, on branch `feat/weekly-market-intelligence-production-v1`. The final revision is the commit resolved by `git rev-parse weekly-market-intelligence-production-ready-v1^{}` after the annotated tag is pushed. `main` must remain unchanged. This task does not deploy, purchase／activate paid resources, or enable production cron or real-recipient mail.
+This work starts exactly from the annotated checkpoint `weekly-market-intelligence-production-ready-v1`, whose peeled target is `222e1a2a7a602d3700260f83753bf024708b47d6`, and is developed on `feat/zero-cost-runtime-v1`. The final revision is the commit resolved by `git rev-parse zero-cost-runtime-ready-v1^{}` after the annotated tag is pushed. `main` must remain unchanged. This task does not create a Neon project, configure Actions secrets, send real mail, deploy, merge main or activate paid resources.
 
 ## Product boundary
 
-This is an external public-market intelligence and purchasing-reference platform. It gives purchasing users reliable public-market trend information, source coverage and data-quality visibility. It must not claim supplier purchase price, company target purchase price, guaranteed negotiation price, unsupported Taiwan spot price or BUY／SELL／MUST PURCHASE instructions. Supplier quotations, SAP, company thresholds, inventory, delivery terms, MOQ, payment terms and private credentials are excluded.
+This remains an **EXTERNAL PUBLIC MARKET INTELLIGENCE AND PURCHASING REFERENCE PLATFORM**. Only external public market data and derived public-market reference reports may be stored. The product must not add SAP, company procurement history, supplier quotations or names, company target prices, private thresholds, inventory, MOQ, payment terms, company email systems, private mappings, credentials or generated private runtime configuration. The next functional expansion remains external machining／sheet-metal public market reference intelligence using public external sources only.
+
+## Zero-cost runtime architecture
+
+```text
+Public market APIs
+    ↓
+GitHub Actions daily／weekly workflows
+    ↓
+Node.js weekly runtime
+    ↓
+STORAGE_PROVIDER=postgres
+    ↓
+Neon-compatible PostgreSQL
+    ↓
+Gmail SMTP to owner-approved personal TEST_RECIPIENT／recipient
+```
+
+Render Free is optional dashboard／web hosting only. It does not provide durable local storage and it does not perform scheduled SMTP delivery. When `STORAGE_PROVIDER=postgres`, the dashboard and Actions jobs share the same durable public history without requiring a paid persistent filesystem.
 
 ## Completed scope
 
 | Area | Result |
 | --- | --- |
-| Daily snapshot persistence | Atomic JSON ledger, configurable path, `materialId + date` identity, duplicate prevention, provenance, timestamps, source unit, FX and valid TWD reference value |
-| Historical quality | Distinct `LIVE`, `FALLBACK`, `STALE`, `NO_DATA`, `API_ERROR`; stale/error are never fresh; missing days stay absent |
-| Weekly analytics | Latest valid, prior-week, four-week, approximately three-month, YTD and 52-week comparisons; high／low, range and rolling volatility; FX trends; insufficient-history nulls |
-| Signals | `COST_PRESSURE_RISING`, `MARKET_WEAKENING`, `STABLE`, `HIGH_VOLATILITY`, `DATA_INSUFFICIENT`, `DATA_QUALITY_WARNING`, all with thresholds and reason codes |
-| Weekly report | Canonical JSON model with reporting period, coverage, quality, summary, all indicators, provenance and purchasing-reference note |
-| HTML | Traditional Chinese report, top risers／decliners／volatility／quality warnings, complete indicator table and optional inline SVG visuals |
-| XLSX | 「本週摘要」、「市場明細」、「歷史資料」、「資料來源與說明」 with required values, statuses, timestamps and disclaimer |
-| Preview | Safe CLI and dashboard routes; no route sends mail |
-| Mail | Provider-neutral SMTP adapter, env-only configuration, dry-run with no socket, `MAIL_TEST_MODE`／`MAIL_TEST_TO` isolation, optional CC／Reply-To in production mode, fail-closed validation, bounded transient-only retry, uncertain-acceptance recovery and duplicate-week ledger |
-| Storage | Shared production configuration, absolute durable root gate, atomic snapshots／reports／metadata／job state／delivery ledger and public-only backup export |
-| Quality gate | `SEND_OK`, `SEND_WITH_WARNINGS`, `SEND_BLOCKED`; blocks no-usable／<50% usable／artifact integrity failures before mail |
-| Observability | Safe `/health/weekly` with 503 `STORAGE_CONFIGURATION_REQUIRED` when unconfigured and no paths／secrets in responses |
-| Production jobs | `production:storage-check`, `production:status`, `production:bootstrap`, `production:daily`, `production:weekly`, `production:backup` |
-| Scheduler | Daily／weekly Asia/Taipei contract with UTC conversion documented; no production cron activated |
-
-| Backfill | Provider-supported public history only, idempotent, provenance-preserving, missing-date-safe and source-failure-visible |
-| UI | Minimum weekly summary, report preview link, XLSX link and quality warning visibility added; current hardened dashboard preserved |
-| Security | Generated paths ignored, safe filenames, public-source boundaries, no credentials or company-private data in tracked files |
+| Storage provider boundary | `filesystem` remains local／test adapter; `postgres` is Neon-compatible production adapter; analytics and report logic are shared |
+| PostgreSQL schema | `market_snapshots`, `weekly_delivery_ledger`, `weekly_report_metadata`, `weekly_job_state` with primary keys／indexes |
+| Migration | `npm run db:migrate`; idempotent and non-destructive, with explicit `DATABASE_MIGRATION_FAILED` |
+| Snapshot semantics | Deterministic `material_id + observation_date`; transactional upsert; higher-quality `LIVE`／`FALLBACK` cannot be downgraded; malformed payloads rejected |
+| Operational persistence | Delivery ledger, public report metadata and job state supported by Postgres; filesystem JSON remains atomic compatibility path |
+| Bootstrap | migration → public history backfill → validation → job state → first report, idempotent and no email |
+| Daily Actions | `market-daily.yml`; schedule／manual dispatch, npm ci, migration, storage check, public daily collection and status; no report email |
+| Weekly Actions | `market-weekly.yml`; completed prior week, quality gate, HTML／XLSX, Gmail SMTP, duplicate guard and final status |
+| Gmail SMTP | Personal Gmail only, env／Actions-secret configuration, `MAIL_TEST_MODE=1` isolation, dry-run, bounded retry and uncertain-acceptance recovery |
+| Health | `/health/weekly` readiness fields: `WEB_READY`, `DATABASE_READY`, `DAILY_DATA_READY`, `WEEKLY_REPORT_READY`, `MAIL_CONFIGURATION_READY`; no secrets／recipient lists |
+| Backup | Public-only Postgres export／manifest; provider re-backfill remains recovery source of truth; no paid backup service required |
+| Documentation | Zero-cost architecture, Postgres schema, Actions operations, email, scheduler, operations, activation and handoff docs |
 
 ## Commands
 
-```sh
+```bash
 npm ci
 npm run check
 npm test
 npm run build
 npm audit --omit=dev
-npm run daily:snapshot
-npm run weekly:backfill -- --period 3y
-npm run weekly:report -- --week YYYY-Www --out-dir data/weekly-reports
-npm run weekly:preview -- --week YYYY-Www --out /tmp/weekly-preview.html
-DRY_RUN=1 npm run weekly:send -- --week YYYY-Www --dry-run --out-dir /tmp/weekly-send
-npm run production:storage-check
-npm run production:status
-npm run production:bootstrap -- --period 3y
-npm run production:daily
-npm run production:weekly -- --dry-run --send
-npm run production:backup -- --backup-id <owner-approved-id>
+STORAGE_PROVIDER=postgres DATABASE_SSL=true DATABASE_URL="$DATABASE_URL" npm run db:migrate
+STORAGE_PROVIDER=postgres DATABASE_URL="$DATABASE_URL" npm run production:storage-check
+STORAGE_PROVIDER=postgres DATABASE_URL="$DATABASE_URL" npm run production:bootstrap -- --period 3y
+STORAGE_PROVIDER=postgres DATABASE_URL="$DATABASE_URL" npm run production:daily
+STORAGE_PROVIDER=postgres DATABASE_URL="$DATABASE_URL" npm run production:weekly -- --dry-run --send
+STORAGE_PROVIDER=postgres DATABASE_URL="$DATABASE_URL" npm run production:backup -- --backup-id <owner-approved-id>
 ```
 
-The weekly preview and report commands are read／write artifact operations only. They do not send email. Production weekly always generates and quality-gates public JSON／HTML／XLSX before mail. Live SMTP requires owner-managed environment variables and must follow dry-run → TEST_RECIPIENT → approved-recipient stages.
-
-## External configuration required
-
-Public operation needs network access to the configured Yahoo Finance, Stooq, Jina public proxy and open.er-api endpoints. Production operation needs owner-approved persistent `PRODUCTION_STORAGE_ROOT`; missing durable configuration is an explicit `STORAGE_CONFIGURATION_REQUIRED` stop state. Live email needs approved environment values for SMTP host／port／secure mode／user／password／sender, `MAIL_TEST_TO` for controlled verification and later `MAIL_TO`／optional `MAIL_CC`; no such values are committed or supplied in this task.
+`DATABASE_URL` in these examples is a placeholder for secret-managed runtime injection and must never be pasted into tracked files or logs.
 
 ## Validation status
 
-| Gate | Status |
+| Gate | Result |
 | --- | --- |
-| Existing hardened regression suite | PASS before weekly additions |
-| Weekly deterministic tests | PASS; historical V1 baseline 25 passed, 0 failed |
-| Production deterministic tests | PASS; 31 passed, 0 failed |
-| `npm run check` and all weekly module syntax checks | PASS |
-| `npm run build` | PASS |
-| `npm audit --omit=dev` | PASS; 0 vulnerabilities |
-| Report generation | PASS in safe run; JSON／HTML／XLSX created |
-| HTML preview | PASS in safe run; no mail side effect |
-| SMTP dry-run | PASS; `DRY_RUN`, no socket, no external email |
-| Missing SMTP configuration | PASS; fail-closed `FAILED` |
-| Duplicate weekly send prevention | PASS; `DUPLICATE_PREVENTED` |
-| Backfill idempotence and missing days | PASS |
-| Weekly API JSON／HTML／XLSX routes | PASS |
-| Storage gate / production simulations | PASS when unconfigured 503／blocked and synthetic durable root completes storage→bootstrap→daily→weekly dry-run→duplicate→health→backup |
-| SMTP safety simulations | PASS; dry-run no socket, TEST_RECIPIENT isolation, fail-closed config and duplicate guard |
-| Fresh-clone verification | PASS; GitHub-only clone `feat/weekly-market-intelligence-production-v1` at `85697cdcad9c7c6c126722b61a550713816b627a`, 31 tests passed／0 failed, check／build／audit PASS, blocked production exit 2, `/health` 200 and synthetic production simulation PASS |
-| Live public-data smoke | Required separately; report availability, fallback use and failure count |
-| Owner persistent storage／SMTP／TEST_RECIPIENT | `EXTERNAL_CONFIGURATION_REQUIRED` |
-| Weekly scheduler activation | `EXTERNAL_CONFIGURATION_REQUIRED`; owner action after live test receipt |
-| Production deployment | Not performed by instruction; no paid resources or cron activation |
+| Starting checkpoint | PASS; `weekly-market-intelligence-production-ready-v1` → `222e1a2a7a602d3700260f83753bf024708b47d6` |
+| Branch isolation | PASS; `feat/zero-cost-runtime-v1`, based on checkpoint and not `main` |
+| Syntax／build | PASS; `npm run check` and `npm run build` |
+| Deterministic tests | PASS; 35 passed／0 failed |
+| Dependency audit | PASS; `npm audit --omit=dev` reports 0 vulnerabilities |
+| Postgres migration／parity | PASS offline with FakePostgresPool; idempotence, schema command contract, filesystem parity, uniqueness and quality upsert covered |
+| Transaction／failure behavior | PASS offline; rollback, invalid payload, missing `DATABASE_URL`, database failure and safe error states covered |
+| SMTP safety | PASS; no-socket dry-run, test-recipient isolation, auth／timeout／uncertain acceptance／attachment failure and duplicate guard covered |
+| Workflow source contracts | PASS; daily／weekly schedule, manual dispatch, secrets-only configuration and required commands are source-validated |
+| Production simulation | PASS with synthetic public-safe records and temporary storage; no Neon or Gmail connection |
+| GitHub-only fresh clone | Required after push and before final tag; must use `feat/zero-cost-runtime-v1` |
+| Live Neon／Gmail integration | `EXTERNAL_CONFIGURATION_REQUIRED` |
+| GitHub Actions activation | `EXTERNAL_CONFIGURATION_REQUIRED` |
+| Deployment／paid resources | Not performed; no paid resource required for PASS |
 
-## Known external limitations
+## External configuration required
 
-Public API availability, provider rate limits, timeout, data delay, source licensing and filesystem persistence remain operational dependencies. External failure is not an offline implementation gap, but it must remain visible through status and report quality fields. No material may be silently replaced with another symbol or fabricated observation.
+| Dependency | Classification | Owner action |
+| --- | --- | --- |
+| Neon-compatible free PostgreSQL project | `EXTERNAL_CONFIGURATION_REQUIRED` | Create／select owner-approved project and add `DATABASE_URL` as Actions secret |
+| Gmail personal SMTP | `EXTERNAL_CONFIGURATION_REQUIRED` | Add `MAIL_USER`, Gmail App Password, `MAIL_FROM`, `MAIL_TEST_TO` as Actions secrets |
+| Production recipients | `EXTERNAL_CONFIGURATION_REQUIRED` | Add `MAIL_TO` only after TEST_RECIPIENT receipt and attachment review |
+| Actions test mode | `EXTERNAL_CONFIGURATION_REQUIRED` | Keep `WEEKLY_MAIL_TEST_MODE=1` for first live workflow; set `0` only after manual verification |
+| Workflow activation | `EXTERNAL_CONFIGURATION_REQUIRED` | Enable／run daily and weekly workflows after secrets and manual checks are complete |
 
-## Next action
+## Failure recovery contract
 
-**Explicit next human action:** configure approved persistent storage and SMTP environment variables, perform TEST_RECIPIENT live email verification, then enable the weekly scheduler. The next functional expansion is **external machining／sheet-metal market reference intelligence**. It must remain public external market intelligence only. Do not add supplier quotation, SAP, inventory, delivery, MOQ, company target prices, private thresholds, contract exposure or private credentials to this public repository.
+The system returns non-zero workflow outcomes for missing／unavailable Postgres, migration failure, invalid payload, rollback, materially insufficient data, attachment failure and failed SMTP. Partial public-source failures may remain `SEND_WITH_WARNINGS` when the report contract permits; they remain visible in job state and report quality. Duplicate weekly delivery is `DUPLICATE_PREVENTED`; uncertain SMTP acceptance after DATA is not automatically retried and requires mailbox／ledger review before owner-approved resend.
+
+## Explicit next human action
+
+Create the owner-approved Neon Free project, configure `DATABASE_URL` and Gmail credentials only as GitHub Actions secrets, run the manual bootstrap workflow, execute one `MAIL_TEST_MODE=1` live weekly send to the approved personal recipient, verify receipt and attachment, then enable scheduled daily and weekly workflows.
 
 ## References
 
-[1]: https://github.com/ggyin0628-code/raw-material-market-dashboard/tree/feat/weekly-market-intelligence-production-v1 "Weekly Market Intelligence V1 branch"
-[2]: https://github.com/ggyin0628-code/raw-material-market-dashboard/blob/feat/weekly-market-intelligence-production-v1/HANDOFF.md "Codex handoff"
-[3]: https://github.com/ggyin0628-code/raw-material-market-dashboard/blob/feat/weekly-market-intelligence-production-v1/docs/WEEKLY_REPORT_CONTRACT.md "Weekly report contract"
+[1]: https://github.com/ggyin0628-code/raw-material-market-dashboard/tree/weekly-market-intelligence-production-ready-v1 "Starting production-ready checkpoint"
+[2]: https://github.com/ggyin0628-code/raw-material-market-dashboard/tree/feat/zero-cost-runtime-v1 "Zero-cost runtime feature branch"
+[3]: https://github.com/ggyin0628-code/raw-material-market-dashboard/blob/feat/zero-cost-runtime-v1/docs/POSTGRES_STORAGE.md "PostgreSQL storage contract"
+[4]: https://github.com/ggyin0628-code/raw-material-market-dashboard/blob/feat/zero-cost-runtime-v1/docs/GITHUB_ACTIONS_OPERATIONS.md "GitHub Actions operations runbook"
