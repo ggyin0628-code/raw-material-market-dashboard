@@ -103,3 +103,9 @@ The next functional expansion is **external machining／sheet-metal market refer
 
 [1]: https://github.com/ggyin0628-code/raw-material-market-dashboard/tree/weekly-market-intelligence-v1 "Authoritative Weekly V1 checkpoint"
 [2]: https://github.com/ggyin0628-code/raw-material-market-dashboard/tree/feat/weekly-market-intelligence-production-v1 "Production feature branch"
+
+## Final verification evidence
+
+The GitHub-only fresh clone of `feat/weekly-market-intelligence-production-v1` resolved to `85697cdcad9c7c6c126722b61a550713816b627a`. In the clone, `npm ci`, `npm run check`, `npm test` (31 passed／0 failed), `npm run build` and `npm audit --omit=dev` (0 vulnerabilities) passed. Unconfigured production storage／daily commands returned expected exit 2; `/health` returned HTTP 200; the clone-targeted synthetic production simulation completed storage gate, bootstrap, daily, weekly dry-run, duplicate guard, safe `/health/weekly` and public-only backup; the clone worktree remained clean.
+
+The final code readiness state is `WEEKLY_MARKET_INTELLIGENCE_PRODUCTION_READY`, with `OFFLINE_GAPS = 0` and `CODEX_HANDOFF_READY = YES`. Persistent storage, SMTP credentials, approved sender／recipients, TEST_RECIPIENT live receipt and scheduler activation remain `EXTERNAL_CONFIGURATION_REQUIRED`. The explicit next human action is to configure approved persistent storage and SMTP environment variables, perform TEST_RECIPIENT live email verification, then enable the weekly scheduler.

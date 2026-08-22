@@ -104,7 +104,7 @@ The local dashboard at `http://127.0.0.1:4176/` rendered the minimum Weekly V1 p
 
 ## Weekly V1 fresh-clone requirement
 
-Before the production checkpoint tag, clone `feat/weekly-market-intelligence-production-v1` directly from GitHub into a new temporary directory and rerun `npm ci`, `npm run check`, `npm test`, `npm run build`, `npm audit --omit=dev`, production storage/status/bootstrap/daily/weekly dry-run/backup commands with a temporary synthetic durable root, and `/health` plus `/health/weekly`. Confirm that the clone works without local files, contains no generated data or credentials, and remains clean after validation.
+GitHub-only fresh clone verification completed from `feat/weekly-market-intelligence-production-v1` at `85697cdcad9c7c6c126722b61a550713816b627a`. In `/home/ubuntu/raw-material-dashboard-production-fresh`, `npm ci`, `npm run check`, `npm test` (31 passed／0 failed), `npm run build` and `npm audit --omit=dev` (0 vulnerabilities) passed. Unconfigured production storage／daily commands returned expected exit 2; `/health` returned HTTP 200; clone-targeted synthetic production simulation passed; the fresh clone remained clean and did not require local artifacts.
 
 ## Production activation verification contract
 

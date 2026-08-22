@@ -83,11 +83,11 @@ Public operation needs network access to the configured Yahoo Finance, Stooq, Ji
 | Weekly API JSON／HTML／XLSX routes | PASS |
 | Storage gate / production simulations | PASS when unconfigured 503／blocked and synthetic durable root completes storage→bootstrap→daily→weekly dry-run→duplicate→health→backup |
 | SMTP safety simulations | PASS; dry-run no socket, TEST_RECIPIENT isolation, fail-closed config and duplicate guard |
-| Fresh-clone verification | Required before final tag; must use GitHub-only `feat/weekly-market-intelligence-production-v1` clone |
+| Fresh-clone verification | PASS; GitHub-only clone `feat/weekly-market-intelligence-production-v1` at `85697cdcad9c7c6c126722b61a550713816b627a`, 31 tests passed／0 failed, check／build／audit PASS, blocked production exit 2, `/health` 200 and synthetic production simulation PASS |
 | Live public-data smoke | Required separately; report availability, fallback use and failure count |
 | Owner persistent storage／SMTP／TEST_RECIPIENT | `EXTERNAL_CONFIGURATION_REQUIRED` |
 | Weekly scheduler activation | `EXTERNAL_CONFIGURATION_REQUIRED`; owner action after live test receipt |
-| Production deployment | Not performed by instruction |
+| Production deployment | Not performed by instruction; no paid resources or cron activation |
 
 ## Known external limitations
 
