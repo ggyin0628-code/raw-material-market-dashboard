@@ -1198,6 +1198,7 @@ test("Graph failure ledger and safeError redact OAuth secrets", async () => {
   });
   assert.equal(result.state, "FAILED");
   assert.equal(result.provider, "outlook_graph");
+  assert.equal(result.errorCode, "MAIL_SEND_FAILED");
   assert.doesNotMatch(JSON.stringify(result), /refresh-token-fixture|access-token-fixture|Bearer access-token-fixture/);
   assert.doesNotMatch(JSON.stringify(await readLedger(path.join(directory, "failure.json"))), /refresh-token-fixture|access-token-fixture/);
   const safe = safeError(secretError);
@@ -1208,14 +1209,14 @@ test("concise production weekly summary excludes full report/history payload", (
   const summary = summarizeProductionWeekly({
     reportingWeek: "2026-W33",
     qualityGate: { state: "SEND_OK", trackedIndicatorCount: 14, usableIndicatorCount: 14, materialUsabilityPct: 100 },
-    mail: { provider: "outlook_graph", testMode: true, state: "TEST_SENT", recipientCount: 1, attachmentCount: 1, error: null },
+    mail: { provider: "outlook_graph", testMode: true, state: "TEST_SENT", recipientCount: 1, attachmentCount: 1, errorCode: null, error: null },
     artifacts: { jsonPath: "/tmp/reports/report.json", htmlPath: "/tmp/reports/report.html", xlsxPath: "/tmp/reports/report.xlsx", metadata: { internal: true } },
     report: { indicators: Array.from({ length: 1000 }, () => ({ history: ["must-not-print"] })) },
   }, graphFixtureEnv(), 1234);
   assert.deepEqual(summary, {
     reportingWeek: "2026-W33",
     qualityGate: { state: "SEND_OK", trackedIndicatorCount: 14, usableIndicatorCount: 14, materialUsabilityPct: 100 },
-    mail: { provider: "outlook_graph", testMode: true, state: "TEST_SENT", recipientCount: 1, attachmentCount: 1, error: null },
+    mail: { provider: "outlook_graph", testMode: true, state: "TEST_SENT", recipientCount: 1, attachmentCount: 1, errorCode: null, error: null },
     artifacts: { jsonPath: "report.json", htmlPath: "report.html", xlsxPath: "report.xlsx" },
     durationMs: 1234,
   });
