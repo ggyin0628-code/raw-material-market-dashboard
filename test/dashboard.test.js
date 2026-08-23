@@ -877,15 +877,25 @@ test("manual database migration workflow is dispatch-only and cannot run operati
   assert.doesNotMatch(workflow, /^\s+(push|pull_request):/m);
   assert.match(workflow, /permissions:\s+contents: read/);
   assert.match(workflow, /node-version: "20"/);
-  assert.match(workflow, /DATABASE_URL: \$\{\{ secrets\.DATABASE_URL \}\}/);
-  assert.match(workflow, /NODE_ENV: production/);
-  assert.match(workflow, /STORAGE_PROVIDER: postgres/);
-  assert.match(workflow, /DATABASE_SSL: "true"/);
-  assert.match(workflow, /REQUIRE_DURABLE_STORAGE: "1"/);
+
+  const jobScope = workflow.match(/^jobs:\n\s+migrate:\n([\s\S]*?)^\s+steps:/m)?.[1] || "";
+  assert.doesNotMatch(jobScope, /\b(?:DATABASE_URL|NODE_ENV|STORAGE_PROVIDER|DATABASE_SSL|REQUIRE_DURABLE_STORAGE)\b/);
+
+  const testStep = workflow.match(/^\s+- name: Run deterministic test suite([\s\S]*?)^\s+- name: Migrate PostgreSQL schema only/m)?.[1] || "";
+  assert.match(testStep, /run: npm test/);
+  assert.doesNotMatch(testStep, /\b(?:DATABASE_URL|NODE_ENV|STORAGE_PROVIDER|DATABASE_SSL|REQUIRE_DURABLE_STORAGE)\b/);
+
+  const migrationStep = workflow.match(/^\s+- name: Migrate PostgreSQL schema only([\s\S]*?)^\s+- name: Verify migration completed successfully/m)?.[1] || "";
+  assert.match(migrationStep, /DATABASE_URL: \$\{\{ secrets\.DATABASE_URL \}\}/);
+  assert.match(migrationStep, /NODE_ENV: production/);
+  assert.match(migrationStep, /STORAGE_PROVIDER: postgres/);
+  assert.match(migrationStep, /DATABASE_SSL: "true"/);
+  assert.match(migrationStep, /REQUIRE_DURABLE_STORAGE: "1"/);
+  assert.match(migrationStep, /run: npm run db:migrate/);
+
   assert.match(workflow, /npm ci/);
   assert.match(workflow, /npm run check/);
   assert.match(workflow, /npm test/);
-  assert.match(workflow, /npm run db:migrate/);
   assert.match(workflow, /Verify migration completed successfully/);
   assert.match(workflow, /grep -Eq.*DATABASE_MIGRATED/);
   assert.doesNotMatch(workflow, /production:bootstrap|production:daily|production:weekly|weekly:send|backfill|MAIL|Gmail|smtp/i);

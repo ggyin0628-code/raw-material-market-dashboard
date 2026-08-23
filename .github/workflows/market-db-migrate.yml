@@ -14,12 +14,6 @@ jobs:
   migrate:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    env:
-      NODE_ENV: production
-      STORAGE_PROVIDER: postgres
-      DATABASE_SSL: "true"
-      REQUIRE_DURABLE_STORAGE: "1"
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -40,6 +34,12 @@ jobs:
         run: npm test
 
       - name: Migrate PostgreSQL schema only
+        env:
+          NODE_ENV: production
+          STORAGE_PROVIDER: postgres
+          DATABASE_SSL: "true"
+          REQUIRE_DURABLE_STORAGE: "1"
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: npm run db:migrate | tee migration-result.json
 
       - name: Verify migration completed successfully
