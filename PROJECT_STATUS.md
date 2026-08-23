@@ -8,7 +8,7 @@
 
 **CODEX_HANDOFF_READY = YES**
 
-This work starts exactly from the annotated checkpoint `weekly-market-intelligence-production-ready-v1`, whose peeled target is `222e1a2a7a602d3700260f83753bf024708b47d6`, and is developed on `feat/zero-cost-runtime-v1`. The final revision is the commit resolved by `git rev-parse zero-cost-runtime-ready-v1^{}` after the annotated tag is pushed. `main` must remain unchanged. This task does not create a Neon project, configure Actions secrets, send real mail, deploy, merge main or activate paid resources.
+This work starts exactly from the annotated checkpoint `weekly-market-intelligence-production-ready-v1`, whose peeled target is `222e1a2a7a602d3700260f83753bf024708b47d6`, and is developed on `feat/zero-cost-runtime-v1`. The owner explicitly approved a fast-forward promotion after validation; `main` now tracks the validated feature branch while `feat/zero-cost-runtime-v1` and `zero-cost-runtime-ready-v1` remain preserved. This task does not create a Neon project, configure Actions secrets, send real mail, deploy, or activate paid resources.
 
 ## Product boundary
 
@@ -41,8 +41,8 @@ Render Free is optional dashboard／web hosting only. It does not provide durabl
 | Migration | `npm run db:migrate`; idempotent and non-destructive, with explicit `DATABASE_MIGRATION_FAILED` |
 | Snapshot semantics | Deterministic `material_id + observation_date`; transactional upsert; higher-quality `LIVE`／`FALLBACK` cannot be downgraded; malformed payloads rejected |
 | Operational persistence | Delivery ledger, public report metadata and job state supported by Postgres; filesystem JSON remains atomic compatibility path |
-| Bootstrap | migration → public history backfill → validation → job state → first report, idempotent and no email |
-| Daily Actions | `market-daily.yml`; schedule／manual dispatch, npm ci, migration, storage check, public daily collection and status; no report email |
+| Bootstrap | migration → public history backfill → validation → job state → first report, idempotent and no email; manual-only Actions workflow added |
+| Manual bootstrap Actions | `market-bootstrap.yml`; dispatch-only, npm ci, migration, storage check, 3y public backfill and final status; no mail secrets or schedule |
 | Weekly Actions | `market-weekly.yml`; completed prior week, quality gate, HTML／XLSX, Gmail SMTP, duplicate guard and final status |
 | Gmail SMTP | Personal Gmail only, env／Actions-secret configuration, `MAIL_TEST_MODE=1` isolation, dry-run, bounded retry and uncertain-acceptance recovery |
 | Health | `/health/weekly` readiness fields: `WEB_READY`, `DATABASE_READY`, `DAILY_DATA_READY`, `WEEKLY_REPORT_READY`, `MAIL_CONFIGURATION_READY`; no secrets／recipient lists |
@@ -79,11 +79,11 @@ STORAGE_PROVIDER=postgres DATABASE_URL="$DATABASE_URL" npm run production:backup
 | Postgres migration／parity | PASS offline with FakePostgresPool; idempotence, schema command contract, filesystem parity, uniqueness and quality upsert covered |
 | Transaction／failure behavior | PASS offline; rollback, invalid payload, missing `DATABASE_URL`, database failure and safe error states covered |
 | SMTP safety | PASS; no-socket dry-run, test-recipient isolation, auth／timeout／uncertain acceptance／attachment failure and duplicate guard covered |
-| Workflow source contracts | PASS; daily／weekly schedule, manual dispatch, secrets-only configuration and required commands are source-validated |
+| Workflow source contracts | PASS; bootstrap dispatch-only plus daily／weekly schedules, manual dispatch, secrets-only configuration and required commands are source-validated |
 | Production simulation | PASS with synthetic public-safe records and temporary storage; no Neon or Gmail connection |
-| GitHub-only fresh clone | PASS; remote `feat/zero-cost-runtime-v1` at `0adc454fe515db79ac3c028a9b38073f486701d5`; 37 tests, build, audit, blocked gates, health and synthetic simulation verified |
+| GitHub-only fresh clone | PASS; GitHub-only feature clone verified with npm ci, 38 tests, build, audit, blocked gates, health, workflow contracts and synthetic simulation; final post-promotion main clone is required below |
 | Live Neon／Gmail integration | `EXTERNAL_CONFIGURATION_REQUIRED` |
-| GitHub Actions activation | `EXTERNAL_CONFIGURATION_REQUIRED` |
+| GitHub Actions activation | `EXTERNAL_CONFIGURATION_REQUIRED`; workflows remain untriggered and schedules unchanged |
 | Deployment／paid resources | Not performed; no paid resource required for PASS |
 
 ## External configuration required

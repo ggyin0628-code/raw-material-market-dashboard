@@ -13,7 +13,7 @@
 | Product boundary | External public-market intelligence and purchasing-reference platform |
 | Deployment | Not performed in this task |
 
-The feature branch is based directly on the production-ready checkpoint, not on `main`. `main` must remain unmodified and no automatic merge is permitted. The final immutable revision is the commit resolved by `git rev-parse zero-cost-runtime-ready-v1^{}` after the annotated tag is pushed.
+The feature branch is based directly on the production-ready checkpoint, not on `main`. The owner explicitly approved a fast-forward promotion after validation; `main` now contains the validated feature branch, while `feat/zero-cost-runtime-v1` and `zero-cost-runtime-ready-v1` remain preserved. The tag remains the pre-promotion zero-cost checkpoint; the final main SHA is recorded in the final integrity evidence.
 
 ## Product boundary
 
@@ -26,7 +26,7 @@ Only public external market data may be stored. SAP, company procurement history
 ```text
 Public market APIs
     ↓
-GitHub Actions daily／weekly workflows
+GitHub Actions manual bootstrap／daily／weekly workflows
     ↓
 Node.js weekly runtime
     ↓
@@ -53,10 +53,11 @@ Market snapshot identity remains `material_id + observation_date`. Transactional
 | `npm run production:bootstrap -- --period 3y` | Migration → public history backfill → validation → first report／job state | No |
 | `npm run production:daily` | Persist public snapshot and FX for prior market window | No |
 | `npm run production:weekly -- --send` | Completed prior week, quality gate, JSON／HTML／XLSX and Gmail SMTP | Yes, test mode first |
+| `.github/workflows/market-bootstrap.yml` | Manual `workflow_dispatch` only; 3y public bootstrap | No |
 | `.github/workflows/market-daily.yml` | Tue–Sat approximately 07:17 Asia/Taipei (`17 23 * * 1-5`) | No |
 | `.github/workflows/market-weekly.yml` | Monday approximately 09:17 Asia/Taipei (`17 1 * * 1`) | Yes, `MAIL_TEST_TO` first |
 
-Both workflows use `ubuntu-latest`, `npm ci`, `workflow_dispatch`, repository secrets and no real credentials in source. The weekly workflow defaults `WEEKLY_MAIL_TEST_MODE` to `1` through a repository variable fallback and must not be switched to production recipients until the owner verifies a live test receipt and attachment.
+All three workflows use `ubuntu-latest`, Node 20, `npm ci`, repository secrets where needed and no real credentials in source. The bootstrap workflow is dispatch-only, contains only `DATABASE_URL`, and cannot send email. The weekly workflow defaults `WEEKLY_MAIL_TEST_MODE` to `1` through a repository variable fallback and must not be switched to production recipients until the owner verifies a live test receipt and attachment.
 
 ## Health and observability
 
@@ -89,13 +90,13 @@ STORAGE_PROVIDER=postgres DATABASE_URL="$DATABASE_URL" npm run production:daily
 STORAGE_PROVIDER=postgres DATABASE_URL="$DATABASE_URL" npm run production:weekly -- --dry-run --send
 ```
 
-The offline suite must use deterministic fakes and must not require a real Neon account. It covers migration idempotence, schema command contract, filesystem／Postgres parity, uniqueness, quality-preserving upsert, ledger, metadata, job state, database failure, rollback, missing URL, workflow source contracts, Gmail dry-run, test-recipient redirect and duplicate send.
+The offline suite must use deterministic fakes and must not require a real Neon account. It covers migration idempotence, schema command contract, filesystem／Postgres parity, uniqueness, quality-preserving upsert, ledger, metadata, job state, database failure, rollback, missing URL, all three workflow source contracts, Gmail dry-run, test-recipient redirect and duplicate send. The latest suite is 38 passed／0 failed.
 
-Final delivery must clone only from GitHub using `feat/zero-cost-runtime-v1`, rerun all gates and leave the clone clean. No Manus-only files, local caches, owner secrets, real mail or paid backup service may be required.
+Final delivery clones only from GitHub using `feat/zero-cost-runtime-v1`, reruns all gates and leaves the clone clean. After owner-approved fast-forward promotion, the same gates are rerun from `main`. No Manus-only files, local caches, owner secrets, real mail or paid backup service may be required.
 
 ## External configuration required
 
-The allowed remaining external states are `EXTERNAL_CONFIGURATION_REQUIRED` for an owner-approved Neon Free project／`DATABASE_URL`, Gmail Actions secrets, `MAIL_TEST_TO`, first live test send and GitHub Actions activation. These are not offline implementation gaps. The task does not create the Neon project, configure secrets, send real mail or activate schedules.
+The allowed remaining external states are `EXTERNAL_CONFIGURATION_REQUIRED` for an owner-approved Neon Free project／`DATABASE_URL`, Gmail Actions secrets, `MAIL_TEST_TO`, first live test send and GitHub Actions activation. These are not offline implementation gaps. The task does not create the Neon project, read／print／rotate the configured secrets, send real mail or activate schedules. The owner-approved code promotion is complete; runtime activation remains external.
 
 **Explicit next human action:** create the owner-approved Neon Free project, configure `DATABASE_URL` and Gmail credentials only as GitHub Actions secrets, run the manual bootstrap workflow, execute one `MAIL_TEST_MODE=1` live weekly send to the approved personal recipient, verify receipt and attachment, then enable scheduled daily and weekly workflows.
 
