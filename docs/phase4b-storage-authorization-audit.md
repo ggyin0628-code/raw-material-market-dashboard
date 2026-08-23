@@ -79,3 +79,11 @@ This audit does not approve real-data onboarding. Before any real company calibr
 [1]: https://cheatsheetseries.owasp.org/cheatsheets/Secrets_Management_Cheat_Sheet.html "OWASP Secrets Management Cheat Sheet"
 [2]: https://cheatsheetseries.owasp.org/cheatsheets/REST_Security_Cheat_Sheet.html "OWASP REST Security Cheat Sheet"
 [3]: https://docs.github.com/en/code-security/concepts/secret-security/secret-scanning "GitHub Docs — Secret scanning"
+
+## Phase 4C implementation addendum
+
+Phase 4C implements the previously recommended first step as a controlled local runtime, without importing real values. `private-runtime.js` is a separate entrypoint from the public `server.js`; it is disabled unless `PRIVATE_RUNTIME_ENABLED=1`, binds only to `127.0.0.1`, and refuses non-loopback configuration. `privateProfileLoader.js` requires a repository-external absolute profile path, canonicalizes the file and parent path checks, validates the Phase 4B strict profile contract, requires `PRIVATE_CALIBRATED`, `ACTIVE`, approved metadata and a valid effective-date window, and never prints profile content.
+
+The local runtime uses a server-issued short-lived HttpOnly/SameSite session cookie and protected service scope. It accepts no profile in the request body. A successful private response can contain internal cost because it is emitted only from this local path, but it returns safe profile metadata only and masks calibration values in formula trace. The audit JSONL is also repository-external, mode `0600`, and contains only timestamp, authorized local identity, profile ID, profile version, process family, estimate ID and result status.
+
+Phase 4C therefore validates the Phase 4B architecture recommendation without changing the public Render trust boundary. The tracked `private-rate-profile.example.json` is a placeholder template with no real values and an intentionally future effective date. The `PRIVATE_CALIBRATION_INTAKE_WORKSHEET.md` is a value-free onboarding specification. Real-data import remains a separate approval event requiring an authenticated internal service or controlled local operator, least privilege, encryption/key management, backup/restore, rotation/revocation, redacted logs and independent certification. No real company or supplier profile has been requested, loaded, stored, logged, committed or backed up.

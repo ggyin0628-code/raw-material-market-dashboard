@@ -323,3 +323,35 @@ There is no Phase 4A production blocker. The existing owner-controlled `MAIL_CON
 | Production operations | NONE: no migration, schema change, workflow, deployment, Render config, schedule, bootstrap, daily/weekly, backfill, mail, Gmail, secret, Neon or real-data operation |
 
 The detailed foundation is documented in `docs/PRIVATE_COST_CALIBRATION_FOUNDATION.md`. The feature is intentionally blocked from real private-rate onboarding until identity, authorization, encryption and key management, private storage, backup/restore, profile approval and revocation, audit trail, leakage scans, calibration reconciliation and independent production certification are complete. Existing Phase 4A production certification and annotated checkpoint remain unchanged.
+
+## Phase 4C — Local Private Calibration Runtime & Real-Data Intake Readiness V1
+
+**FEATURE_BRANCH_READY_FOR_REVIEW — DO NOT PROMOTE MAIN — DO NOT IMPORT REAL PRIVATE DATA**
+
+Phase 4C is complete on `feat/local-private-calibration-runtime-v1`, created from Phase 4B approved SHA `0e4a84bff00c8846888e45906a2682986c6df16c` and certified Phase 4A main checkpoint `73f1c5ef14266ed162ff8f2127859b877e69a385`. It implements a local-only private calibration runtime and real-data intake readiness foundation. No real company or supplier data was requested, loaded, persisted, logged, committed, backed up or exposed.
+
+| Status item | Result |
+|---|---|
+| Runtime | `npm run private:estimate`; separate from public `npm start` / `server.js` |
+| Fail-closed enablement | `PRIVATE_RUNTIME_ENABLED=1` required; disabled otherwise |
+| Network boundary | Bind host is fixed to `127.0.0.1`; non-loopback configuration rejected; request socket is loopback-only |
+| Profile source | `PRIVATE_RATE_PROFILE_PATH` must be an absolute repository-external file; canonical file and parent symlink containment checks enforced |
+| Profile contract | Strict Phase 4B contract; `PRIVATE_CALIBRATED`, `ACTIVE`, `APPROVED` metadata and valid effective window required |
+| Local authorization | Server-issued HttpOnly/SameSite local session plus protected `engineering:private-cost` scope; request cannot submit `rateProfile` |
+| Private response | Local path may return internal cost, process time and physical/workload result; profile contains safe metadata only; raw rates never returned |
+| Audit | External JSONL mode `0600`; exactly timestamp, authorized local identity, profile ID/version, process family, estimate ID and result status |
+| Public API/UI | No private route on `server.js`; public UI/nav/schema remain without private rate input; public `PRIVATE_CALIBRATED` remains denied |
+| Repository protection | Ignore rules cover common private profile, calibration worksheet and audit artifacts; example profile is placeholder-only with future effective date |
+| Intake worksheet | `docs/PRIVATE_CALIBRATION_INTAKE_WORKSHEET.md` contains no real values |
+| Security audit | Existing Phase 4B storage/authorization audit extended with Phase 4C local-runtime addendum; OWASP/GitHub references retained |
+| Leakage regression | Synthetic sentinel absent from private page/result/error/audit and public assets/schema/status; no raw private rate in public surface |
+| Market isolation | Existing raw-material/machining/sheet-metal market paths and `engineeringEstimate=null` semantics remain covered |
+| Deterministic suite | PASS: **111 passed / 0 failed** |
+| Final gates | PASS: `npm ci`, `npm run check`, `npm test`, `npm run build`, `npm audit --omit=dev`, `git diff --check`; 0 vulnerabilities |
+| Visual review | PASS: local private desktop 1440×1000 and mobile 390×844; safe metadata, private cost, redacted trace and no horizontal overflow |
+| Visual artifacts | `docs/visual-review/phase4c-private-estimate-desktop.png`, `phase4c-private-estimate-mobile.png`, `phase4c-capture-metrics.json`, `phase4c-private-ui-observations.md` |
+| Production state | NONE: no Render deployment, main promotion, migration, workflow, schedule, bootstrap, mail, Gmail, secret, Neon or real-data operation |
+
+The synthetic local smoke produced 2.355 kg/part, 235.5 kg total material, 313 process minutes, 3,566 `TEST_UNITS` total internal cost and 35.66 `TEST_UNITS`/part. These figures are synthetic test outputs only and are not company calibration, supplier pricing, market data or quotation data. The local runtime and all repo-external synthetic profile/audit/temp artifacts were stopped and cleaned after visual review.
+
+The next permitted boundary is a separate real-data onboarding review. It must first establish a controlled internal deployment, authenticated identity, least-privilege authorization, encryption/key management, private backup/restore, profile lifecycle and revocation, redacted audit, leakage scans and independent certification. This Phase 4C status does not authorize real-data import or main promotion. Existing Phase 4A production certification remains unchanged.

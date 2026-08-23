@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>內部工程成本估算｜Local Private Runtime</title>
+    <style>
+      :root{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#16343a;background:#eef4f5;line-height:1.45}*{box-sizing:border-box}body{margin:0}.shell{max-width:1420px;margin:0 auto;padding:18px}.topbar{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:14px}.kicker{color:#0c776d;font-size:12px;font-weight:900;letter-spacing:.05em}.title{margin:3px 0 0;font-size:clamp(27px,4vw,44px);line-height:1.05}.subtitle{color:#617277;margin:8px 0 0;font-size:14px}.local-tag{display:inline-flex;border:1px solid #8fd3c8;border-radius:999px;padding:6px 10px;background:#e3f7f2;color:#075e54;font-size:12px;font-weight:900;white-space:nowrap}.notice{border:1px solid #f4d58d;border-left:4px solid #b57900;background:#fffaf0;color:#744b00;border-radius:7px;padding:10px 12px;margin-bottom:12px;font-size:13px}.layout{display:grid;grid-template-columns:minmax(320px,.9fr) minmax(0,1.1fr);gap:12px;align-items:start}.panel{background:#fff;border:1px solid #d6e0e2;border-radius:8px;box-shadow:0 6px 18px rgba(22,52,58,.08);padding:15px;min-width:0}.panel h2{margin:0;font-size:18px}.panel>p{color:#617277;font-size:13px;margin:6px 0 12px}.form{display:grid;gap:13px}.form fieldset{border:1px solid #d6e0e2;border-radius:8px;padding:12px;margin:0}.form legend{color:#0c776d;font-weight:900;padding:0 6px}.fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.field{display:grid;gap:5px}.field.full{grid-column:1/-1}.field label{font-size:12px;font-weight:900}.field small{font-size:11px;color:#617277}.field input,.field select{width:100%;padding:9px;border:1px solid #c8d5d8;border-radius:6px;font:inherit;background:#fff}.check{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:900}.check input{width:auto}.actions{display:flex;gap:10px}.actions button{flex:1;padding:10px;border:0;border-radius:6px;background:#0c776d;color:#fff;font-weight:900;cursor:pointer}.actions .secondary{background:#dfe9ea;color:#16343a}.status{min-height:22px;color:#617277;font-size:13px}.error{border:1px solid #fecaca;background:#fff1f2;color:#991b1b;border-radius:7px;padding:10px;font-size:13px}.hidden{display:none!important}.result{display:grid;gap:12px}.summary,.metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}.metric{border:1px solid #d6e0e2;border-radius:7px;padding:10px;background:#f9fbfb}.metric span{display:block;color:#617277;font-size:11px;font-weight:900}.metric strong{display:block;margin-top:4px;font-size:18px}.metric small{display:block;color:#617277;margin-top:3px}.section{border-top:1px solid #d6e0e2;padding-top:11px}.section h3{font-size:16px;margin:0 0 8px}.cost-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.cost{border:1px solid #c8d5d8;border-radius:7px;padding:9px;background:#f7fafb}.cost span{display:block;color:#617277;font-size:11px}.cost strong{display:block;margin-top:3px;font-size:16px}.safe{border-left:4px solid #0c776d;background:#eef9f6;border-radius:5px;padding:10px;font-size:13px}.warning{border-left:4px solid #b57900;background:#fffaf0;border-radius:5px;padding:10px;color:#744b00;font-size:13px}.trace{margin:0;padding:0;display:grid;gap:7px;list-style:none}.trace li{border-left:3px solid #0c776d;background:#f7fafb;padding:7px 9px;font-size:12px;min-width:0;overflow-wrap:anywhere;word-break:break-word}.trace strong{display:block;font-size:13px;overflow-wrap:anywhere;word-break:break-word}.trace code{display:block;white-space:pre-wrap;color:#334155;margin-top:3px;overflow-wrap:anywhere;word-break:break-word}.footer{color:#617277;font-size:12px;margin-top:12px}.meta{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.meta .metric strong{font-size:14px;word-break:break-word}@media(max-width:900px){.layout{grid-template-columns:1fr}}@media(max-width:620px){.shell{padding:10px}.topbar{display:block}.local-tag{margin-top:10px}.fields,.summary,.metrics,.cost-grid,.meta{grid-template-columns:1fr}.actions{display:grid}.actions button{width:100%}}
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div><div class="kicker">LOCAL PRIVATE RUNTIME / 127.0.0.1</div><h1 class="title">內部工程成本估算</h1><p class="subtitle">使用 repo 外部、已核准的 private calibration profile，把明確工程輸入轉成製程時間與內部成本估算。</p></div>
+        <span class="local-tag">僅限本機 private runtime</span>
+      </header>
+      <div class="notice"><strong>安全邊界：</strong>這不是供應商正式報價、不是市場報價、不是客戶售價。頁面只顯示 profile identifier、version、effective date 與 currency，不顯示任何 raw rate。Private profile 不會進入 public Render、Git、frontend asset、log 或 public API。</div>
+      <div id="privateStatus" class="status" role="status" aria-live="polite">請輸入明確工程條件後計算。</div>
+      <div id="privateError" class="error hidden" role="alert"></div>
+      <div class="layout">
+        <section class="panel" aria-label="內部工程輸入"><h2>工程輸入</h2><p>所有幾何與製程工作量都由使用者明確提供；private profile 由 local runtime 載入，不由表單輸入。</p>
+          <form id="privateEstimateForm" class="form" novalidate>
+            <fieldset><legend>材料與毛坯</legend><div class="fields">
+              <div class="field"><label for="materialFamily">材料家族</label><select id="materialFamily"><option>CARBON_STEEL</option><option>STAINLESS_STEEL</option><option>ALUMINUM</option><option>COPPER</option><option>OTHER</option></select></div>
+              <div class="field"><label for="grade">牌號（可選）</label><input id="grade" type="text" placeholder="不會自動推導"></div>
+              <div class="field"><label for="thicknessMm">厚度（mm）</label><input id="thicknessMm" type="number" min="0.000001" step="any" value="2"></div>
+              <div class="field"><label for="densityKgM3">密度（kg/m³，可選）</label><input id="densityKgM3" type="number" min="0.000001" step="any" placeholder="留白使用 ENGINEERING_DEFAULT"></div>
+              <div class="field"><label for="lengthMm">毛坯長度（mm）</label><input id="lengthMm" type="number" min="0.000001" step="any" value="500"></div>
+              <div class="field"><label for="widthMm">毛坯寬度（mm）</label><input id="widthMm" type="number" min="0.000001" step="any" value="300"></div>
+              <div class="field"><label for="quantity">數量（件）</label><input id="quantity" type="number" min="1" step="1" value="100"></div>
+              <div class="field"><label for="batchCount">批次數</label><input id="batchCount" type="number" min="1" step="1" value="1"></div>
+            </div></fieldset>
+            <fieldset><legend>製程工作量</legend><div class="fields">
+              <div class="field full"><label class="check"><input id="cuttingEnabled" type="checkbox" checked>啟用切割</label></div><div class="field"><label for="cutLengthMmPerPart">切割長度（mm／件）</label><input id="cutLengthMmPerPart" type="number" min="0" step="any" value="1450"></div><div class="field"><label for="pierceCountPerPart">穿孔數（次／件）</label><input id="pierceCountPerPart" type="number" min="0" step="1" value="8"></div>
+              <div class="field full"><label class="check"><input id="bendingEnabled" type="checkbox" checked>啟用折彎</label></div><div class="field"><label for="bendCountPerPart">折彎數（次／件）</label><input id="bendCountPerPart" type="number" min="0" step="1" value="4"></div>
+              <div class="field full"><label class="check"><input id="weldingEnabled" type="checkbox">啟用焊接</label></div><div class="field"><label for="weldLengthMmPerPart">焊接長度（mm／件）</label><input id="weldLengthMmPerPart" type="number" min="0" step="any" value="0"></div>
+              <div class="field full"><label class="check"><input id="surfaceTreatmentEnabled" type="checkbox">啟用表面處理</label></div><div class="field"><label for="treatmentType">處理類型（可選）</label><input id="treatmentType" type="text" placeholder="例如：噴塗"></div><div class="field"><label for="treatedAreaMm2PerPart">處理面積（mm²／件）</label><input id="treatedAreaMm2PerPart" type="number" min="0" step="any" placeholder="留白表示 0"></div>
+            </div></fieldset>
+            <fieldset><legend>材料利用</legend><div class="fields"><div class="field"><label for="materialUtilizationPct">材料利用率（%，可選）</label><input id="materialUtilizationPct" type="number" min="0.000001" max="100" step="any" placeholder="不填不假設排版效率"></div><div class="field"><label for="scrapPct">損耗率（%，可選）</label><input id="scrapPct" type="number" min="0" max="99.999999" step="any" placeholder="與利用率互斥"></div></div></fieldset>
+            <div class="actions"><button type="submit">計算內部工程成本</button><button id="privateReset" type="button" class="secondary">清除結果</button></div>
+          </form>
+        </section>
+        <section class="panel" aria-label="內部工程成本結果"><h2>估算結果</h2><p>結果來自明確 engineering input、process workload、已核准 private calibration profile 與可追溯公式；不等同商業報價或客戶售價。</p><div id="privateResult" class="result"><div class="safe"><strong>尚未計算</strong><br>請先輸入工程條件並按下「計算內部工程成本」。</div></div></section>
+      </div>
+      <p class="footer">Local private runtime 只應 bind `127.0.0.1`。Profile 會從 repository 外部路徑讀取；本頁不接受 profile 欄位、不顯示 raw rate、不寫入 public market API，也不會將 market score 轉成成本。</p>
+    </main>
+    <script src="/private-estimate.js"></script>
+  </body>
+</html>

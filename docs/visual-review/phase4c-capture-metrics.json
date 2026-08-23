@@ -1,0 +1,30 @@
+{
+  "desktop": {
+    "viewportWidth": 1440,
+    "viewportHeight": 1000,
+    "documentWidth": 1440,
+    "bodyWidth": 1440,
+    "horizontalOverflow": false,
+    "hasPrivateResult": true,
+    "hasSafeProfileMetadata": true,
+    "hasRedactedTrace": true,
+    "hasRawRateInput": false,
+    "hasSentinel": false,
+    "hasPrivateBoundary": true,
+    "title": "內部工程成本估算｜Local Private Runtime"
+  },
+  "mobile": {
+    "viewportWidth": 390,
+    "viewportHeight": 844,
+    "documentWidth": 390,
+    "bodyWidth": 390,
+    "horizontalOverflow": false,
+    "hasPrivateResult": true,
+    "hasSafeProfileMetadata": true,
+    "hasRedactedTrace": true,
+    "hasRawRateInput": false,
+    "hasSentinel": false,
+    "hasPrivateBoundary": true,
+    "title": "內部工程成本估算｜Local Private Runtime"
+  }
+}

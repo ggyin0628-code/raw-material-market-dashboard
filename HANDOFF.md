@@ -319,3 +319,33 @@ Process-time and protected cost tests use only values marked `SYNTHETIC / DEMO /
 Local UI artifacts are `docs/visual-review/phase4b-estimate-desktop.png`, `phase4b-estimate-mobile.png`, `phase4b-capture-metrics.json` and `phase4b-visual-findings.md`. At 1440px and 390×844, the public page displayed physical/workload quantities, `NO_RATE`, calibration-required process time, no private-rate input and no horizontal overflow.
 
 No migration, database schema change, workflow, deployment, Render configuration change, schedule, bootstrap, daily/weekly job, backfill, mail, Gmail, secret, Neon or real private-data operation was performed. The implementation must not be promoted or used with real private rates until the storage boundary, identity provider, authorization scopes, encryption/key management, backup/restore, lifecycle approval, audit trail, leakage scan and independent calibration review are separately certified. Phase 4B remains stopped before real private-data import.
+
+## Phase 4C — Local Private Calibration Runtime & Real-Data Intake Readiness V1
+
+**Status: FEATURE_BRANCH_READY_FOR_REVIEW — DO NOT PROMOTE MAIN — DO NOT IMPORT REAL PRIVATE DATA**
+
+Phase 4C is implemented on `feat/local-private-calibration-runtime-v1`, based on the Phase 4B approved checkpoint `0e4a84bff00c8846888e45906a2682986c6df16c` and certified Phase 4A main checkpoint `73f1c5ef14266ed162ff8f2127859b877e69a385`. This phase provides a fail-closed local private runtime and data-intake readiness foundation only. No real company rate, supplier quotation, private profile, private backup or private credential was requested, loaded, persisted, logged, committed or exposed.
+
+| Handoff item | Phase 4C result |
+|---|---|
+| Runtime entrypoint | `npm run private:estimate` → `private-runtime.js`; public `npm start` remains `server.js` only |
+| Enable/binding | Requires `PRIVATE_RUNTIME_ENABLED=1`; binds only `127.0.0.1`; non-loopback host is rejected |
+| Profile loading | `PRIVATE_RATE_PROFILE_PATH` must be an absolute repository-external file; canonical path and parent symlink checks are enforced |
+| Profile lifecycle | Strict `PRIVATE_CALIBRATED` contract; `ACTIVE`, `APPROVED` metadata and valid effective-date window required; invalid/missing/expired/future profiles fail closed |
+| Private UI/API | Local `/private-estimate` and `POST /api/private/estimate`; session cookie and protected scope; request body cannot provide a profile |
+| Private output | Physical/workload, process time and internal cost may be returned only by the local/private path; profile response is safe metadata only and raw calibration values are never returned |
+| Audit | Repository-external JSONL, mode `0600`, exactly timestamp, authorized local identity, profile ID/version, process family, estimate ID and result status |
+| Public separation | Public `server.js`, public assets, navigation, Render API and market APIs do not register or call the private runtime; public `PRIVATE_CALIBRATED` remains denied |
+| Repository guard | Common private profile, calibration worksheet and audit filenames are ignored; tracked example template contains placeholders only |
+| Intake worksheet | `docs/PRIVATE_CALIBRATION_INTAKE_WORKSHEET.md`; value-free governance template for future separate approval |
+| Security research/audit | `docs/phase4b-security-research-notes.md`, `docs/phase4b-storage-authorization-audit.md` and `docs/LOCAL_PRIVATE_CALIBRATION_RUNTIME.md` |
+| Leakage tests | Synthetic sentinel absent from private UI/result/error/audit/public assets/schema/status; no raw rate literal in public surface |
+| Deterministic suite | PASS: **111 passed / 0 failed** |
+| Final gates | PASS: `npm ci`, `npm run check`, `npm test`, `npm run build`, `npm audit --omit=dev`, `git diff --check`; audit 0 vulnerabilities |
+| Local visual review | PASS: 1440×1000 desktop and 390×844 mobile; private result, safe metadata, redacted trace, no rate input and no horizontal overflow |
+| Visual artifacts | `docs/visual-review/phase4c-private-estimate-desktop.png`, `phase4c-private-estimate-mobile.png`, `phase4c-capture-metrics.json`, `phase4c-private-ui-observations.md` |
+| Production operations | NONE: no Render deployment, main promotion, migration, workflow, schedule, bootstrap, daily/weekly, backfill, mail, Gmail, secret, Neon or real-data operation |
+
+The local synthetic smoke returned 2.355 kg/part, 235.5 kg total material, 313 process minutes, 3,566 `TEST_UNITS` total internal cost and 35.66 `TEST_UNITS`/part. These are test-only fixture outputs and are not company calibration, supplier pricing, market data or a quotation. The private runtime was stopped and its repo-external synthetic profile, audit file, PID and temporary health artifacts were removed after review.
+
+Before any real profile is used, a separate approval must select the deployment boundary, authenticate the operator, enforce least privilege, provide encryption/key management, backup/restore, rotation/revocation, redacted logging, access audit and independent certification. The present public Render service remains permanently outside the private profile trust boundary. Phase 4C stops before real-data intake.

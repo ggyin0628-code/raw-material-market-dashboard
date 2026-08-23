@@ -1,0 +1,47 @@
+{
+  "mode": "PRIVATE_CALIBRATED",
+  "rateProfileId": "REPLACE_WITH_APPROVED_PRIVATE_PROFILE_ID",
+  "version": "REPLACE_WITH_VERSION",
+  "effectiveFrom": "2099-01-01T00:00:00.000Z",
+  "effectiveTo": null,
+  "status": "ACTIVE",
+  "currency": "REPLACE_WITH_APPROVED_CURRENCY",
+  "metadata": {
+    "source": "REPLACE_WITH_APPROVED_INTERNAL_SOURCE",
+    "owner": "REPLACE_WITH_PROFILE_OWNER",
+    "approvalStatus": "REPLACE_WITH_APPROVAL_STATUS",
+    "note": "TEMPLATE ONLY. Replace only in a repo-external file after separate approval; never commit real values."
+  },
+  "material": {
+    "carbonSteelRatePerKg": 0.01,
+    "stainlessSteelRatePerKg": 0.01,
+    "aluminumRatePerKg": 0.01,
+    "copperRatePerKg": 0.01
+  },
+  "cutting": {
+    "machineRatePerMinute": 0.01,
+    "setupRatePerMinute": 0.01,
+    "pierceTimeSecondsEach": 1,
+    "cuttingSpeedMmPerMin": 1,
+    "setupMinutesPerBatch": 1
+  },
+  "bending": {
+    "machineRatePerMinute": 0.01,
+    "setupRatePerMinute": 0.01,
+    "secondsPerBend": 1,
+    "setupMinutesPerBatch": 1
+  },
+  "welding": {
+    "laborRatePerMinute": 0.01,
+    "machineRatePerMinute": 0.01,
+    "weldingSpeedMmPerMin": 1,
+    "setupMinutesPerBatch": 1
+  },
+  "surfaceTreatment": {
+    "ratePerM2": 0.01
+  },
+  "setup": {
+    "engineeringSetupRatePerMinute": 0.01,
+    "engineeringSetupMinutesPerBatch": 1
+  }
+}

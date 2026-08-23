@@ -11,3 +11,18 @@ logs/*.log
 !logs/.gitkeep
 .local-secrets/
 **/microsoft-refresh-token*.json
+
+# Private engineering calibration artifacts must remain outside Git.
+private-rate-profile*.json
+**/private-rate-profile*.json
+private-calibration*.json
+**/private-calibration*.json
+private-calibration*.csv
+**/private-calibration*.csv
+private-calibration*.xlsx
+**/private-calibration*.xlsx
+private-cost*.json
+**/private-cost*.json
+private-audit*.jsonl
+**/private-audit*.jsonl
+!private-rate-profile.example.json

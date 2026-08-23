@@ -315,9 +315,12 @@ test("protected private cost requires explicit identity, scope and audit logger,
   assert.equal(result.costBreakdown.totalEstimatedCost, 3566);
   assert.equal(result.marketAdjustmentFactor, null);
   assert.equal(auditEvents.length, 1);
-  assert.equal(auditEvents[0].event, "PRIVATE_COST_ESTIMATE");
-  assert.equal(auditEvents[0].decision, "APPROVED");
+  assert.equal(auditEvents[0].authorizedLocalIdentity, "synthetic-private-test-identity");
   assert.equal(auditEvents[0].rateProfileId, "private-placeholder-profile-never-loaded");
+  assert.equal(auditEvents[0].rateProfileVersion, "private-placeholder-v1");
+  assert.equal(auditEvents[0].processFamily, "SHEET_METAL");
+  assert.equal(auditEvents[0].resultStatus, "CALCULATED");
+  assert.deepEqual(Object.keys(auditEvents[0]).sort(), ["authorizedLocalIdentity", "estimateId", "processFamily", "rateProfileId", "rateProfileVersion", "resultStatus", "timestamp"].sort());
   assert.equal(Object.keys(auditEvents[0]).some((key) => /RatePer|RatePerMinute|SecondsPer|SpeedMm/.test(key)), false);
   assert.equal(JSON.stringify(result).includes('"machineRatePerMinute":10'), false);
 });

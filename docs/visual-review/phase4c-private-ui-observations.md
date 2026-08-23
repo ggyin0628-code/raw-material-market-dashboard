@@ -1,0 +1,15 @@
+# Phase 4C Local Private UI Observations
+
+The local-only runtime was launched with `PRIVATE_RUNTIME_ENABLED=1`, `PRIVATE_RUNTIME_HOST=127.0.0.1`, a repository-external synthetic profile, an external audit JSONL path, and no public server integration. `/health` returned `status=OK`, `runtime=LOCAL_PRIVATE`, and `binding=127.0.0.1`; startup output did not print profile values.
+
+The first calculation smoke confirmed the private API response and exposed one UI-only defect: the profile metadata cards used the numeric formatter for string values, so the cards rendered as em dashes even though the safe metadata existed in the response. The client was corrected to render metadata as escaped text. No private rate value was exposed by the response, page source, formula trace, or audit event.
+
+The expected synthetic local result is 2.355 kg per part, 235.5 kg total material, 145 m total cut length, 800 pierces, 400 bends, 313 total process minutes, 3,566 TEST_UNITS total internal cost, and 35.66 TEST_UNITS per part. These values are synthetic fixture outputs only and are not company, supplier, market, customer or quotation data.
+
+The next capture must confirm the corrected profile cards show mode, source, profile ID, version, effective date, and currency as safe metadata; the cost cards remain visible; the formula details remain redacted with `PROFILE_VALUE_NOT_RETURNED`; and the page has no horizontal overflow at desktop and 390×844 mobile widths.
+The corrected UI smoke now renders the profile metadata as escaped text: `PRIVATE_CALIBRATED`, `PRIVATE_CALIBRATED / PROTECTED_RUNTIME_ONLY`, `local-phase4c-synthetic-profile`, `local-v1`, the effective date, and `TEST_UNITS`. It also renders 2.355 kg/part, 235.5 kg total material, 313 min total process time, 3,566 TEST_UNITS total internal cost, and 35.66 TEST_UNITS/part. The 22-item formula trace shows `PROFILE_VALUE_NOT_RETURNED` for calibration-derived inputs. No sentinel or raw rate appears in the visible result.
+
+The browser screenshot save helper did not recognize the rendered page as an image element; a separate Playwright/Python capture should be used for repository artifacts. The local runtime remains isolated on 127.0.0.1:4177 and uses only the synthetic profile under `/tmp`.
+Final visual capture passed for desktop 1440×1000 and mobile 390×844. Both full-page artifacts show the calculated internal engineering result, process-time breakdown, internal cost cards, profile metadata as safe text, the expanded formula trace, and the safety boundary. Both metrics report `documentWidth` and `bodyWidth` equal to the viewport width, `horizontalOverflow=false`, `hasPrivateResult=true`, `hasSafeProfileMetadata=true`, `hasRedactedTrace=true`, `hasRawRateInput=false`, `hasSentinel=false`, and `hasPrivateBoundary=true`.
+
+The current artifacts are `phase4c-private-estimate-desktop.png`, `phase4c-private-estimate-mobile.png`, and `phase4c-capture-metrics.json`. The screenshots use only the repo-external synthetic local fixture and are not evidence of real company calibration.
