@@ -93,3 +93,15 @@ The next operational certification is for the owner to enable the existing sched
 ## Phase 2A 驗證
 
 目前新功能的確定性測試已通過，完整現有回歸套件亦保持通過。正式交接前以 `npm ci`、`npm run check`、`npm test`、`npm run build`、`npm audit --omit=dev` 及 `git diff --check` 重跑並記錄最終結果。首個完整功能 commit SHA 為 `57ccdbf08908f062b3e4b88164986373a59db92b`；文件在此 SHA 後的交接更新會另形成最終文件 commit，並於推送後回報最終 HEAD SHA。
+
+## UI／Routing Refinement — Canonical `/machining`
+
+**狀態：FEATURE_BRANCH_READY_FOR_REVIEW；不得推進 main**
+
+本次窄幅 refinement 將 `/machining` 設為加工頁的 canonical user-facing URL，`/machining/` 亦可安全服務同一頁；內部 `/machining.html` 只保留作靜態檔案解析，直接請求會以 308 導向 `/machining`。所有使用者可見加工連結均已改為 `/machining`。
+
+原物料首頁與加工頁共用 `nav.js` 導覽基礎，現階段只呈現兩個有效頁面：`原物料市場 → /` 與 `加工市場參考 → /machining`。沒有建立 Sheet Metal、Weekly 或 Sources 假頁面，且加工內容仍維持獨立頁架構。
+
+新增 deterministic routing/navigation 測試涵蓋 `/machining`、`/machining/`、`.html` redirect、active navigation 與禁止假頁面；最終完整 suite 為 63 passed / 0 failed。視覺審查工件為 `docs/visual-review-machining-desktop.png`、`docs/visual-review-machining-mobile.png`、`docs/visual-review-homepage-navigation.png`，摘要為 `docs/visual-review-notes.md`。
+
+本次僅完成本地驗證與功能分支更新，未部署、未修改 production schedules、Neon、Gmail、bootstrap、secrets 或 certified production paths，也未推進 main。

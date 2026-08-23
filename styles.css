@@ -587,3 +587,6 @@ dd {
 }
 
 .top-link{color:var(--accent);font-size:13px;font-weight:900;text-decoration:none}.top-link:hover{text-decoration:underline}
+
+.site-nav{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:0 0 12px;padding:6px;background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow)}.site-nav-link{display:inline-flex;align-items:center;min-height:34px;padding:0 12px;border-radius:6px;color:var(--muted);font-size:13px;font-weight:900;text-decoration:none}.site-nav-link:hover{color:var(--accent);background:var(--subtle)}.site-nav-link.active{color:#fff;background:var(--accent)}
+@media(max-width:620px){.site-nav{gap:4px}.site-nav-link{flex:1 1 150px;justify-content:center}}

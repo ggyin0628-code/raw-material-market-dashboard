@@ -46,6 +46,15 @@ function sendJson(res, status, payload) {
   res.end(body);
 }
 
+function sendRedirect(res, status, location) {
+  res.writeHead(status, {
+    ...securityHeaders(),
+    location,
+    "cache-control": "no-store",
+  });
+  res.end();
+}
+
 function sendHtml(res, status, body) {
   res.writeHead(status, {
     ...securityHeaders(),
@@ -106,6 +115,12 @@ function getWeeklyOptions(requestUrl) {
   return week ? { reportingWeek: week } : {};
 }
 
+function resolveStaticPath(pathname) {
+  if (pathname === "/") return "/index.html";
+  if (pathname === "/machining" || pathname === "/machining/") return "/machining.html";
+  return pathname;
+}
+
 async function serveStatic(req, res) {
   let pathname;
   try {
@@ -114,7 +129,11 @@ async function serveStatic(req, res) {
     sendJson(res, 400, { state: "API_ERROR", error: "網址格式錯誤" });
     return;
   }
-  if (pathname === "/") pathname = "/index.html";
+  if (pathname === "/machining.html") {
+    sendRedirect(res, 308, "/machining");
+    return;
+  }
+  pathname = resolveStaticPath(pathname);
   const target = path.normalize(path.join(ROOT, pathname));
   const relative = path.relative(ROOT, target);
 
@@ -309,4 +328,5 @@ module.exports = {
   safeDownloadFilename,
   server,
   startServer,
+  resolveStaticPath,
 };

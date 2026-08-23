@@ -15,12 +15,13 @@
         <div><div class="machining-kicker">PUBLIC MARKET REFERENCE / PHASE 2A</div><h1 class="machining-title">加工市場參考</h1><p class="machining-subtitle">以台灣優先的外部公開指標，觀察 CNC／一般加工的成本壓力是上升、下降或穩定；本頁不估算任何供應商加工單價。</p></div>
         <a class="back-link" href="/">← 回到原物料行情看板</a>
       </header>
+      <nav class="site-nav" data-site-nav aria-label="主要導覽"></nav>
       <div class="machining-banner" aria-label="產品邊界"><span class="machining-tag public">公開市場參考</span><span class="machining-tag caution">非供應商報價</span><span class="machining-tag caution">非公司目標價格</span></div>
       <section class="machining-actions" aria-label="加工市場資料操作"><button id="machiningRefreshButton" type="button">更新公開資料</button><small id="machiningStatus" aria-live="polite">尚未載入；資料取得可能受公開來源可用性影響。</small></section>
       <section class="machining-summary" aria-label="加工市場參考摘要"><article class="machining-hero"><span>整體加工成本壓力</span><strong id="machiningOverall">尚未判定</strong><small id="machiningOverallNote">需要至少 3 個具備可比較公開證據的構面才會產生綜合分數。</small></article><article class="machining-stat evidence"><span>公開證據</span><strong id="machiningEvidence">--</strong><small>最低證據門檻由模型契約明確設定。</small></article><article class="machining-stat quality"><span>資料品質</span><strong id="machiningQuality">--</strong><small id="machiningQualityNote">LIVE／FALLBACK／STALE／NO_DATA／API_ERROR 會保留。</small></article><article class="machining-stat date"><span>參考日期</span><strong id="machiningDate">--</strong><small id="machiningTrend">4 週／12 週方向待載入。</small></article></section>
       <section><div id="pressureGrid" class="pressure-grid"><div class="machining-loading">正在載入公開構面…</div></div></section>
       <div class="machining-grid"><section class="machining-panel" aria-label="目前驅動說明"><h2>目前結果由什麼驅動</h2><p>下列說明只回溯到公開觀測、比較窗口與設定權重；缺少資料時不會補入假價格。</p><ol id="machiningExplanations" class="explanation-list"><li class="machining-loading">等待公開資料。</li></ol><p class="machining-footer-note">工程估算層在 V1 保持關閉。任何加工時薪、循環時間、供應商報價或公司目標價都不屬於本平台資料。</p></section><aside class="machining-panel" aria-label="來源沿革"><h2>來源沿革</h2><p>每個狀態都保留原始來源、地域、單位、更新頻率與存取限制。</p><div id="machiningProvenance" class="provenance-list"><div class="machining-loading">等待來源資料。</div></div></aside></div>
     </main>
-    <script src="/machining.js"></script>
+    <script src="/nav.js"></script><script src="/machining.js"></script>
   </body>
 </html>

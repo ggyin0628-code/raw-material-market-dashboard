@@ -5,6 +5,7 @@ const assert = require("node:assert/strict");
 const { DEFAULT_WEIGHTS, buildMachiningReference, normalizeWeights } = require("../lib/machining/pressureModel");
 const { DATA_LAYERS } = require("../lib/machining/machiningContract");
 const { buildPayload } = require("../lib/machining/machiningService");
+const { handleRequest, resolveStaticPath } = require("../server");
 const { parseCbcFx, parseDgbasPpi, parseDgbasWage } = require("../lib/machining/sourceService");
 const { validateMachiningReference } = require("../lib/machining/machiningContract");
 
@@ -129,6 +130,47 @@ test("provenance is retained and private/company fields are absent from the cont
   };
   visit(reference);
   assert.equal(keys.some((key) => forbidden.test(key)), false);
+});
+
+function captureResponse(url) {
+  return new Promise((resolve, reject) => {
+    const response = {
+      statusCode: null,
+      headers: null,
+      body: "",
+      writeHead(statusCode, headers) { this.statusCode = statusCode; this.headers = headers; },
+      end(body = "") { this.body = Buffer.isBuffer(body) ? body.toString("utf8") : String(body); resolve(this); },
+    };
+    handleRequest({ method: "GET", url }, response).catch(reject);
+  });
+}
+
+test("canonical machining aliases resolve safely and internal html path redirects", async () => {
+  assert.equal(resolveStaticPath("/machining"), "/machining.html");
+  assert.equal(resolveStaticPath("/machining/"), "/machining.html");
+  const canonical = await captureResponse("/machining");
+  const slash = await captureResponse("/machining/");
+  const internal = await captureResponse("/machining.html");
+  assert.equal(canonical.statusCode, 200);
+  assert.match(canonical.headers["content-type"], /text\/html/);
+  assert.match(canonical.body, /<title>加工市場參考/);
+  assert.equal(slash.statusCode, 200);
+  assert.match(slash.body, /data-site-nav/);
+  assert.equal(internal.statusCode, 308);
+  assert.equal(internal.headers.location, "/machining");
+});
+
+test("shared navigation exposes only active V1 pages and uses canonical machining href", () => {
+  const nav = fs.readFileSync(path.join(__dirname, "..", "nav.js"), "utf8");
+  const homepage = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+  const machining = fs.readFileSync(path.join(__dirname, "..", "machining.html"), "utf8");
+  assert.match(nav, /label: "原物料市場", href: "\/"/);
+  assert.match(nav, /label: "加工市場參考", href: "\/machining"/);
+  assert.doesNotMatch(nav, /Sheet Metal|Weekly|Sources|鈑金|週報|來源/);
+  assert.match(homepage, /data-site-nav/);
+  assert.match(machining, /data-site-nav/);
+  assert.doesNotMatch(homepage, /href="\/machining\.html"/);
+  assert.doesNotMatch(machining, /href="\/machining\.html"/);
 });
 
 test("machining dashboard HTML contract contains public-only labels and API entrypoint", () => {
