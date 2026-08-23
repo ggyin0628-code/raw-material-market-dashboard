@@ -17,3 +17,11 @@ The visual review passed for desktop hierarchy and mobile responsive behavior. T
 ## Homepage navigation
 
 `homepage-navigation.webp` was captured from the local raw-material homepage. It remains the original raw-material dashboard, and its shared navigation visibly exposes `原物料市場`, `加工市場參考`, and `鈑金市場參考`; the sheet-metal content is not embedded into the homepage.
+
+## Source-role refinement desktop review
+
+The refined desktop view populated the source-provenance panel with explicit labels for `國際／進口市場參考`, `全球上游投入代理`, `台灣國內公開指標`, and `結構性／事件驅動`. Each card shows market scope, pricing basis, currency, unit, frequency, observation date, fetch time, status, URL and limitation. The live local smoke showed score `43.21｜正常`, evidence `5/3`, selected 12-week direction `FALLING`, overall quality `STALE`, and explicit `NO_DATA` cards for Taiwan domestic cold-rolled and stainless proxies. The capacity/demand component remained `API_ERROR` when the official MOEA CSV timed out; the page preserved that state instead of substituting a value. No role-label clipping or horizontal overflow was observed in the desktop review.
+
+## Role-label screenshot review
+
+The desktop provenance screenshot shows the international stainless reference, IMF nickel proxy, and Taiwan domestic gap records with readable role badges, status badges and limitation text; the cards remain within the viewport without horizontal clipping. The 390px mobile screenshot shows the navigation, Taiwan-first-not-only-Taiwan explanation, public-only boundary tags, refreshed status and summary cards stacked cleanly. The visible mobile viewport has no horizontal overflow; the role details continue below the fold in the normal single-column flow.

@@ -16,7 +16,7 @@ The established three-layer separation remains in force:
 | `DERIVED_MARKET_REFERENCE` | Deterministic weighted pressure scores and frequency-appropriate comparison directions |
 | `ENGINEERING_ESTIMATE` | Always `null` in V1 |
 
-## Taiwan-first feasibility audit
+## Taiwan-first plus import-market feasibility audit
 
 The audit prioritized official Taiwan sources and used international public market indicators only where a Taiwan-specific sheet or proxy was not available. DGBAS defines Taiwan’s Producer Price Index as a Laspeyres index, base year 2021=100, measuring average changes in prices received by domestic producers; it is an index and not a supplier quotation.[1] DGBAS also publishes official public PPI time-series Excel/ODF downloads and a public statistical database.[2]
 
@@ -30,13 +30,24 @@ The audit prioritized official Taiwan sources and used international public mark
 | Taiwan manufacturing wages | DGBAS official manufacturing wage XML/CSV adapter | Monthly when published; NTD/person/month | **Scoring:** labor pressure | Low-frequency labor cost direction only. Publication lag may produce `STALE`; never converted into hourly internal labor cost. |
 | Taiwan NTD/USD | [CBC official 60-row page](https://www.cbc.gov.tw/en/lp-700-2-1-60.html), official 20-row fallback | Business day; NTD/USD | **Scoring:** FX pressure | Currency input-cost direction only; not a supplier exchange rate or quote. |
 | Taiwan electricity tariff schedule | [Taipower structured JSON](https://service.taipower.com.tw/data/opendata/apply/file/d007008/001.json) | Structural/event-driven; tariff schedule fields | **Provenance-only:** energy context | No generic CNC electricity price and no weekly momentum. Contract/voltage/time-of-use applicability requires human interpretation. |
-| International aluminum, HRC steel and copper | Existing public Yahoo Finance/Stooq-compatible material registry | Trading day; instrument-specific public-market units | **Scoring:** material pressure | International futures/market proxies only. They must not be labeled Taiwan sheet prices. |
-| International WTI and natural gas | Existing public Yahoo Finance/Stooq-compatible registry | Trading day; USD/barrel or USD/MMBtu | **Scoring:** energy pressure | Public energy direction only; not Taiwan electricity or fabrication pricing. |
-| Cold-rolled steel | No stable, verified Taiwan-first public series passed the audit | — | **Not scored** | Remains explicit `NO_DATA`; no foreign index is silently substituted. |
-| Stainless steel | No stable, verified Taiwan-first public series passed the audit | — | **Not scored** | Remains explicit `NO_DATA`; no foreign index is silently substituted. |
+| International aluminum, HRC steel and copper | Existing public Yahoo Finance/Stooq-compatible material registry | Trading day; instrument-specific public-market units | **Scoring:** material pressure | Classified `GLOBAL_IMPORT_REFERENCE`; international references are never labeled Taiwan sheet prices. |
+| International WTI and natural gas | Existing public Yahoo Finance/Stooq-compatible registry | Trading day; USD/barrel or USD/MMBtu | **Scoring:** energy pressure | Classified `GLOBAL_INPUT_PROXY`; public energy direction only, not Taiwan electricity or fabrication pricing. |
+| International cold-rolled steel | [FRED WPU101707](https://fred.stlouisfed.org/series/WPU101707), source U.S. BLS | Monthly; index Jun 1982=100; 530 points through Jul 2026 at audit time | **Scoring:** material pressure | Classified `GLOBAL_IMPORT_REFERENCE`; accepted as an international cold-rolled reference, never as Taiwan domestic cold-rolled price. |
+| International stainless public reference | [FRED WPU10170674](https://fred.stlouisfed.org/series/WPU10170674), source U.S. BLS | Monthly; index Dec 2010=100; 188 points through Jul 2026 at audit time | **Scoring:** material pressure | Classified `GLOBAL_IMPORT_REFERENCE`; limited to stainless pipe/tube scope and never presented as Taiwan stainless sheet price. |
+| Nickel upstream input | [FRED PNICKUSDM](https://fred.stlouisfed.org/series/PNICKUSDM), source IMF Primary Commodity Prices | Monthly; USD/metric ton; global benchmark period average | **Scoring:** material pressure | Classified `GLOBAL_INPUT_PROXY`; supports stainless upstream pressure only, with no alloy formula or conversion factor. |
+| Taiwan cold-rolled steel domestic proxy | No accepted Taiwan domestic public series passed the audit | — | **Not scored:** explicit `NO_DATA` | Domestic absence remains visible alongside the accepted international reference. |
+| Taiwan stainless-sheet domestic proxy | No accepted Taiwan domestic public series passed the audit | — | **Not scored:** explicit `NO_DATA` | Domestic absence remains visible alongside the accepted international reference and nickel proxy. |
 | Quarterly investment/operation survey | [MOEA Manufacturing Investment & Operation Overview Survey](https://service.moea.gov.tw/EE520/investigate/InvestigateEC.aspx?lang=E) | Quarterly/yearly; revenue and fixed-assets measures | **Provenance / future candidate** | Fabricated-metal category exists, but the current implementation uses the stable monthly MOEA CSV production proxy; quarterly values are never forced into weekly windows. |
 
 The MOEA official selector exposes production, shipment, inventory and value measures and visibly includes Basic Metals, Fabricated Metal Products, Aluminum and Machinery classifications.[3] Its official open-data CSV was inspected for the exact rows `24 基本金屬製造業`, `25 金屬製品製造業`, and `29 機械設備製造業`; sample latest inspected values for ROC period `11506` were 79.12, 110.03 and 108.68 respectively, all with unit `110年=100`. These values are activity indexes, not prices. The government open-data record identifies the Ministry of Economic Affairs as agency, the CSV resource, Open Government Data License version 1.0, free access, and irregular updates.[4]
+
+The international audit accepted the FRED/BLS cold-rolled series because the page exposes a public graph CSV, identifies the U.S. BLS source, declares monthly frequency and a clear index unit, and exposes a long history.[9] The FRED/BLS stainless series passed the same reproducibility test but has a narrower pipe-and-tube scope, so its limitation remains attached to provenance.[10] The IMF nickel series is explicitly a global benchmark in nominal U.S. dollars per metric ton and is used only as an upstream proxy.[11] LME official prices are credible global reference prices, but LME states that historical data beyond its free current-year delayed data is purchased/licensed; therefore LME is documented as an audit reference rather than added as a new automated V1 collector.[12]
+
+### Source-role taxonomy
+
+Every relevant provenance entry carries one of four roles. `TAIWAN_DOMESTIC` means a Taiwan official/public domestic market, wage, PPI, FX, industrial or economic indicator. `GLOBAL_IMPORT_REFERENCE` means an international public series that may reasonably represent material available to Taiwan purchasers through import markets. `GLOBAL_INPUT_PROXY` means an upstream commodity or alloy-input indicator that affects another material but is not the finished-material price. `STRUCTURAL` means event-driven schedule information such as electricity tariffs that must not create momentum.
+
+Taiwan and international inputs can coexist inside one conceptual dimension without an invented domestic/import share. Material pressure may combine Taiwan basic-metals PPI, international HRC, aluminum, copper, the accepted cold-rolled and limited stainless references, and nickel upstream pressure. The API retains each source’s role, market scope, pricing basis, currency, unit, frequency, dates and limitation, and the UI labels international entries as import references or upstream proxies. It never labels them as Taiwan supplier prices.
 
 ## Contract
 
@@ -55,7 +66,8 @@ The endpoint is `GET /api/sheet-metal/reference`, with `?force=true` for an expl
 | `capacityDemandPressure` | MOEA metal-product, basic-metal, machinery and manufacturing production activity proxies |
 | `compositePressureScore` | Weighted 0–100 derived reference, or `null` below evidence threshold |
 | `pressureLevel` / `trend` | `LOW`/`NORMAL`/`ELEVATED`/`HIGH` and `FALLING`/`STABLE`/`RISING`, or `null` when insufficient |
-| `sourceProvenance` | Public source name, URL, endpoint, scope, unit, access limits, status, last observation, frequency and fetch time |
+| `sourceProvenance` | Public source name, URL, geographic and market scope, market role, pricing basis, currency, unit, access limits, status, observation date, frequency and fetch time |
+| `sourceRoleSummary` | Counts of exposed `TAIWAN_DOMESTIC`, `GLOBAL_IMPORT_REFERENCE`, `GLOBAL_INPUT_PROXY` and `STRUCTURAL` records |
 | `engineeringEstimate` | Always `null` |
 
 The visible page includes `公開市場參考`, `非供應商報價`, and `非公司目標價格`. It displays the overall result, evidence count, data quality, materials, energy, labor, FX, manufacturing price, capacity/demand heat, explanations, freshness and source provenance.
@@ -73,7 +85,7 @@ Phase 3A does not copy machining weights. The default normalized weights are:
 | Manufacturing price pressure | 0.18 | Taiwan manufacturing PPI provides producer-price context |
 | Capacity/demand heat | 0.15 | Taiwan metal-product and related industrial production activity provides demand/capacity context |
 
-The model is deterministic and explainable. For daily or weekly observations it uses 4-week and 12-week windows. For monthly observations it uses 1-month, 3-month and 1-year windows. For annual observations it uses 1-year and 3-year windows. Structural and unknown-frequency sources have no comparison window and cannot generate momentum. The component score is `clamp(50 + 5 × frequency-appropriate percentage change, 0, 100)`. Available component weights are renormalized only after evidence is validated; the model never changes scoring merely to force a composite.
+The model is deterministic and explainable. For daily or weekly observations it uses 4-week and 12-week windows. For monthly observations it uses 1-month, 3-month and 1-year windows. For annual observations it uses 1-year and 3-year windows. Structural and unknown-frequency sources have no comparison window and cannot generate momentum. The component score is `clamp(50 + 5 × frequency-appropriate percentage change, 0, 100)`. Multiple sources can contribute to one dimension; their source roles remain attached and a role summary is exposed rather than being collapsed into a claimed domestic price. Available component weights are renormalized only after evidence is validated; the model never changes scoring merely to force a composite.
 
 The default minimum evidence guard remains **3 usable components**. Missing, stale, fallback and API-error states remain visible. `LIVE`, `FALLBACK` and explicitly recovered `STALE` observations may be used according to the existing public-observation semantics, while `NO_DATA` and `API_ERROR` do not create a score. A composite is `null` when fewer than three components have a valid comparable history.
 
@@ -85,7 +97,7 @@ No deployment, main promotion, migration, bootstrap, daily or weekly job, backfi
 
 ## Test and audit evidence
 
-Deterministic coverage includes MOEA source normalization, source failure, public-history recovery, freshness, daily/monthly/structural windows, sheet-metal weights, minimum evidence, provenance, no fabricated price, no private/company fields, canonical routing, shared navigation, page/mobile contract, API wrapper, and existing machining model construction. The full repository regression suite is required before delivery: `npm ci`, `npm run check`, `npm test`, `npm run build`, `npm audit --omit=dev`, and `git diff --check`.
+Deterministic coverage includes MOEA and FRED source normalization, source failure, public-history recovery, freshness, explicit market roles, domestic/import/upstream distinction, daily/monthly/structural windows, sheet-metal weights, minimum evidence, provenance, no fabricated price, no private/company fields, canonical routing, shared navigation, page/mobile contract, API wrapper, and existing machining model construction. The full repository regression suite is required before delivery: `npm ci`, `npm run check`, `npm test`, `npm run build`, `npm audit --omit=dev`, and `git diff --check`.
 
 ## References
 
@@ -97,3 +109,8 @@ Deterministic coverage includes MOEA source normalization, source failure, publi
 [6]: https://service.moea.gov.tw/EE520/investigate/InvestigateEC.aspx?lang=E "MOEA Manufacturing Investment & Operation Overview Survey"
 [7]: https://www.cbc.gov.tw/en/lp-700-2-1-60.html "CBC official 60-row NTD/USD closing-rate page"
 [8]: https://service.taipower.com.tw/data/opendata/apply/file/d007008/001.json "Taipower official structured tariff JSON"
+[9]: https://fred.stlouisfed.org/series/WPU101707 "FRED / U.S. BLS PPI — Cold Rolled Steel Sheet and Strip"
+[10]: https://fred.stlouisfed.org/series/WPU10170674 "FRED / U.S. BLS PPI — Steel Pipe and Tube, Stainless Steel"
+[11]: https://fred.stlouisfed.org/series/PNICKUSDM "FRED / IMF — Global price of Nickel"
+[12]: https://www.lme.com/market-data/reports-and-data/lme-official-prices "London Metal Exchange — Official Prices"
+[13]: https://www.lme.com/market-data/accessing-market-data/historical-data "London Metal Exchange — Historical data access"

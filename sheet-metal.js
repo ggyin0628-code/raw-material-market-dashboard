@@ -22,6 +22,13 @@ function direction(value) { return ({ FALLING: "下降", STABLE: "穩定", RISIN
 function level(value) { return value ? ({ LOW: "低", NORMAL: "正常", ELEVATED: "偏高", HIGH: "高" }[value] || value) : "資料不足"; }
 function statusClass(value) { return String(value || "NO_DATA").toLowerCase().replace(/[^a-z_]/g, "_"); }
 function sourceStatus(value) { return value === "LIVE" ? "LIVE" : value || "NO_DATA"; }
+const MARKET_ROLE_LABELS = Object.freeze({
+  TAIWAN_DOMESTIC: "台灣國內公開指標",
+  GLOBAL_IMPORT_REFERENCE: "國際／進口市場參考",
+  GLOBAL_INPUT_PROXY: "全球上游投入代理",
+  STRUCTURAL: "結構性／事件驅動",
+});
+function marketRole(value) { return MARKET_ROLE_LABELS[value] || value || "未分類"; }
 function change(value) { return typeof value === "number" && Number.isFinite(value) ? `${value >= 0 ? "+" : ""}${number(value)}%` : "資料不足"; }
 function date(value) { return value || "--"; }
 function renderComparisonWindows(component) {
@@ -43,7 +50,7 @@ function renderComponent(id, component) {
 
 function renderProvenance(sources = []) {
   if (!sources.length) return `<div class="sheet-metal-loading">目前沒有可列示的來源。</div>`;
-  return sources.map((source) => `<article class="provenance-item"><strong>${escapeHtml(source.sourceName)}</strong><small>${escapeHtml(source.geographicScope)}｜${escapeHtml(source.unit)}｜${escapeHtml(source.updateFrequency)}｜頻率：${escapeHtml(source.frequency || "unknown")}</small><small>最後觀測：${escapeHtml(date(source.lastObservationDate))}｜存取：${escapeHtml(source.accessConstraints)}</small><span class="source-status ${statusClass(source.status)}">${escapeHtml(sourceStatus(source.status))}</span><small>${source.url ? `<a href="${escapeHtml(source.url)}" target="_blank" rel="noopener noreferrer">公開來源頁</a>` : "無公開 URL"}</small><small>${escapeHtml(source.note || "")}</small></article>`).join("");
+  return sources.map((source) => `<article class="provenance-item"><strong>${escapeHtml(source.sourceName)}</strong><small>${escapeHtml(source.geographicScope)}｜市場範圍：${escapeHtml(source.marketScope || "未確認")}</small><small>角色：${escapeHtml(marketRole(source.marketRole))}｜定價基礎：${escapeHtml(source.pricingBasis || "公開指標；非供應商報價")}｜幣別：${escapeHtml(source.currency || "未指定")}</small><small>${escapeHtml(source.unit)}｜${escapeHtml(source.updateFrequency)}｜頻率：${escapeHtml(source.frequency || "unknown")}</small><small>觀測日：${escapeHtml(date(source.observationDate || source.lastObservationDate))}｜抓取時間：${escapeHtml(source.fetchedAt || "--")}</small><small>存取：${escapeHtml(source.accessConstraints)}</small><span class="source-role">${escapeHtml(marketRole(source.marketRole))}</span><span class="source-status ${statusClass(source.status)}">${escapeHtml(sourceStatus(source.status))}</span><small>${source.url ? `<a href="${escapeHtml(source.url)}" target="_blank" rel="noopener noreferrer">公開來源頁</a>` : "無公開 URL"}</small><small>${escapeHtml(source.note || "")}</small></article>`).join("");
 }
 
 function render(payload) {
@@ -62,12 +69,12 @@ function render(payload) {
   els.grid.innerHTML = components.map((id) => renderComponent(id, reference[id] || { label: id, pressureScore: null, dataQuality: "NO_DATA", explanation: ["沒有資料"] })).join("");
   els.explanations.innerHTML = (reference.explanation || ["目前沒有可顯示的公開推導說明。"]).map((item) => `<li>${escapeHtml(item)}</li>`).join("");
   els.provenance.innerHTML = renderProvenance(payload.sourceCoverage || reference.sourceProvenance || []);
-  els.status.textContent = `${payload.state || "NO_DATA"}｜產生時間 ${payload.generatedAt || "--"}｜只使用外部公開資料。`;
+  els.status.textContent = `${payload.state || "NO_DATA"}｜產生時間 ${payload.generatedAt || "--"}｜只使用外部公開資料；國際資料僅作進口市場參考或上游投入代理。`;
 }
 
 async function loadSheetMetalReference(force = false) {
   els.refresh.disabled = true;
-  els.status.textContent = "正在讀取台灣優先公開來源…";
+  els.status.textContent = "正在讀取台灣優先、並納入可稽核國際進口／上游公開來源…";
   try {
     const url = force ? "/api/sheet-metal/reference?force=true" : "/api/sheet-metal/reference";
     const response = await fetch(url, { cache: "no-store" });

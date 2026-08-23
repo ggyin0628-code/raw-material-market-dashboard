@@ -3,10 +3,10 @@ const fsp = require("node:fs/promises");
 const path = require("node:path");
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { DATA_LAYERS } = require("../lib/sheetMetal/sheetMetalContract");
+const { DATA_LAYERS, MARKET_ROLES, normalizeProvenance } = require("../lib/sheetMetal/sheetMetalContract");
 const { buildPayload } = require("../lib/sheetMetal/sheetMetalService");
 const { DEFAULT_WEIGHTS, buildComponent, buildSheetMetalReference, normalizeWeights } = require("../lib/sheetMetal/pressureModel");
-const { getMoeaIndustrialBundle, freshnessStatus, parseMoeaIndustrialCsv } = require("../lib/sheetMetal/sourceService");
+const { GLOBAL_SOURCE_CATALOG, getGlobalSheetMetalSources, getMoeaIndustrialBundle, freshnessStatus, parseFredCsv, parseMoeaIndustrialCsv } = require("../lib/sheetMetal/sourceService");
 const { buildMachiningReference } = require("../lib/machining/pressureModel");
 const { handleRequest, resolveStaticPath } = require("../server");
 const { clearWriteQueue, listPublicObservations, upsertPublicObservations } = require("../lib/machining/publicObservationStore");
@@ -16,6 +16,10 @@ const PUBLIC_SOURCE = {
   url: "https://example.test/public-index",
   endpoint: "https://example.test/public-index",
   geographicScope: "Taiwan",
+  marketScope: "Taiwan domestic public indicator",
+  marketRole: "TAIWAN_DOMESTIC",
+  pricingBasis: "Official/public indicator",
+  currency: null,
   updateFrequency: "monthly",
   frequency: "monthly",
   unit: "index",
@@ -86,6 +90,53 @@ test("MOEA parser normalizes Taiwan ROC month and selects exact industry codes",
   assert.deepEqual(parseMoeaIndustrialCsv(csv, "24"), [{ date: "2026-05-01", value: 84.29 }]);
 });
 
+test("FRED parser and audited global sources preserve monthly history and explicit roles", async () => {
+  const csv = "observation_date,value\n2026-06-01,100\n2026-07-01,101.5\n2026-08-01,.";
+  assert.deepEqual(parseFredCsv(csv), [
+    { date: "2026-06-01", value: 100 },
+    { date: "2026-07-01", value: 101.5 },
+  ]);
+  const global = await getGlobalSheetMetalSources({ now: new Date("2026-08-23T00:00:00Z"), fetcher: async (url) => {
+    assert.match(url, /^https:\/\/fred\.stlouisfed\.org\/graph\/fredgraph\.csv/);
+    return csv;
+  }});
+  assert.equal(global.coldRolledSteel.status, "LIVE");
+  assert.equal(global.coldRolledSteel.frequency, "monthly");
+  assert.equal(global.coldRolledSteel.source.marketRole, "GLOBAL_IMPORT_REFERENCE");
+  assert.equal(global.coldRolledSteel.source.marketScope, "International import-market reference");
+  assert.equal(global.stainlessSteel.source.marketRole, "GLOBAL_IMPORT_REFERENCE");
+  assert.equal(global.nickel.source.marketRole, "GLOBAL_INPUT_PROXY");
+  assert.equal(global.nickel.source.currency, "USD");
+  assert.notEqual(global.nickel.source.pricingBasis, global.stainlessSteel.source.pricingBasis);
+  const fallback = await getGlobalSheetMetalSources({ now: new Date("2026-08-23T00:00:00Z"), fetcher: async () => { throw new Error("network down"); } });
+  assert.equal(fallback.coldRolledSteel.status, "API_ERROR");
+  assert.equal(fallback.coldRolledSteel.history.length, 0);
+  assert.match(fallback.coldRolledSteel.source.note, /不補入虛構值/);
+  assert.deepEqual(normalizeProvenance({ sourceId: "structural", marketRole: "STRUCTURAL", marketScope: "Taiwan domestic structural information", pricingBasis: "tariff schedule", currency: "TWD", status: "LIVE" }), {
+    sourceId: "structural",
+    sourceName: "未命名公開來源",
+    url: "",
+    endpoint: "",
+    geographicScope: "Taiwan",
+    marketScope: "Taiwan domestic structural information",
+    marketRole: "STRUCTURAL",
+    pricingBasis: "tariff schedule",
+    currency: "TWD",
+    updateFrequency: "未確認",
+    unit: "未指定",
+    accessConstraints: "公開存取；可用性與發布內容可能變更",
+    status: "LIVE",
+    lastObservationDate: null,
+    observationDate: null,
+    frequency: "unknown",
+    fetchedAt: null,
+    layer: DATA_LAYERS.OBSERVED_PUBLIC_DATA,
+    note: "",
+  });
+  assert.deepEqual(Object.values(GLOBAL_SOURCE_CATALOG).map((source) => source.marketRole), ["GLOBAL_IMPORT_REFERENCE", "GLOBAL_IMPORT_REFERENCE", "GLOBAL_INPUT_PROXY"]);
+  assert.deepEqual(MARKET_ROLES, ["TAIWAN_DOMESTIC", "GLOBAL_IMPORT_REFERENCE", "GLOBAL_INPUT_PROXY", "STRUCTURAL"]);
+});
+
 test("MOEA source failure is explicit and persisted public history recovers as FALLBACK", async () => {
   const bundle = await getMoeaIndustrialBundle({ now: new Date("2026-08-23T00:00:00Z"), fetcher: async () => "invalid" });
   assert.equal(bundle.fabricatedMetal.status, "API_ERROR");
@@ -127,6 +178,8 @@ test("sheet-metal score is configurable, explainable, and guarded at minimum thr
   assert.equal(reference.derivedMarketReference.minimumEvidence, 3);
   assert.ok(reference.derivedMarketReference.evidenceCount >= 3);
   assert.equal(reference.engineeringEstimate, null);
+  assert.equal(reference.sourceRoleSummary.TAIWAN_DOMESTIC, 6);
+  assert.equal(reference.derivedMarketReference.sourceRoleSummary.TAIWAN_DOMESTIC, 6);
   assert.equal(reference.derivedMarketReference.layer, DATA_LAYERS.DERIVED_MARKET_REFERENCE);
   assert.deepEqual(reference.derivedMarketReference.weights, normalizeWeights(DEFAULT_WEIGHTS));
   assert.ok(reference.explanation.some((line) => line.includes("綜合分數")));
@@ -153,6 +206,17 @@ test("sheet-metal contract preserves public provenance and excludes private/comp
   assert.equal(keys.some((key) => /sap|supplier|company|inventory|targetprice|privatethreshold|laborrate|cyclerate|machinehours|hourlyprice/i.test(key)), false);
   assert.equal(JSON.stringify(reference).includes("供應商報價"), true);
   assert.equal(JSON.stringify(reference).includes("company target price"), false);
+  const mixed = buildSheetMetalReference({ components: completeComponents({ materialPressure: { label: "材料壓力", expectedEvidence: 2, observations: [
+    observation("taiwan-domestic", [100, 101, 102, 103, 104, 105, 106, 107]),
+    { ...observation("import-reference", [100, 102, 104, 106, 108, 110, 112, 114], "weekly"), sourceProvenance: { ...PUBLIC_SOURCE, sourceId: "import-reference", marketScope: "International import-market reference", marketRole: "GLOBAL_IMPORT_REFERENCE", pricingBasis: "Public import-market index", currency: "USD" } },
+    { ...observation("nickel-proxy", [100, 101, 102, 103, 104, 105, 106, 107], "weekly"), sourceProvenance: { ...PUBLIC_SOURCE, sourceId: "nickel-proxy", marketScope: "Global upstream input-cost proxy", marketRole: "GLOBAL_INPUT_PROXY", pricingBasis: "Global benchmark input", currency: "USD" } },
+  ] } }) });
+  assert.equal(mixed.sourceRoleSummary.TAIWAN_DOMESTIC, 6);
+  assert.equal(mixed.sourceRoleSummary.GLOBAL_IMPORT_REFERENCE, 1);
+  assert.equal(mixed.sourceRoleSummary.GLOBAL_INPUT_PROXY, 1);
+  assert.ok(mixed.explanation.some((line) => line.includes("國際／進口市場參考")));
+  assert.ok(mixed.explanation.some((line) => line.includes("全球上游投入代理")));
+  assert.ok(mixed.observedPublicData.some((item) => item.marketRole === "GLOBAL_IMPORT_REFERENCE"));
 });
 
 test("sheet-metal routes are canonical and independent from machining", async () => {
@@ -190,6 +254,7 @@ test("shared navigation exposes only the three real V1 pages", () => {
 
 test("sheet-metal page and API contract contain required public-only labels and dimensions", () => {
   const html = fs.readFileSync(path.join(__dirname, "..", "sheet-metal.html"), "utf8");
+  const client = fs.readFileSync(path.join(__dirname, "..", "sheet-metal.js"), "utf8");
   assert.match(html, /公開市場參考/);
   assert.match(html, /非供應商報價/);
   assert.match(html, /非公司目標價格/);
@@ -199,11 +264,18 @@ test("sheet-metal page and API contract contain required public-only labels and 
   assert.match(html, /viewport/);
   assert.match(html, /@media\(max-width:620px\)/);
   assert.match(html, /產能／需求熱度/);
+  assert.match(html, /國際進口市場參考/);
+  assert.match(html, /上游投入代理/);
+  assert.match(html, /market role/);
+  assert.match(client, /GLOBAL_IMPORT_REFERENCE/);
+  assert.match(client, /GLOBAL_INPUT_PROXY/);
+  assert.match(client, /pricingBasis/);
   const reference = buildSheetMetalReference({ components: completeComponents() });
   const payload = buildPayload(reference, reference.sourceProvenance, "2026-08-23T00:00:00.000Z");
   assert.deepEqual(Object.keys(payload).sort(), ["disclaimer", "generatedAt", "reference", "sourceCoverage", "state"].sort());
   assert.equal(payload.reference.processFamily, "SHEET_METAL");
   assert.equal(payload.reference.engineeringEstimate, null);
+  assert.equal(payload.reference.sourceRoleSummary.TAIWAN_DOMESTIC, 6);
   assert.equal(payload.generatedAt, "2026-08-23T00:00:00.000Z");
 });
 

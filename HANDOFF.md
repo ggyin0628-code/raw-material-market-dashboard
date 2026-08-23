@@ -140,3 +140,27 @@ Phase 3A is implemented on feature branch `feat/sheet-metal-market-reference-v1`
 Local read-only smoke against the public sources produced a truthful composite: score `48.47`, `NORMAL`, selected `12 週` direction `FALLING`, evidence `6/3`, overall quality `STALE` because the public manufacturing wage series was monthly and lagged. MOEA fabricated-metal activity was represented as a monthly activity index, not a price. The local response retained `LIVE`, `FALLBACK`, `STALE` and explicit `NO_DATA` coverage, including the cold-rolled and stainless gaps.
 
 Visual artifacts are `docs/visual-review/sheet-metal-desktop.webp`, `docs/visual-review/sheet-metal-mobile.png`, `docs/visual-review/homepage-navigation.webp`, with findings in `docs/visual-review/sheet-metal-visual-findings.md`. The technical source and model specification is `docs/SHEET_METAL_MARKET_REFERENCE.md`; the official source audit notes remain in `docs/phase3a-*.md`.
+
+## Phase 3A source-role refinement — Ready for review
+
+**FEATURE_BRANCH_READY_FOR_REVIEW — DO NOT PROMOTE MAIN**
+
+The focused refinement remains on `feat/sheet-metal-market-reference-v1`, based on the certified main checkpoint `04de849ae9ae83fceb1cdeaf7aa09c9fcda66c62`. It keeps the independent `/sheet-metal` page, `/sheet-metal/` alias, `/sheet-metal.html` 308 redirect, `/api/sheet-metal/reference`, six public pressure dimensions, minimum evidence of 3, frequency-aware windows and `engineeringEstimate=null`.
+
+| Refinement item | Result |
+|---|---|
+| Taiwan-first meaning | Taiwan-prioritized, not Taiwan-only; international sources are admitted only with an explicit role and limitation |
+| Accepted international/import references | FRED/BLS cold-rolled steel sheet and strip (`WPU101707`), limited FRED/BLS stainless pipe/tube (`WPU10170674`), existing public HRC/aluminum/copper references |
+| Accepted upstream proxies | FRED/IMF global nickel (`PNICKUSDM`), existing WTI and natural-gas public indicators |
+| Taiwan domestic sources | DGBAS PPI/wages, CBC NTD/USD, MOEA activity rows, Taipower structural tariff metadata |
+| Role taxonomy | `TAIWAN_DOMESTIC`, `GLOBAL_IMPORT_REFERENCE`, `GLOBAL_INPUT_PROXY`, `STRUCTURAL`; missing roles are rejected as `UNCLASSIFIED` |
+| Domestic gaps | Taiwan cold-rolled and stainless-sheet price proxies remain explicit `NO_DATA`; no foreign index is silently relabeled as Taiwan price |
+| Provenance | Every source retains market scope, role, pricing basis, currency, unit, frequency, observation date, fetched time, status, URL and limitation |
+| Local live public-source smoke | Score `43.21`, `NORMAL`, `FALLING`, evidence `5/3`, overall `STALE`; scored role summary `GLOBAL_IMPORT_REFERENCE=5`, `GLOBAL_INPUT_PROXY=3`, `TAIWAN_DOMESTIC=9`; source coverage contains `STRUCTURAL` separately |
+| Live source states | HRC/aluminum/copper, WTI/natural gas, FRED cold-rolled/stainless/nickel and CBC were `LIVE`; DGBAS PPI was official CSV `FALLBACK`; wages were `STALE`; MOEA timed out as `API_ERROR`; domestic cold-rolled/stainless remained `NO_DATA` |
+| Deterministic tests | PASS: 81 passed / 0 failed |
+| Offline gates | PASS: `npm ci`, `npm run check`, `npm test`, `npm run build`, `npm audit --omit=dev`, `git diff --check`; audit 0 vulnerabilities |
+| Visual review | PASS: role-refined desktop and 390px mobile screenshots; provenance cards and public-only boundary labels remained readable without horizontal overflow |
+| Production protection | No deployment, main promotion, production migration, bootstrap, schedule, mail, Gmail, Neon, secret or certified machining operation performed |
+
+The international source audit and citations are in `docs/phase3a-international-source-findings.md` and `docs/SHEET_METAL_MARKET_REFERENCE.md`. Visual evidence is in `docs/visual-review/sheet-metal-role-desktop.webp`, `docs/visual-review/sheet-metal-role-mobile.png`, and `docs/visual-review/sheet-metal-visual-findings.md`. The exact refinement commit SHA is recorded after the feature branch push; main remains unchanged until a separate explicit approval.
