@@ -6,7 +6,19 @@ const { DEFAULT_WEIGHTS, buildMachiningReference, normalizeWeights } = require("
 const { DATA_LAYERS } = require("../lib/machining/machiningContract");
 const { buildPayload } = require("../lib/machining/machiningService");
 const { handleRequest, resolveStaticPath } = require("../server");
-const { parseCbcFx, parseDgbasPpi, parseDgbasWage } = require("../lib/machining/sourceService");
+const {
+  buildDgbasPpiQueryEndpoint,
+  buildDgbasWageQueryEndpoint,
+  getCbcFxObservations,
+  getDgbasPpiBundle,
+  getWageObservations,
+  parseCbcFx,
+  parseDgbasPpi,
+  parseDgbasWage,
+  parseDgbasWageRecords,
+  recoverWithPersistence,
+} = require("../lib/machining/sourceService");
+const { clearWriteQueue, listPublicObservations, upsertPublicObservations } = require("../lib/machining/publicObservationStore");
 const { validateMachiningReference } = require("../lib/machining/machiningContract");
 
 const SOURCE_BASE = {
@@ -57,6 +69,83 @@ test("source normalization parses DGBAS PPI, wage XML, and CBC FX HTML", () => {
   assert.deepEqual(parseDgbasPpi(ppiXml, (item) => item.startsWith("三.製造業產品")), [{ date: "2026-06-01", value: 105.99 }]);
   assert.deepEqual(parseDgbasWage(wageXml), [{ date: "2025-12-31", value: 53000 }]);
   assert.deepEqual(parseCbcFx(fxHtml), [{ date: "2026-08-20", value: 31.925 }, { date: "2026-08-21", value: 31.848 }]);
+});
+
+test("official query builders retain bounded monthly selectors", () => {
+  const ppiUrl = new URL(buildDgbasPpiQueryEndpoint(new Date("2026-08-23T00:00:00Z")));
+  const wageUrl = new URL(buildDgbasWageQueryEndpoint(new Date("2026-08-23T00:00:00Z")));
+  assert.equal(ppiUrl.searchParams.get("outmode"), "3");
+  assert.equal(ppiUrl.searchParams.get("cycle"), "1");
+  assert.equal(ppiUrl.searchParams.get("ym"), "11001");
+  assert.equal(ppiUrl.searchParams.get("ymt"), "11508");
+  assert.equal(ppiUrl.searchParams.get("fldlst").length, 100);
+  assert.equal(wageUrl.searchParams.get("outmode"), "3");
+  assert.equal(wageUrl.searchParams.get("cycle"), "1");
+  assert.equal(wageUrl.searchParams.get("fldlst").length, 46);
+  assert.equal(wageUrl.searchParams.get("codlst0"), "100");
+});
+
+test("DGBAS PPI and wage adapters fall back to secure nstatdb CSV queries", async () => {
+  const ppiCsv = "\uFEFF,\"生產者物價基本分類指數\"\n\"統計期\",\"三.製造業產品\",\"13.基本金屬\",\"18.機械設備\",\"四.水電燃氣\"\n\"115年5月\",105,106,107,108\n\"115年6月\",106,107,108,109";
+  const wageCsv = "\uFEFF,\"每人每月經常性薪資\"\n\"統計期\",\"製造業\"\n\"115年5月\",47000\n\"115年6月\",47170";
+  const calls = [];
+  const fetcher = async (url) => {
+    calls.push(url);
+    if (url.includes("ws.dgbas.gov.tw")) throw new Error("unable to verify the first certificate");
+    return url.includes("A030701015") ? ppiCsv : wageCsv;
+  };
+  const ppi = await getDgbasPpiBundle({ now: new Date("2026-06-30T00:00:00Z"), fetcher });
+  const wage = await getWageObservations({ now: new Date("2026-06-30T00:00:00Z"), fetcher });
+  assert.equal(calls.length, 4);
+  assert.equal(calls[1].includes("A030701015"), true);
+  assert.equal(ppi.manufacturingPpi.status, "FALLBACK");
+  assert.equal(ppi.manufacturingPpi.history.at(-1).value, 106);
+  assert.equal(ppi.machinePpi.history.at(-1).value, 108);
+  assert.equal(wage.status, "FALLBACK");
+  assert.equal(wage.frequency, "monthly");
+  assert.deepEqual(wage.history.at(-1), { date: "2026-06-01", value: 47170 });
+});
+
+test("wage XML parser preserves monthly manufacturing observations and annual fallback semantics", () => {
+  const monthlyXml = "<DataCollection><每人每月經常性薪資><年月別_Year_and_month>202605Ⓡ</年月別_Year_and_month><製造業_Manufacturing_金額_新臺幣元>47210</製造業_Manufacturing_金額_新臺幣元></每人每月經常性薪資><每人每月經常性薪資><年月別_Year_and_month>202606Ⓟ</年月別_Year_and_month><製造業_Manufacturing_金額_新臺幣元>47170</製造業_Manufacturing_金額_新臺幣元></每人每月經常性薪資></DataCollection>";
+  const annualXml = "<DataCollection><每人每月經常性薪資><年月別_Year_and_month>2025</年月別_Year_and_month><製造業_Manufacturing_金額_新臺幣元>53000</製造業_Manufacturing_金額_新臺幣元></每人每月經常性薪資></DataCollection>";
+  assert.deepEqual(parseDgbasWageRecords(monthlyXml), [{ date: "2026-05-01", value: 47210, frequency: "monthly" }, { date: "2026-06-01", value: 47170, frequency: "monthly" }]);
+  assert.deepEqual(parseDgbasWageRecords(annualXml), [{ date: "2025-12-31", value: 53000, frequency: "annual" }]);
+});
+
+test("CBC primary 60-row page is preferred and secondary page is explicit fallback", async () => {
+  const html = "<table><tr><td data-th=\"Date\"><span>2026/08/21</span></td><td data-th=\"NTD/USD\"><span>31.848</span></td></tr><tr><td data-th=\"Date\"><span>2026/05/28</span></td><td data-th=\"NTD/USD\"><span>31.500</span></td></tr></table>";
+  const primary = await getCbcFxObservations({ now: new Date("2026-08-23T00:00:00Z"), fetcher: async (url) => { assert.match(url, /-1-60\.html$/); return html; } });
+  assert.equal(primary.status, "LIVE");
+  const fallback = await getCbcFxObservations({ now: new Date("2026-08-23T00:00:00Z"), fetcher: async (url) => { if (url.includes("-1-60.html")) throw new Error("primary unavailable"); return html; } });
+  assert.equal(fallback.status, "FALLBACK");
+  assert.match(fallback.source.note, /60 筆官方分頁失敗/);
+});
+
+test("public machining observations persist and recover last-known-good values without private fields", async () => {
+  const filePath = path.join(__dirname, "fixtures", "machining-observations-test.json");
+  await fs.promises.rm(filePath, { force: true });
+  const record = { sourceId: "test-public-source", seriesId: "test-series", date: "2026-06-01", value: 101.2, status: "LIVE", frequency: "monthly", sourceUrl: "https://example.test/public.csv", fetchedAt: "2026-08-23T00:00:00.000Z", provenance: { sourceId: "test-public-source", sourceName: "Public fixture", url: "https://example.test/public.csv", endpoint: "https://example.test/public.csv", geographicScope: "Taiwan", updateFrequency: "monthly", frequency: "monthly", unit: "index", accessConstraints: "public", status: "LIVE", lastObservationDate: "2026-06-01", fetchedAt: "2026-08-23T00:00:00.000Z" } };
+  const result = await upsertPublicObservations(record, { filePath, env: { NODE_ENV: "test" } });
+  const listed = await listPublicObservations({ filePath, env: { NODE_ENV: "test" }, sourceId: record.sourceId, seriesId: record.seriesId });
+  assert.equal(result.inserted, 1);
+  assert.deepEqual(listed.map(({ date, value }) => ({ date, value })), [{ date: "2026-06-01", value: 101.2 }]);
+  assert.equal(JSON.stringify(listed).includes("company"), false);
+  await fs.promises.rm(filePath, { force: true });
+  clearWriteQueue();
+});
+
+test("last-known-good public observations recover with explicit fallback status", async () => {
+  const filePath = path.join(__dirname, "fixtures", "machining-observations-recovery-test.json");
+  await fs.promises.rm(filePath, { force: true });
+  const source = { sourceId: "recovery-source", sourceName: "Public recovery fixture", url: "https://example.test/recovery.csv", endpoint: "https://example.test/recovery.csv", geographicScope: "Taiwan", updateFrequency: "monthly", frequency: "monthly", unit: "index", accessConstraints: "public", status: "LIVE", lastObservationDate: "2026-06-01", fetchedAt: "2026-06-01T00:00:00.000Z" };
+  await upsertPublicObservations({ sourceId: source.sourceId, seriesId: "recovery-series", date: "2026-06-01", value: 99.5, status: "LIVE", frequency: "monthly", sourceUrl: source.endpoint, fetchedAt: source.fetchedAt, provenance: source }, { filePath, env: { NODE_ENV: "test" } });
+  const recovered = await recoverWithPersistence({ history: [], status: "API_ERROR", frequency: "monthly", source: { ...source, status: "API_ERROR", lastObservationDate: null } }, "recovery-series", { now: new Date("2026-06-15T00:00:00Z"), storage: { filePath, env: { NODE_ENV: "test" }, list: listPublicObservations, upsert: upsertPublicObservations } });
+  assert.deepEqual(recovered.history, [{ date: "2026-06-01", value: 99.5 }]);
+  assert.equal(recovered.status, "FALLBACK");
+  assert.match(recovered.source.note, /已保存的公開觀測/);
+  await fs.promises.rm(filePath, { force: true });
+  clearWriteQueue();
 });
 
 test("pressure calculation is deterministic, weighted, and explainable", () => {

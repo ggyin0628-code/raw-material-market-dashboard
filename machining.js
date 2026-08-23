@@ -24,6 +24,11 @@ function statusClass(value) { return String(value || "NO_DATA").toLowerCase().re
 function sourceStatus(value) { return value === "LIVE" ? "LIVE" : value || "NO_DATA"; }
 function change(value) { return typeof value === "number" && Number.isFinite(value) ? `${value >= 0 ? "+" : ""}${number(value)}%` : "資料不足"; }
 function date(value) { return value || "--"; }
+function renderComparisonWindows(component) {
+  const windows = Array.isArray(component.comparisonWindows) ? component.comparisonWindows : [];
+  if (!windows.length) return `<div><span>適頻率方向</span><strong>資料不足</strong></div>`;
+  return windows.slice(0, 3).map((item) => `<div><span>近 ${escapeHtml(item.label || "適頻率窗口")}</span><strong>${escapeHtml(change(item.changePct))}<br>${escapeHtml(direction(item.direction))}</strong></div>`).join("");
+}
 
 function renderComponent(id, component) {
   const empty = component.pressureScore === null;
@@ -31,7 +36,7 @@ function renderComponent(id, component) {
     <div class="pressure-head"><h2>${escapeHtml(component.label || id)}</h2><strong class="pressure-score">${empty ? "--" : number(component.pressureScore)}</strong></div>
     <span class="pressure-level ${statusClass(component.pressureLevel)}">${escapeHtml(level(component.pressureLevel))}｜${escapeHtml(sourceStatus(component.dataQuality))}</span>
     <p>${escapeHtml((component.explanation || ["沒有足夠的公開觀測。"])[0])}</p>
-    <div class="pressure-meta"><div><span>近 4 週</span><strong>${escapeHtml(change(component.change4WeekPct))}<br>${escapeHtml(direction(component.direction4Week))}</strong></div><div><span>近 12 週</span><strong>${escapeHtml(change(component.change12WeekPct))}<br>${escapeHtml(direction(component.direction12Week))}</strong></div></div>
+    <div class="pressure-meta">${renderComparisonWindows(component)}</div>
     <div class="pressure-meta"><div><span>公開證據</span><strong>${escapeHtml(component.evidenceCount)} 筆</strong></div><div><span>信心</span><strong>${escapeHtml(number((component.confidence || 0) * 100, 0))}%</strong></div></div>
   </article>`;
 }
@@ -51,7 +56,8 @@ function render(payload) {
   els.quality.textContent = reference.dataQuality || "--";
   els.qualityNote.textContent = reference.dataQuality === "DATA_INSUFFICIENT" ? "證據不足；未產生綜合分數。" : "來源狀態已保留並可追溯。";
   els.date.textContent = date(reference.referenceDate);
-  els.trend.textContent = `4 週：${direction(derived.compositeChange4WeekPct === null ? null : (derived.compositeChange4WeekPct > 1 ? "RISING" : derived.compositeChange4WeekPct < -1 ? "FALLING" : "STABLE"))}｜12 週：${direction(reference.trend)}`;
+  const compositeWindows = Array.isArray(derived.comparisonWindows) ? derived.comparisonWindows : [];
+  els.trend.textContent = compositeWindows.length ? compositeWindows.slice(0, 3).map((item) => `近${item.label}：${direction(item.direction)}`).join("｜") : "適頻率方向：資料不足";
   const components = ["materialPressure", "energyPressure", "laborPressure", "fxPressure", "manufacturingPricePressure", "machineCapitalPressure"];
   els.grid.innerHTML = components.map((id) => renderComponent(id, reference[id] || { label: id, pressureScore: null, dataQuality: "NO_DATA", explanation: ["沒有資料"] })).join("");
   els.explanations.innerHTML = (reference.explanation || ["目前沒有可顯示的公開推導說明。"]).map((item) => `<li>${escapeHtml(item)}</li>`).join("");

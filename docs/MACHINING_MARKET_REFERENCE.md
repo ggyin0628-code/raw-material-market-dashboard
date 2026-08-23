@@ -1,73 +1,93 @@
-# Phase 2A：CNC／一般加工公開市場參考 V1
+# CNC／一般加工公開市場參考：Phase 2B 可靠性規格
 
 ## 目的與產品邊界
 
 本功能是 **外部公開市場情報與採購參考層**。它回答「相對近期可比較觀測，加工成本壓力目前偏上升、下降或穩定」；它不回答任何供應商應報多少錢，也不輸出每小時加工費、循環時間、公司目標價或採購核決。
 
-頁面與 API 會明確標示「公開市場參考」、「非供應商報價」及「非公司目標價格」。V1 的工程估算層保持關閉，所有可見分數都必須回溯到外部公開觀測、比較窗口、來源狀態與明確權重。
+頁面與 API 明確標示「公開市場參考」、「非供應商報價」及「非公司目標價格」。`ENGINEERING_ESTIMATE` 在 V1 固定為 `null`。所有可見分數都必須回溯到外部公開觀測、適合該資料頻率的比較窗口、來源狀態與明確權重；任何來源失敗、資料過舊或沒有可比基準時，系統保留狀態而不製造值。
 
-## Phase 1：台灣優先公開來源可行性稽核
+## 公開來源與 Phase 2B 可靠性策略
 
-### 來源覆蓋總覽
+DGBAS 的基本分類 PPI 資料集涵蓋製造業產品、水電燃氣、基本金屬及機械設備等分類。[1] 原先使用的 DGBAS XML 仍是第一優先來源，但測試確認 `ws.dgbas.gov.tw` 的憑證鏈在目前 Node 執行環境可能無法驗證；因此本版本不採取 TLS 放寬，而改用官方 DGBAS 統計查詢頁的 UTF-8 CSV 輸出作為安全備援。[2] 這個查詢頁公開列出 CSV、CSV(UTF8)、JSON、XML 等輸出模式，且可選取所需分類。
 
-| 驅動群組 | V1 來源 | URL／端點 | 地理範圍 | 更新頻率 | 單位 | 授權／存取限制 | V1 狀態規則 | 資料層 |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 原材料趨勢 | 既有公開 Yahoo Finance／Stooq 指標：銅、鋁、熱軋鋼捲、WTI、天然氣 | 既有 registry；Yahoo chart 與 Stooq CSV 公開端點 | 國際公開市場指標 | 交易日／資料可得時 | 依指標而定，例如 USD/lb、USD/metric ton、USD/barrel | 來源可用性、符號及網站條款可能變更；不代表台灣現貨 | Yahoo 成功為 LIVE；既有 adapter 的公開備援為 FALLBACK；既有快取可標 STALE；無資料為 NO_DATA；請求或解析失敗為 API_ERROR | OBSERVED_PUBLIC_DATA |
-| 能源／公用事業 | DGBAS「生產者物價基本分類指數」中的「四.水電燃氣」；WTI／天然氣沿用既有公開指標 | [資料集頁][1]；XML [pr0701a1m.xml][2] | Taiwan；WTI／天然氣為國際公開指標 | DGBAS 每月；市場指標為交易日 | DGBAS 指數（民國110年=100）；市場指標依指標而定 | DGBAS 資料集免費，Open Government Data License 1.0；市場來源依各網站條款 | XML 有可解析值且在新鮮度門檻內為 LIVE；來源過舊為 STALE；無可解析序列為 NO_DATA；抓取／解析錯誤為 API_ERROR | OBSERVED_PUBLIC_DATA；窗口變化為 DERIVED_MARKET_REFERENCE |
-| 勞動／製造業薪資 | DGBAS「每人每月經常性薪資」製造業欄位 | [資料集頁][3]；XML [mp05002.xml][4] | Taiwan | 資料集頁面標示每年一月 | 新臺幣元／人／月 | 免費，Open Government Data License 1.0；資料集含統計範圍與歷史修訂說明 | XML 可取得為 LIVE；過舊為 STALE；無製造業欄位為 NO_DATA；抓取／解析錯誤為 API_ERROR。由於 V1 不把年度值硬轉成 4／12 週方向，若沒有可比較窗口，勞動構面保留來源但不產生壓力分數 | OBSERVED_PUBLIC_DATA；若未來採用年度變化，該變化為 DERIVED_MARKET_REFERENCE |
-| 製造業價格 | DGBAS「三.製造業產品」生產者物價指數 | [資料集頁][1]；XML [pr0701a1m.xml][2] | Taiwan | 每月 | 指數（民國110年=100） | 免費，Open Government Data License 1.0；XML 公開下載 | 同 DGBAS PPI：LIVE／STALE／NO_DATA／API_ERROR | OBSERVED_PUBLIC_DATA；窗口變化為 DERIVED_MARKET_REFERENCE |
-| USD/TWD | 中央銀行 NT$/US$ Closing Rate | [官方歷史清單][5] | Taiwan official NTD/USD | 營業日 | NTD／USD | 公開 HTML 歷史清單與分頁；需遵守來源網站使用條款 | 可解析日列為 LIVE；最近觀測超過營業日新鮮度門檻為 STALE；頁面沒有可解析列為 NO_DATA；抓取／解析錯誤為 API_ERROR | OBSERVED_PUBLIC_DATA；窗口變化為 DERIVED_MARKET_REFERENCE |
-| 機械／資本成本代理 | DGBAS PPI 中「18.機械設備」公開系列 | [資料集頁][1]；XML [pr0701a1m.xml][2] | Taiwan | 每月 | 指數（民國110年=100） | 免費，Open Government Data License 1.0；只作設備價格代理，不是機台購置價 | 同 DGBAS PPI：LIVE／STALE／NO_DATA／API_ERROR | OBSERVED_PUBLIC_DATA；窗口變化為 DERIVED_MARKET_REFERENCE |
-| 電價人工核對候選 | 台灣電力公司 Rate Schedules 官方 PDF | [Rate Schedules 頁][6]；[官方 PDF][7] | Taiwan 電價級距 | 修訂／事件驅動 | 依電價表級距而定 | 官方 PDF 公開下載；需以最新版本與適用級距人工確認。V1 不把未解析 PDF 表格值轉成數字 | V1 明確標為 NO_DATA（可行性／人工核對來源）；不因 PDF 存在而發明電價 | OBSERVED_PUBLIC_DATA 僅在未來可靠解析具體級距後啟用 |
+| 驅動群組 | 第一來源／備援 | 頻率 | Phase 2B 行為 | 資料層 |
+| --- | --- | --- | --- | --- |
+| 金屬、能源與材料 | 既有 Yahoo Finance／Stooq 公開指標：銅、鋁、熱軋鋼捲、WTI、天然氣；台灣基本金屬 PPI 作補充 | 市場指標為交易日；PPI 為每月 | 保留既有來源狀態與歷史；不代表台灣現貨 | `OBSERVED_PUBLIC_DATA` |
+| 製造業／能源 PPI | DGBAS 基本分類 XML；失敗後使用官方 `nstatdb` CSV query | 每月 | 查詢只取總指數、製造業產品、基本金屬、機械設備、水電燃氣五個必要欄位；各序列保留實際 endpoint 與 `FALLBACK` 狀態 | `OBSERVED_PUBLIC_DATA` |
+| 製造業勞動成本 | DGBAS 薪資 XML；失敗後使用官方製造業月資料 CSV query | 月資料；資料集 metadata 標示每年一月更新 | 修正 `YYYYMM` 解析；使用月度比較窗口。資料發布落後時標示 `STALE`，不把它當成週資料 | `OBSERVED_PUBLIC_DATA` |
+| NTD/USD | 中央銀行官方 60 筆分頁；失敗後使用官方 20 筆首頁 | 營業日 | 60 筆頁面足以提供約 12 週工作日歷史；備援頁面標示 `FALLBACK`，並保留實際分頁 endpoint | `OBSERVED_PUBLIC_DATA` |
+| 台電電價 | 台灣電力公司／政府資料開放平臺官方 JSON | 修訂／事件驅動 | 只作結構性來源；沒有指定電壓、契約、用電量與時段時，不推導單一電價或週動能 | `OBSERVED_PUBLIC_DATA` |
+| 機械／資本成本代理 | DGBAS「18.機械設備」PPI | 每月 | 僅作設備價格代理；不推導機台購置價、折舊、加工時薪或供應商報價 | `OBSERVED_PUBLIC_DATA` |
 
-DGBAS 的政府資料開放平台明確描述 PPI 基本分類涵蓋製造產品及水、電、燃氣，資料集頁面標示每月更新、免費及 Open Government Data License 1.0；因此 V1 優先採用同一個機器可讀 XML 作為台灣製造、能源、公用事業、基本金屬及機械設備代理的公共來源。[1] [2] 另一方面，勞動來源雖然具備製造業欄位及清楚的單位，但資料集頁面標示每年一月更新，所以 V1 對它採取保守策略：保留觀測與來源沿革，不把年度資料冒充短期加工成本方向。[3] [4]
+DGBAS PPI 的官方統計查詢頁可用 `sys=220`、`outmode=3`、`cycle=1` 及 bounded `fldlst` 查詢必要分類；本實作固定使用已驗證的類別位置：總指數 1、製造業產品 19、基本金屬 56、機械設備 84、水電燃氣 98。[2] 製造業薪資查詢頁則使用製造業欄位位置 4、合計性別分類 `codlst0=100`，同樣輸出 UTF-8 CSV。[3]
 
-中央銀行頁面提供日期與 NTD/USD 收盤值的公開歷史清單，適合支援營業日匯率壓力觀察；這個序列表達的是外幣投入的相對方向，不是供應商報價條件。[5] 台電官方費率表則是有價值的人工核對候選，但 PDF 的級距、時段與適用條件不應在沒有可靠解析與版本確認時被轉成數值；因此 V1 將它列為 NO_DATA／feasibility-only，不阻塞其他安全工作。[6] [7]
+中央銀行 60 筆頁面在測試時涵蓋 2026-08-21 至 2026-05-28，足以支援短期窗口；20 筆首頁只作明確備援，不假設單頁包含完整歷史。[4] 台電資料集提供官方 JSON 與實施日期，但不同用電類別具有不同級距與條件；因此本版只把它作為 `structural` 來源，不讓存在的 JSON 被誤解為 CNC 電價。[5]
 
-### 公開來源障礙與剩餘缺口
+## 資料契約
 
-目前最可靠的短期覆蓋來自既有國際金屬／能源公開指標、DGBAS 月度 PPI 與中央銀行營業日匯率。勞動成本公開資料的主要缺口是可用頻率不足，無法在 V1 嚴格支持 4 週／12 週方向；台電費率表的主要缺口是官方 PDF 需要依電壓、時段、契約條件正確解析，V1 不以未解析表格冒充數據；台灣本地 CNC 供應商實際加工單價沒有可安全泛化的公開官方序列，故本功能不聲稱能知道該價格。
+API 主資料物件包含 `referenceDate`、`region`、`machiningType`、`materialFamily`、六個壓力構面、`compositePressureScore`、`pressureLevel`、`trend`、`confidence`、`dataQuality`、`sourceProvenance[]`、`explanation[]`、`disclaimer`、`observedPublicData`、`derivedMarketReference` 及 `engineeringEstimate`。三層資料嚴格分開：
 
-## Phase 2：資料契約
-
-API 的主資料物件包含 `referenceDate`、`region`、`machiningType`、`materialFamily`、六個壓力構面、`compositePressureScore`、`pressureLevel`、`trend`、`confidence`、`dataQuality`、`sourceProvenance[]`、`explanation[]`、`disclaimer`，並把三層資料明確拆開：
-
-| 層級 | 含義 | V1 行為 |
+| 層級 | 含義 | Phase 2B 行為 |
 | --- | --- | --- |
-| `OBSERVED_PUBLIC_DATA` | 外部來源實際觀測，例如 PPI、薪資、匯率、公開金屬／能源歷史列 | 只保留來源值、觀測日期、單位、來源狀態與 URL；不把觀測值改寫成供應商價格 |
-| `DERIVED_MARKET_REFERENCE` | 只由公開觀測與設定規則計算出的窗口變化、壓力分數、等級與方向 | 顯示公式、權重、最低證據數、可用構面與說明，確保每一項可回溯 |
-| `ENGINEERING_ESTIMATE` | 若未來需要，才在公開文件化模型與工程輸入完整後提供的透明估算 | V1 固定為 `null`，不估算時薪、循環時間、機台費或供應商報價 |
+| `OBSERVED_PUBLIC_DATA` | 外部來源實際觀測，例如 PPI、月薪、匯率、金屬／能源歷史列 | 只保留來源值、觀測日期、單位、頻率、抓取時間、endpoint 與來源狀態；不改寫成供應商價格 |
+| `DERIVED_MARKET_REFERENCE` | 由公開觀測與確定性規則推導的窗口變化、壓力分數、等級與方向 | 顯示公式、權重、可用構面、最低證據門檻與適頻率比較窗口 |
+| `ENGINEERING_ESTIMATE` | 需要工程輸入與文件化假設的估算 | V1 固定為 `null`，不估算時薪、循環時間、設備成本或加工報價 |
 
-每個構面都是帶有 `pressureScore`、`pressureLevel`、`trend`、`direction4Week`、`direction12Week`、窗口變化百分比、`evidenceCount`、`confidence`、`dataQuality`、`sourceProvenance[]` 與 `explanation[]` 的物件。來源沿革記錄來源名稱、URL、地理範圍、更新頻率、單位、存取限制、`LIVE`／`FALLBACK`／`STALE`／`NO_DATA`／`API_ERROR` 狀態及最後觀測日期。
+來源沿革至少記錄來源 ID、來源名稱、公開來源頁、實際 machine-readable endpoint、地理範圍、更新頻率、資料頻率、單位、存取限制、`LIVE`／`FALLBACK`／`STALE`／`NO_DATA`／`API_ERROR` 狀態、最後觀測日期、抓取時間與備註。DGBAS XML 失敗後的統計查詢 CSV 會以 `FALLBACK` 保留；CBC 60 筆頁失敗後的 20 筆頁也會以 `FALLBACK` 保留。
 
-## Phase 3：確定性參考模型
+## 頻率感知的確定性模型
 
-V1 使用可配置的預設權重：材料 25%、能源 15%、勞動 15%、匯率 15%、製造價格 20%、機械／資本代理 10%。權重會在程式中驗證為非負值並正規化；每個壓力構面若缺少可比較的 4 週或 12 週歷史，就不產生構面分數，也不會以中性值補洞。
+預設權重維持材料 25%、能源 15%、勞動 15%、匯率 15%、製造價格 20%、機械／資本代理 10%。權重只接受非負有限數字並正規化；缺失構面不以中性值補洞，可用構面才按實際權重重新正規化。最低證據門檻維持 3 個具備有效且可比較公開證據的構面。
 
-對每個可用觀測，模型計算最近值相對於約 28 日及 84 日前可得值的百分比變化。壓力分數使用透明公式：
+比較窗口依來源頻率選擇，不跨頻率硬套：
+
+| 資料頻率 | 可用窗口 | 不採用的方式 |
+| --- | --- | --- |
+| `daily`／`weekly` | 4 週、12 週 | 不把缺少交易日資料的空白補成假觀測 |
+| `monthly` | 1 個月、3 個月、1 年 | 不把月資料標示成 4／12 週 |
+| `annual` | 1 年、3 年 | 不把年資料轉為短期勞動方向 |
+| `structural` | 不產生動能窗口 | 不把電價表或級距 JSON 轉成單一週變化 |
+| `unknown` | 不產生比較 | 保留來源狀態但不進入分數 |
+
+每一個有效比較窗口使用：
 
 > `componentPressureScore = clamp(50 + 5 × comparableWindowChangePct, 0, 100)`
 
-分數低於 25 為 `LOW`，25 至未滿 50 為 `NORMAL`，50 至未滿 75 為 `ELEVATED`，75 以上為 `HIGH`。方向門檻為窗口變化大於 1% 代表 `RISING`，小於 -1% 代表 `FALLING`，其餘為 `STABLE`。綜合分數只使用具有效公開證據且權重大於零的構面，並按實際可用權重重新正規化。
+變化百分比是最新有效觀測相對於該頻率允許的歷史基準。方向門檻為大於 1% 的變化標示 `RISING`，小於 -1% 標示 `FALLING`，其餘為 `STABLE`。每個構面會同時保留相容的舊欄位 `change4WeekPct`、`change12WeekPct`，以及新的 `comparisonWindows[]` 與 `selectedComparisonWindow`；月資料的舊週欄位保持 `null`，避免 UI 或 API 消費者誤解。
 
-最低證據門檻預設為 3 個具備有效可比較歷史的構面。若未達門檻，`compositePressureScore`、`pressureLevel` 與 `trend` 都是 `null`，`dataQuality` 為 `DATA_INSUFFICIENT`；API 與頁面會顯示「未產生綜合分數」，不以假數字維持版面。`STALE` 與 `FALLBACK` 不會被靜默移除，而會降低信心並在說明中標示；`NO_DATA` 與 `API_ERROR` 會保留來源狀態且不進入分數。
+若沒有適頻率的歷史基準，構面分數為 `null`；若有效構面數低於 3，綜合 `compositePressureScore`、`pressureLevel` 與 `trend` 都為 `null`，`dataQuality` 為 `DATA_INSUFFICIENT`。`STALE` 與 `FALLBACK` 觀測可以在證據門檻已滿足時保留並降低信心，但會在說明與 provenance 明確顯示；`NO_DATA` 與 `API_ERROR` 不進入分數。
 
-## Phase 4：頁面與 API
+## 公開歷史 persistence 與 last-known-good
 
-V1 新增 canonical `/machining`（內部仍可使用 `machining.html` 作為靜態檔案）與 `GET /api/machining/reference`。頁面提供整體加工成本壓力、材料、能源、勞動、匯率、製造價格及機械／資本代理六個構面；每個構面都顯示分數、壓力等級、資料品質、4 週／12 週方向、證據數及信心。頁面另外顯示整體參考日期、最低證據門檻、來源沿革與純文字解釋，並與既有看板共用色彩變數與行動版布局。
+Phase 2B 新增獨立的 `machining_public_observations` 公開資料表，以及 filesystem parity 的 `data/machining/public-observations.json` fallback。記錄鍵為 `sourceId + seriesId + observationDate`，只儲存公開觀測值、日期、頻率、狀態、來源 endpoint、抓取時間與 provenance。它不共用或改寫 `market_snapshots`，因此不改動既有原物料計算。
 
-既有 `/api/market`、`/api/materials`、`/api/history`、週報、郵件、bootstrap、Render、GitHub Actions 及排程程式碼沒有被重新設計或重跑。新頁面只在使用者開啟或按下更新時呼叫新的公開來源組合；沒有部署、寄信、重跑 bootstrap、修改排程或變更 production secrets。
+| 儲存情況 | 行為 |
+| --- | --- |
+| Postgres mode | 由既有 `db:migrate` 顯式建立表；以 source／series／date upsert，依 `LIVE > FALLBACK > STALE > API_ERROR > NO_DATA` 保留較可靠狀態 |
+| Durable filesystem mode | 寫入既有 production storage root 下的 `machining/public-observations.json`，使用 atomic rename |
+| 未配置 durable storage | 不在 production 靜默建立永久本地資料；回傳 `SKIPPED_NO_DURABLE_STORAGE`，不阻塞公開回應 |
+| 即時來源暫時失敗 | 讀取同一 source／series 的 last-known-good 公開觀測；依年齡標示 `FALLBACK` 或 `STALE`，不標示 `LIVE` |
+
+persistence 是 best-effort：資料庫或檔案儲存暫時失敗不應刪除或污染當次公開回應；若沒有可恢復歷史，仍保留 `API_ERROR` 或 `NO_DATA`。備份與既有原物料快照仍維持原有 public-only 邊界；本版本沒有執行 bootstrap、重跑排程或改動 production secrets。
+
+## 頁面與 API
+
+頁面 canonical URL 為 `/machining`，`/machining/` 可正常服務，內部 `/machining.html` 只作 308 redirect。加工頁維持獨立頁架構，不把加工內容嵌入原物料首頁。共用導覽只呈現目前已存在的兩頁：`原物料市場 → /` 與 `加工市場參考 → /machining`；Sheet Metal、Weekly、Sources 尚未建立，沒有假頁面。
+
+頁面上的比較窗口使用「依資料頻率」的標籤。每個構面顯示狀態、適頻率變化、證據數、信心與來源沿革；結構性台電來源可列在 provenance，但不會產生加工電價或週動能。API 不含供應商名稱、公司內部價格、目標價格、勞動費率、循環時間或 CNC 購置價格欄位。
+
+既有 `/api/market`、`/api/materials`、`/api/history`、週報、郵件、bootstrap、Render、GitHub Actions 及排程程式碼未被重設或重新執行。新增程式只在加工參考讀取時收集公開來源；來源與 persistence 狀態都 fail-soft 且可追溯。
 
 ## 驗證範圍
 
-測試涵蓋 DGBAS PPI／薪資 XML 與中央銀行 HTML 正規化、確定性壓力計算、權重設定、缺失／STALE 行為、最低證據門檻、來源沿革、三層資料契約、API 包裝及禁止私有／公司欄位。完整檢查命令依交接紀錄執行：`npm ci`、`npm run check`、`npm test`、`npm run build`、`npm audit --omit=dev` 與 `git diff --check`。
+測試涵蓋 DGBAS PPI／薪資 XML 與官方 query CSV 正規化、`YYYYMM` 月薪解析、DGBAS fallback 順序、CBC 60 筆／20 筆頁 fallback、頻率窗口、last-known-good persistence、filesystem contract、權重設定、缺失／STALE 行為、最低證據門檻、來源沿革、三層資料契約、API 包裝及禁止私有／公司欄位。Phase 2B 新增 16 項 machining tests；完整 repository regression 必須以 `npm ci`、`npm run check`、`npm test`、`npm run build`、`npm audit --omit=dev` 與 `git diff --check` 驗證。
 
 ## References
 
 [1]: https://data.gov.tw/en/datasets/148439 "Taiwan Open Government Data — Basic producer price index"
-[2]: https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/230534/pr0701a1m.xml "DGBAS Basic producer price index XML"
-[3]: https://data.gov.tw/en/datasets/9663 "Taiwan Open Government Data — The monthly ordinary wages of each employee in recent years"
-[4]: https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/230037/mp05002.xml "DGBAS ordinary wage XML"
-[5]: https://www.cbc.gov.tw/en/lp-700-2.html "Central Bank of the Republic of China — NT$/US$ Closing Rate"
-[6]: https://www.taipower.com.tw/2764/2765/2801/56429/normalPost "Taiwan Power Company — Rate Schedules"
-[7]: https://www.taipower.com.tw/media/vqplk13w/20251124_TAIWAN%20POWER%20COMPANY%20RATE%20SCHEDULES.pdf?mediaDL=true "Taiwan Power Company Rate Schedules PDF"
+[2]: https://nstatdb.dgbas.gov.tw/dgbasall/webMain.aspx?funid=A030701015&sys=210 "DGBAS — Basic producer price index query"
+[3]: https://nstatdb.dgbas.gov.tw/dgbasall/webMain.aspx?sys=210&funid=A046301010 "DGBAS — Monthly regular wage query"
+[4]: https://www.cbc.gov.tw/en/lp-700-2.html "Central Bank of the Republic of China — NT$/US$ Closing Rate"
+[5]: https://data.gov.tw/dataset/17060 "Taiwan Power Company — Electricity tariff schedules and calculation examples"
+[6]: https://data.gov.tw/en/datasets/9663 "Taiwan Open Government Data — Monthly ordinary wages of each employee in recent years"
+[7]: https://eng.stat.gov.tw/Point.aspx?sid=t.4&n=4203&sms=11713 "DGBAS — Monthly regular earnings of all employees indicator"
