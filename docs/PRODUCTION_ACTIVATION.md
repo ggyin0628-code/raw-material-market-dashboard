@@ -1,87 +1,105 @@
-# Production Activation
+# Production Activation and Deployment Checkpoint
 
-## Verdict semantics
+## Current verdict
 
-`BOOTSTRAP_PERFORMANCE_CERTIFIED` means the public-data provider boundary, Postgres adapter, migration, Actions workflows, quality gate, Microsoft Graph mail boundary, observability, recovery documentation, offline validation and the promoted-main three-year Neon bootstrap performance verification are complete. It does **not** mean that the owner has completed the weekly Graph test-mail receipt／attachment review or enabled scheduled workflow execution.
+**RENDER_WEB_PRODUCTION_DEPLOYMENT_PASS**
 
-| State | Meaning | Runtime behavior |
+The public Render Free web deployment is verified and the production report/mail path is operationally certified through the owner-confirmed Gmail SMTP test. The approved presentation redesign is already committed and pushed to `main` at `8a9fd80c30a339b9eeea1a176c174459368a39b9`.
+
+This document records deployment and activation state only. It does not authorize a bootstrap rerun, workflow trigger, additional email, secret change or schedule change.
+
+## State semantics
+
+| State | Meaning | Runtime interpretation |
 | --- | --- | --- |
-| `DATABASE_URL_REQUIRED` | Postgres selected without secret-managed URL | Database jobs fail closed with non-zero exit |
-| `DATABASE_UNAVAILABLE` | Postgres cannot be reached | Workflow stops; no fabricated data or mail |
-| `DATABASE_READY` | Postgres health check succeeds | Migration／jobs may continue |
-| `SEND_OK` | Report quality and artifacts are complete | Mail may proceed in the approved stage |
-| `SEND_WITH_WARNINGS` | Report usable but contains visible quality warnings | Mail may proceed; warnings stay in report／job state |
-| `SEND_BLOCKED` | No usable report, usable ratio below gate or artifact failure | No mail provider call; non-zero workflow |
-| `EXTERNAL_CONFIGURATION_REQUIRED` | Owner runtime configuration has not been supplied | Offline code is complete; owner action remains |
+| `WEB_READY` | Render web process responds | Web/dashboard process is available |
+| `DATABASE_READY` | PostgreSQL durable storage is reachable | Neon-backed reads and writes may continue |
+| `DAILY_DATA_NOT_READY` | Current daily job data is not ready in the web health view | Not a Render deployment failure; inspect GitHub Actions daily state separately |
+| `WEEKLY_REPORT_READY` | Weekly report state is available | Report artifacts/status are available for review |
+| `MAIL_CONFIGURATION_REQUIRED` | Render does not have mail credentials | Expected on Render; Render is not the scheduled mail host |
+| `SEND_OK` | Report quality and artifacts are complete | Gmail SMTP delivery may proceed in the approved workflow stage |
+| `SEND_WITH_WARNINGS` | Report remains usable with visible warnings | Delivery may proceed only with warnings retained |
+| `SEND_BLOCKED` | No usable report, insufficient coverage or artifact failure | No mail provider call; workflow fails closed |
+| `BOOTSTRAP_COMPLETE` | Three-year public history bootstrap completed | Bootstrap is complete and must not be rerun for this checkpoint |
 
-## Target architecture
+## Runtime architecture
 
 ```text
-Public market APIs → GitHub Actions → Node.js runtime → Postgres adapter → Neon-compatible PostgreSQL
-                                                            ↓
-                                           Microsoft Graph /me/sendMail
-                                           delegated personal account only
+Public market APIs
+        ↓
+GitHub Actions daily／weekly workflows ───────→ Gmail SMTP delivery
+        ↓                                            ↓
+Neon-compatible PostgreSQL ←──── Render Free web/dashboard read path
 ```
 
-The production weekly workflow uses `MAIL_PROVIDER=outlook_graph`, the `consumers` authority, delegated `Mail.Send`, a client ID and a secret-managed refresh token. The previous Gmail SMTP implementation remains isolated only for an explicit `MAIL_PROVIDER=smtp` compatibility path; production weekly no longer injects or depends on Gmail SMTP values. Render Free remains optional dashboard hosting only. It does not provide durable local storage and does not run scheduled mail. `STORAGE_PROVIDER=filesystem` remains local／test compatibility; `STORAGE_PROVIDER=postgres` is the zero-cost production path.
+GitHub Actions remains responsible for scheduled daily/weekly jobs and Gmail SMTP mail delivery. Render Free is web/dashboard hosting only. It does not own scheduled jobs, scheduled mail or durable local filesystem storage. No Gmail/SMTP credentials must be added to Render.
 
-## Stage 0 — owner application and OAuth review
+The active production mail provider is the existing Gmail SMTP path with the existing recipient, test-mode, ledger and duplicate-guard boundaries. Microsoft Graph is historical/inactive only and is not a production dependency. No company Microsoft 365, company mail or company data integration is present.
 
-Create an app registration for **Personal Microsoft accounts** only. Add only the Microsoft Graph delegated permission `Mail.Send`; do not add application permissions, company tenant permissions, directory scopes, mailbox-read scopes or a client secret. Record the Application (client) ID as the secret `MICROSOFT_CLIENT_ID`.
+## Verified Render Free deployment
 
-On a trusted owner-controlled machine, run `npm run microsoft:oauth -- --client-id <client-id> --output /tmp/raw-material-dashboard-microsoft-refresh-token.json`. Sign in only as `ggyin0628@hotmail.com`. The helper uses the `consumers` device-code endpoint and requests only `offline_access` plus `https://graph.microsoft.com/Mail.Send`. It never sends mail, never prints a token, refuses output inside the repository, and writes the refresh token only to a mode-600 file outside the repository. Supply the `refreshToken` field directly to the owner’s secret manager as `MICROSOFT_REFRESH_TOKEN`, then delete the temporary file securely.
+| Checkpoint | Verified result |
+| --- | --- |
+| Public deployment | [`https://raw-material-market-dashboard-1.onrender.com`](https://raw-material-market-dashboard-1.onrender.com) |
+| Homepage | Loads successfully |
+| `GET /health` | Status OK |
+| `GET /health/weekly` | Status OK |
+| Web readiness | `WEB_READY` |
+| Database readiness | `DATABASE_READY` |
+| Storage | PostgreSQL durable storage configured |
+| Observed database latency | 36 ms |
+| Bootstrap state | `BOOTSTRAP_COMPLETE` |
+| Persisted records | `persistedRecordCount: 11351` |
+| Quality gate | `SEND_OK` |
+| Usable indicators | 14/14 |
+| Weekly report state | `WEEKLY_REPORT_READY` |
+| Latest weekly mail state | `TEST_SENT` |
+| Deployment verdict | `RENDER_WEB_PRODUCTION_DEPLOYMENT_PASS` |
 
-Keep `MICROSOFT_TENANT=consumers`, `MAIL_PROVIDER=outlook_graph`, `MAIL_FROM=ggyin0628@hotmail.com`, `MAIL_TEST_TO=ggyin0628@hotmail.com`, and repository variable `WEEKLY_MAIL_TEST_MODE=1`. Keep `PRODUCTION_SCHEDULES_ENABLED` absent or `0`. Detailed setup and official Microsoft references are in [`docs/EMAIL_DELIVERY.md`](EMAIL_DELIVERY.md).
+`DAILY_DATA_NOT_READY` is not a deployment failure. It describes daily-data readiness in the health view and must be interpreted separately from `WEB_READY` and `DATABASE_READY`. `MAIL_CONFIGURATION_REQUIRED` on Render is expected because Render is web/dashboard hosting only; it is not evidence of a Gmail failure and must not be fixed by adding mail credentials to Render.
 
-## Stage 1 — database migration and bootstrap — certified
+## Bootstrap and data certification
 
-The promoted-main three-year bootstrap certification has completed. Runs `32611318090` and `32611472483` reached `DATABASE_READY` and `BOOTSTRAP_COMPLETE` without email. No further bootstrap is required for this mail-provider change. For audit/recovery, the owner-controlled commands remain:
+The complete three-year public history bootstrap remains certified. The remediation preserved the 30-minute safety ceiling, bounded public-history concurrency, bounded PostgreSQL batch upsert, status-quality ranking, chunk resumability and safe progress. The successful production state includes `BOOTSTRAP_COMPLETE` and `persistedRecordCount: 11351`.
+
+Bootstrap is complete and must not be rerun for this deployment checkpoint, documentation update or presentation state. No destructive reset, truncation or fabricated public data is permitted.
+
+## Gmail SMTP and weekly report state
+
+The owner-confirmed Gmail SMTP live test succeeded. The HTML email was successfully received and the XLSX attachment was successfully received. The weekly mail historical latest success state is `TEST_SENT`.
+
+The manual Gmail receipt test is complete and must not be repeated by this checkpoint. A historical SMTP `535` `lastError` must not be interpreted as the current mail state because a later successful `TEST_SENT` record exists. The existing Gmail credentials remain in the GitHub Actions secret boundary only; they are not copied to Render or printed in logs.
+
+The approved presentation redesign remains at main SHA `8a9fd80c30a339b9eeea1a176c174459368a39b9`, with procurement-management HTML/XLSX layout, KPI cards, weekly overview, review priorities, category momentum, signal distribution, compact detail table and warning/data-quality presentation.
+
+## Schedule gate
+
+The daily and weekly GitHub Actions schedules remain controlled by `PRODUCTION_SCHEDULES_ENABLED`. The schedule gate was not changed by the deployment checkpoint. When the owner is ready, setting `PRODUCTION_SCHEDULES_ENABLED=1` enables the existing schedule behavior; until then, scheduled jobs remain safely gated while manual dispatch remains available.
+
+No workflow was triggered, no email was sent and no bootstrap was rerun while recording this checkpoint.
+
+## Owner activation and recovery commands
+
+The following commands remain owner-controlled and must run only with secret-managed environment variables. They are documented for recovery and do not authorize execution by this handoff:
 
 ```bash
 STORAGE_PROVIDER=postgres DATABASE_URL="$DATABASE_URL" npm run db:migrate
 STORAGE_PROVIDER=postgres DATABASE_URL="$DATABASE_URL" npm run production:storage-check
-STORAGE_PROVIDER=postgres DATABASE_URL="$DATABASE_URL" npm run production:bootstrap -- --period 3y
 STORAGE_PROVIDER=postgres DATABASE_URL="$DATABASE_URL" npm run production:status
+STORAGE_PROVIDER=postgres DATABASE_URL="$DATABASE_URL" MAIL_PROVIDER=smtp \
+  MAIL_HOST=smtp.gmail.com MAIL_PORT=465 MAIL_SECURE=true \
+  npm run production:weekly -- --dry-run --send
 ```
 
-Migration is idempotent and non-destructive. Bootstrap performs migration, provider-supported public history backfill, canonical validation, completed prior-week report generation and job-state update without email. The remediation uses bounded history concurrency of three, capped at four, and `POSTGRES_UPSERT_BATCH_SIZE=250` by default, capped at 500. Each snapshot batch uses one parameterized multi-row `INSERT ... ON CONFLICT` transaction, preserving status quality and leaving completed batches durable for safe rerun. Snapshot identity remains `material_id + observation_date`; missing dates remain missing and source failures remain visible.
+If Render health is degraded, inspect `/health` and `/health/weekly` first, then inspect the safe GitHub Actions and Neon status. Do not add Gmail credentials to Render, do not treat `DAILY_DATA_NOT_READY` as a web deployment failure, do not rerun bootstrap without explicit owner approval and do not infer current mail failure from the historical SMTP 535 entry.
 
-## Stage 2 — daily workflow
+## Permanent safety boundary
 
-Run `.github/workflows/market-daily.yml` by manual dispatch first. It installs locked dependencies, validates source, migrates schema, checks database readiness, captures public daily data and validates status. It does not invoke the mail command. A database or process failure is non-zero; partial public-source failures remain explicit per row.
+The system remains limited to external public market intelligence and purchasing-reference context. It must not ingest SAP, company purchasing history, supplier quotations or names, company target prices, private thresholds, inventory, MOQ, payment terms, company email data, company credentials or private runtime reports.
 
-The scheduled daily expression is `17 23 * * 1-5` UTC, approximately 07:17 Tuesday–Saturday in Taiwan. The job runs on a schedule only when repository variable `PRODUCTION_SCHEDULES_ENABLED=1`; manual dispatch is always allowed. GitHub schedule is best-effort and may be delayed; use manual dispatch for recovery.
+## References
 
-## Stage 3 — weekly dry-run
-
-Run the weekly workflow in its default test-mode configuration or execute:
-
-```bash
-STORAGE_PROVIDER=postgres DATABASE_URL="$DATABASE_URL" MAIL_PROVIDER=outlook_graph DRY_RUN=1 npm run production:weekly -- --dry-run --send
-```
-
-The runtime calculates only the completed prior Monday–Sunday week in `Asia/Taipei`, generates JSON／HTML／XLSX, evaluates the quality gate, writes `DRY_RUN` to the durable ledger and returns `sent: false`. No OAuth token exchange or Graph request is made. The production CLI returns a concise safe summary rather than printing full report/history payloads. Confirm tracked count, usable count, source/status coverage, FX availability, warnings and artifact integrity.
-
-## Stage 4 — live `TEST_RECIPIENT`
-
-Keep `WEEKLY_MAIL_TEST_MODE=1` and configure `MAIL_TEST_TO` to the owner-approved personal test recipient. Run **one** manual weekly workflow with no `--dry-run`. In test mode, production `MAIL_TO`, CC and Reply-To are not forwarded. Do not run this live test from the remediation agent; use the owner-controlled GitHub Actions workflow.
-
-The Graph adapter refreshes the delegated token in memory and sends JSON to `/me/sendMail`. A `202 Accepted` response records `TEST_SENT`; it means Graph accepted the request for processing, not that final mailbox delivery is guaranteed. Review the received email subject `採購市場情報週報｜YYYY-Www`, sender, recipient, public-only content, HTML at desktop and narrow/mobile widths, XLSX attachment, timestamps, source labels, warnings and disclaimer. If any item fails, keep test mode enabled and recover through manual workflow dispatch.
-
-## Stage 5 — approved production recipients
-
-Only after manual receipt and attachment review pass may the owner set `WEEKLY_MAIL_TEST_MODE=0` and use the approved personal `MAIL_TO`. Run one explicitly approved completed-week send. The Postgres delivery ledger and duplicate guard remain active. A Graph `401`/`403` or refresh-token failure is explicit and redacted; it never falls back to Gmail. For a `202` acceptance uncertainty, inspect the mailbox and ledger before any owner-approved resend.
-
-## Stage 6 — scheduled workflow activation
-
-After the controlled production-recipient send passes, the owner may set repository variable `PRODUCTION_SCHEDULES_ENABLED=1` and rely on the weekly schedule `17 1 * * 1` UTC, approximately Monday 09:17 Asia/Taipei. The workflow performs migration, storage check, quality-gated report generation, Microsoft Graph delivery and final status validation. It stops on database failure, `SEND_BLOCKED`, attachment failure, failed OAuth/Graph request or any other materially unsuccessful state. Until that variable is `1`, scheduled daily／weekly jobs safely skip while manual dispatch remains available.
-
-## Recovery and non-destructive behavior
-
-Migration uses non-destructive create-if-missing operations. Transactional Postgres snapshot upsert rolls back only the active batch on failure; prior committed batches remain durable, and the 3y rerun is idempotent without reset or truncate. Provider re-backfill and public Postgres export are the recovery sources of truth. Filesystem adapter corruption remains explicit and does not silently become valid data. Delivery duplicate protection remains keyed by reporting week. There is no paid backup requirement.
-
-Graph refresh tokens can expire or be revoked. On `GRAPH_TOKEN_REFRESH_FAILED`, the owner must rerun the interactive helper and replace only the Actions refresh-token secret. Never print, paste or commit the old or new token. No real Microsoft OAuth exchange, Graph send, weekly live email, bootstrap rerun or schedule activation was performed during this code change.
-
-## Required final human action
-
-Run exactly one `Market Weekly Intelligence Report` manually while `WEEKLY_MAIL_TEST_MODE=1`, verify the received Outlook HTML report and XLSX attachment, then set `PRODUCTION_SCHEDULES_ENABLED=1`. Do not trigger the weekly workflow or send email from the remediation agent.
+[1]: https://raw-material-market-dashboard-1.onrender.com "Verified Render Free public deployment"
+[2]: https://github.com/ggyin0628-code/raw-material-market-dashboard/commit/8a9fd80c30a339b9eeea1a176c174459368a39b9 "Final presentation main commit"
+[3]: https://github.com/ggyin0628-code/raw-material-market-dashboard/actions/runs/32611318090 "Successful promoted-main bootstrap"
+[4]: https://github.com/ggyin0628-code/raw-material-market-dashboard/actions/runs/32611472483 "Bootstrap batch telemetry verification"

@@ -20,7 +20,7 @@ Neon-compatible PostgreSQL
 Gmail SMTP to approved personal TEST_RECIPIENT／recipient
 ```
 
-Render Free 保留為 optional dashboard／web hosting。它不負責排程 SMTP，不把 local filesystem 當 durable storage，亦不需要 persistent disk。當 dashboard 使用 `STORAGE_PROVIDER=postgres` 時，web process 可讀取同一個 PostgreSQL public market history；restart／spindown 不會遺失市場歷史。
+Render Free 已完成並驗證為公開 web/dashboard deployment：[`https://raw-material-market-dashboard-1.onrender.com`](https://raw-material-market-dashboard-1.onrender.com)。首頁可正常載入，`GET /health` 與 `GET /health/weekly` 均回傳成功狀態；deployment checkpoint 觀測到 `WEB_READY`、`DATABASE_READY`、PostgreSQL durable storage、36 ms database latency、`BOOTSTRAP_COMPLETE`、`persistedRecordCount=11351`、`SEND_OK`、14/14 usable indicators、`WEEKLY_REPORT_READY` 與 weekly mail latest success state `TEST_SENT`。Render 只負責 web/dashboard hosting；GitHub Actions 仍負責 scheduled daily/weekly jobs 與 Gmail SMTP delivery。Render 不承擔排程 mail、不把 local filesystem 當 durable storage，亦不需要 persistent disk。
 
 ## Runtime contract
 
@@ -37,7 +37,7 @@ Render Free 保留為 optional dashboard／web hosting。它不負責排程 SMTP
 | Public scheduled jobs | `.github/workflows/market-daily.yml`、`.github/workflows/market-weekly.yml` |
 | Secrets | 只由 Actions secrets／runtime environment 讀取；不寫入 source |
 
-Postgres mode 未配置 `DATABASE_URL` 時回 `DATABASE_URL_REQUIRED` 並以 non-zero exit 結束。Filesystem production mode 未配置 durable root 時回 `STORAGE_CONFIGURATION_REQUIRED`。兩者都不得繼續執行會造成虛假 durability claim 的 job。
+Postgres mode 未配置 `DATABASE_URL` 時回 `DATABASE_URL_REQUIRED` 並以 non-zero exit 結束。Filesystem production mode 未配置 durable root 時回 `STORAGE_CONFIGURATION_REQUIRED`。兩者都不得繼續執行會造成虛假 durability claim 的 job。Render 上的 `MAIL_CONFIGURATION_REQUIRED` 是預期狀態，因 Render 僅提供 web/dashboard hosting，不應放置 Gmail/SMTP credentials；`DAILY_DATA_NOT_READY` 也不代表 web deployment failure，應與 `WEB_READY`／`DATABASE_READY` 分開解讀。
 
 ## GitHub Actions activation
 
@@ -61,7 +61,7 @@ Gmail production configuration is `smtp.gmail.com:465` with secure TLS. 本 task
 
 ## Safe owner activation sequence
 
-Owner 先建立或選用 owner-approved free PostgreSQL project，將 `DATABASE_URL` 與 Gmail credentials 僅放入 GitHub Actions secrets，再手動執行 daily workflow 確認 `DATABASE_READY`／`DAILY_DATA_READY`。接著保持 `WEEKLY_MAIL_TEST_MODE=1`，手動執行 weekly workflow，確認郵件只到 `MAIL_TEST_TO`、內容為 public-only、HTML／XLSX attachment 可讀。完成人工 receipt review 後，才可設定 `WEEKLY_MAIL_TEST_MODE=0` 並啟用 approved production-recipient 行為。
+Owner 先將 `DATABASE_URL` 與 Gmail credentials 僅放入 GitHub Actions secrets。Render web deployment 與 Neon durable storage 已完成驗證；GitHub Actions weekly Gmail SMTP live test 亦已成功，HTML email 與 XLSX attachment 均已收到，weekly mail latest success state 為 `TEST_SENT`。`WEEKLY_MAIL_TEST_MODE` 的 manual receipt gate 已完成，不應重複寄送測試信；下一個 operational certification 是由 owner 在準備完成後設定 `PRODUCTION_SCHEDULES_ENABLED=1`。
 
 ```bash
 npm ci
@@ -78,7 +78,7 @@ STORAGE_PROVIDER=postgres DATABASE_URL="$DATABASE_URL" npm run production:weekly
 
 ## Deployment posture
 
-本次只完成 branch／code／docs／tests／workflow source；**不部署、不建立 Neon project、不啟用付費資源、不啟用 Actions schedule、不設定 Gmail secrets、不發送 real mail**。Render Free 仍可作 dashboard hosting，但 scheduled data collection 與 SMTP 僅由 GitHub Actions workflow 承擔。完整 schema、migration、transaction、export、failure recovery 與 workflow operations 見 [`docs/ZERO_COST_RUNTIME.md`](docs/ZERO_COST_RUNTIME.md)、[`docs/POSTGRES_STORAGE.md`](docs/POSTGRES_STORAGE.md) 與 [`docs/GITHUB_ACTIONS_OPERATIONS.md`](docs/GITHUB_ACTIONS_OPERATIONS.md)。
+本 checkpoint 只記錄既有 Render Free deployment 與 production state；沒有新增 paid resource、沒有將 Gmail/SMTP credentials 放入 Render、沒有改 scheduled data collection 或 mail architecture。Render web hosting 與 Neon durable storage 已驗證，scheduled data collection 與 Gmail SMTP 仍僅由 GitHub Actions workflow 承擔。Bootstrap 已完成且不得 rerun；本次不觸發 workflow、不寄送 email、不修改 schedule variable。完整 schema、migration、transaction、export、failure recovery 與 workflow operations 見 [`docs/ZERO_COST_RUNTIME.md`](docs/ZERO_COST_RUNTIME.md)、[`docs/POSTGRES_STORAGE.md`](docs/POSTGRES_STORAGE.md) 與 [`docs/GITHUB_ACTIONS_OPERATIONS.md`](docs/GITHUB_ACTIONS_OPERATIONS.md)。
 
 ## Product direction
 
