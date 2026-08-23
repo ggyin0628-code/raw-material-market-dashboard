@@ -1,83 +1,87 @@
-# Raw Material Market Dashboard — Final Bootstrap Remediation Status
+# Raw Material Dashboard — Project Status
 
 ## Status verdict
 
-**BOOTSTRAP_PERFORMANCE_CERTIFIED**
+**OUTLOOK_GRAPH_MAIL_IMPLEMENTATION_READY**
 
 **OFFLINE_GAPS = 0**
 
 **CODEX_HANDOFF_READY = YES**
 
-The remediation started from the authoritative main baseline `8390a0234fb5d18e28e100ee1ff40750b6b0d95e` and was delivered through `fix/bootstrap-performance-v1`. The final promoted code and documentation SHA is recorded below. The product remains permanently limited to external public market data and derived purchasing-reference intelligence; no private company data, private analytics thresholds, purchasing signals, credentials or paid resources were added.
+The existing bootstrap-performance certification remains valid. This change adds a production-safe personal Microsoft Graph delegated OAuth2 mail provider without changing public market logic, analytics thresholds, quality semantics, Neon schema, three-year bootstrap behavior or purchasing-reference boundaries.
 
-## Final delivery identity
+## Delivery identity
 
 | Item | Result |
 | --- | --- |
 | Repository | `ggyin0628-code/raw-material-market-dashboard` |
-| Baseline main SHA | `8390a0234fb5d18e28e100ee1ff40750b6b0d95e` |
-| Remediation branch | `fix/bootstrap-performance-v1` |
-| Final code SHA before certification docs | `7e85aa3d29f2344a803cbf171e911e077e371831` |
-| Final tag | `bootstrap-performance-certified-v1` |
-| Required tag message | `3-year Neon bootstrap performance certified — test-mail verification next` |
-| Main promotion | Fast-forward only; no force push |
+| Authoritative baseline | `8390a0234fb5d18e28e100ee1ff40750b6b0d95e` |
+| Existing bootstrap remediation | `fix/bootstrap-performance-v1` / `bootstrap-performance-certified-v1` |
+| New feature branch | `feat/outlook-graph-mail-v1` |
+| Graph implementation SHA | `1372244d6cb32f696378595f53b6c6072678674f` |
+| Final promoted SHA | To be recorded after fast-forward promotion and tag verification |
+| Required checkpoint tag | `outlook-graph-mail-v1` |
+| Required tag message | `Personal Outlook Graph delegated OAuth2 mail provider — test-mail verification next` |
+| Main promotion | Required fast-forward only; no force push |
 | Schedule state | Not enabled or modified; `PRODUCTION_SCHEDULES_ENABLED` remains owner-controlled and off/absent |
-| Weekly workflow | Not triggered; no email sent by this remediation |
+| Live mail state | Not triggered; no Microsoft OAuth exchange or Graph send performed by this change |
+| Paid resources / deployment | None added / not performed |
 
-## Product and data boundary
+## Permanent product and data boundary
 
-This is an **external public market intelligence and purchasing-reference platform**. Only public external market observations, public-source provenance, canonical quality states and derived public reports may be stored. SAP, company procurement history, supplier quotations or names, company target prices, private thresholds, inventory, MOQ, payment terms, company email systems, private mappings, credentials and private runtime reports remain permanently out of scope. No market logic, analytics thresholds, quality definitions or mail boundary was changed by this remediation.
+This is an **external public market intelligence and purchasing-reference platform**. Only public external market observations, public-source provenance, canonical quality states and derived public reports may be stored. SAP, company procurement history, supplier quotations or names, company target prices, private thresholds, inventory, MOQ, payment terms, company email systems, private mappings, credentials and private runtime reports remain permanently out of scope. The account boundary is the owner’s personal `ggyin0628@hotmail.com`; company Microsoft 365 is prohibited.
 
-## Remediation result
+## Existing bootstrap certification retained
 
-The cancelled `Market Production Bootstrap #1` run `32609131444` on baseline main completed setup, checkout, dependency installation, code validation, migration and storage check in approximately 14 seconds, then occupied the 30-minute safety ceiling in `Bootstrap public history` before cancellation. Source review classified the bottleneck as **BOTH**: sequential public-history fetching and per-record PostgreSQL lookup/write round-trips.
+The cancelled `Market Production Bootstrap #1` run `32609131444` on baseline main completed setup, checkout, dependency installation, code validation, migration and storage check in approximately 14 seconds, then occupied the 30-minute safety ceiling in `Bootstrap public history`. The bottleneck was **BOTH**: sequential public-history fetching and per-record PostgreSQL lookup/write round-trips.
 
-The fix keeps the complete `--period 3y` bootstrap and the 30-minute safety ceiling. Public-history fetching now uses bounded concurrency of 3, capped at 4, with existing provider retry, timeout and per-material failure isolation. PostgreSQL snapshot persistence uses a default `POSTGRES_UPSERT_BATCH_SIZE=250`, capped at 500. Each batch uses one parameterized multi-row `INSERT ... ON CONFLICT ... DO UPDATE ... RETURNING` statement inside one transaction. The SQL predicate directly enforces `LIVE > FALLBACK > STALE > API_ERROR > NO_DATA`; equal rank updates only on newer or equal `collected_at`. No per-record `SELECT FOR UPDATE` remains.
+The existing remediation kept the complete `--period 3y` bootstrap and 30-minute safety ceiling, added bounded fetch concurrency 3 (cap 4), default Postgres batch upsert size 250 (cap 500), one parameterized multi-row transaction per batch, status-quality preservation, chunk resumability and safe progress. Run `32611318090` established the successful promoted-main Neon bootstrap, and run `32611472483` verified final callback-forwarded batch telemetry. Both were bootstrap-only, with no weekly mail and no schedule activation. No bootstrap rerun is needed for this Graph change.
 
-Every completed batch is durable. A later batch failure rolls back only the active transaction, and a rerun is identity-safe and quality-safe without truncation, reset or duplicate logical rows. Safe progress and job state expose only public material identifiers, phases, numeric counters and elapsed time; database URLs, passwords, Gmail credentials and recipient values are never logged. The final seam fix forwards `batchSize` and `onProgress` into the PostgreSQL adapter, and the final live run emitted batch commit telemetry.
+## Outlook Graph implementation
 
-## Query-count and correctness contract
+Production weekly now sets `MAIL_PROVIDER=outlook_graph`, `MICROSOFT_TENANT=consumers`, `MICROSOFT_CLIENT_ID`, `MICROSOFT_REFRESH_TOKEN`, `MAIL_FROM`, `MAIL_TO` and `MAIL_TEST_TO`. Gmail SMTP environment wiring was removed from the production weekly workflow. The old SMTP module remains only for an explicit `MAIL_PROVIDER=smtp` compatibility path and is not a production fallback.
 
-For `N` records and batch size `B`, the write path is `ceil(N / B)` parameterized snapshot statements plus one `BEGIN`/`COMMIT` pair per batch, instead of the former approximately `2N` per-record lookup/write statements. The 43-test deterministic suite covers boundaries 1/250/251/1000/3000, bounded query shapes, all 25 status-pair and `collected_at` boundaries, active-batch rollback with prior batches retained, resumable rerun semantics, bounded fetch concurrency, per-material failure isolation and safe bootstrap progress.
+The Graph provider exchanges the delegated refresh token for an access token in memory and posts the existing report as JSON to `/me/sendMail`. It requests only `offline_access` and `https://graph.microsoft.com/Mail.Send`. The XLSX is encoded as a `#microsoft.graph.fileAttachment` with base64 `contentBytes`. Graph `202 Accepted` records `TEST_SENT` or `SENT`; `401`, `403`, refresh-token failure, malformed payload and config errors are explicit redacted failures. `429`, `5xx`, bounded network errors and timeouts use bounded retry. No response body, OAuth token or recipient list is logged or stored in the ledger, and there is no silent SMTP fallback.
 
-## Final validation status
+`MAIL_TEST_MODE=1` forwards only `MAIL_TEST_TO` and omits production CC／Reply-To. The delivery ledger and duplicate guard are unchanged. `production:weekly` now prints a concise safe summary containing reporting week, quality state/counts, provider/mail state, recipient/attachment counts, artifact basenames and duration; it no longer dumps the full report/history payload.
+
+## Owner OAuth helper
+
+`npm run microsoft:oauth` is a one-time owner-controlled device-code helper. It uses the `consumers` authority, prints only a verification URL, transient user code, tenant, scopes and output path, refuses repository output, writes a mode-600 refresh-token file outside the repository, and never prints access or refresh tokens. The owner must register **Personal Microsoft accounts** only, add delegated Microsoft Graph `Mail.Send` only, sign in as `ggyin0628@hotmail.com`, store the client ID and refresh token in Actions secrets, and delete the temporary file. No client secret, application permission or corporate Microsoft 365 account is used.
+
+## Validation status
 
 | Gate | Result |
 | --- | --- |
-| Local final gates on `7e85aa3` | PASS: `npm ci`, check, 43 tests, build, audit, diff check; clean tree |
-| Deterministic tests | PASS: 43 passed / 0 failed |
-| Dependency audit | PASS: 0 production vulnerabilities |
-| Batch upsert | PASS: default 250, max 500, parameterized, one transaction per batch |
-| Quality semantics | PASS: all status pairs and timestamp boundaries |
-| Chunk resumability | PASS: prior committed batches survive active-batch rollback; rerun is idempotent |
-| History fetch | PASS: concurrency 3, cap 4, existing provider safeguards retained |
-| Schedule gate | PASS: only daily/weekly `schedule` events require `PRODUCTION_SCHEDULES_ENABLED=1`; manual dispatch remains allowed |
-| Unconfigured Postgres behavior | PASS: fail-closed `DATABASE_URL_REQUIRED`, exit 2; no database contact without configuration |
-| Fresh clone | PASS: final GitHub-only clone gates and safe production checks completed on final promoted SHA |
-| Security boundary | PASS: no secret values read, printed, exported, rotated or changed |
+| Existing bootstrap/storage/report suite | PASS: 43 passed / 0 failed before Graph additions |
+| Outlook Graph deterministic suite | PASS: 53 passed / 0 failed |
+| OAuth token refresh | PASS: mocked consumers endpoint, required scopes, explicit refresh failure |
+| Graph sendMail | PASS: mocked `202`, HTML body and XLSX fileAttachment |
+| Graph HTTP failures | PASS: mocked `401`, `403`, `429`, `500`, `503`; sanitized and bounded |
+| Test recipient isolation | PASS: only `MAIL_TEST_TO`; production recipients and SMTP not called |
+| Duplicate guard | PASS: `TEST_SENT` week returns `DUPLICATE_PREVENTED` |
+| OAuth secret redaction | PASS: tokens and authorization values absent from result/ledger/error output |
+| Device-code helper | PASS: mocked polling, consumers scopes, no token print, repository-output rejection |
+| Concise CLI output | PASS: full report/history excluded |
+| Local gates | PASS: `npm ci`, check, explicit syntax, test, build, audit, YAML, diff check and security scan |
+| Neon/bootstrap | UNCHANGED / not rerun |
+| Weekly live mail | NOT PERFORMED |
+| Schedule activation | NOT PERFORMED; gate remains off/absent |
 
-## Live Neon bootstrap evidence
+All external Microsoft calls are mocked in tests. No real Microsoft OAuth exchange, Graph sendMail, weekly workflow, bootstrap rerun, schedule activation, Neon write or Actions secret operation was performed for this change.
 
-The first promoted-main run `32611318090` succeeded on `70f76da8d3ac06d4ebf9bb70968f7ad4e46073d0` in approximately 59 seconds, with 3-year public history, 14 materials, 11,351 fetched and inserted rows, zero provider failures, `BOOTSTRAP_COMPLETE`, and mail `NOT_REQUESTED` / `sent: false`.
+## Next owner action
 
-After the final one-line seam fix was delivered to both remote branches, run `32611472483` also succeeded on final code SHA `7e85aa3d29f2344a803cbf171e911e077e371831`. It completed the job in approximately 68 seconds; the bootstrap stage reported `elapsedMs=44846`, `fetchedRows=11351`, `inserted=0`, `replaced=11351`, `ignored=0`, `apiErrorMaterials=0` and `persistedRecordCount=11351`. It emitted 60 safe `batch_committed` progress events and 14 completed-material events, with no failed-material events. The workflow status was `DATABASE_READY` followed by `BOOTSTRAP_COMPLETE`; the weekly report quality was `SEND_OK`; mail remained `NOT_REQUESTED` with `sent=false`; the delivery ledger was not used for mail delivery.
+The exact next owner action after feature promotion and tag verification is:
 
-For transparency, run `32611472483` was an additional manual bootstrap trigger after the already-authorized run `32611318090`, caused by the need to validate the final callback-forwarding hotfix. It was not required for the original performance certification, did not trigger weekly mail or change schedules, and is recorded here rather than represented as a single-run history. Future owners must follow the exact one-run operating limit from the handoff.
+> Run exactly one `Market Weekly Intelligence Report` manually while `WEEKLY_MAIL_TEST_MODE=1`, verify the received Outlook HTML report and XLSX attachment, then set `PRODUCTION_SCHEDULES_ENABLED=1`.
 
-GitHub reported the existing managed-action Node 20 deprecation warning, plus non-blocking `pg` SSL-mode and npm dependency deprecation warnings. The successful final run proves these warnings were non-blocking; action version upgrades were intentionally not included in this remediation.
-
-## Remaining owner-controlled action
-
-The exact next owner action after this handoff is:
-
-> Run exactly one Market Weekly Intelligence Report manually while `WEEKLY_MAIL_TEST_MODE=1`, verify the received Gmail HTML report and XLSX attachment, then set `PRODUCTION_SCHEDULES_ENABLED=1`.
-
-The agent must not trigger that weekly workflow or send email. The owner must retain test mode until the receipt and attachment review passes, and must enable schedules only after that review.
+The remediation agent must not trigger this workflow, send mail, modify the schedule variable or handle the refresh token.
 
 ## References
 
-[1]: https://github.com/ggyin0628-code/raw-material-market-dashboard/actions/runs/32609131444 "Cancelled baseline bootstrap run"
-[2]: https://github.com/ggyin0628-code/raw-material-market-dashboard/actions/runs/32611318090 "First promoted-main bootstrap run"
-[3]: https://github.com/ggyin0628-code/raw-material-market-dashboard/actions/runs/32611472483 "Final-SHA bootstrap run with batch progress telemetry"
-[4]: https://github.com/ggyin0628-code/raw-material-market-dashboard/tree/fix/bootstrap-performance-v1 "Remediation branch"
-[5]: https://github.com/ggyin0628-code/raw-material-market-dashboard/commit/7e85aa3d29f2344a803cbf171e911e077e371831 "Final code SHA before certification documentation"
+[1]: https://learn.microsoft.com/en-us/graph/api/user-sendmail?view=graph-rest-1.0 "Microsoft Graph user: sendMail"
+[2]: https://learn.microsoft.com/en-us/entra/identity-platform/v2-oauth2-device-code "Microsoft identity platform OAuth 2.0 device authorization grant"
+[3]: https://learn.microsoft.com/en-us/graph/auth-register-app-v2 "Register an application with the Microsoft identity platform"
+[4]: https://learn.microsoft.com/en-us/entra/identity-platform/scopes-oidc "Scopes and permissions in the Microsoft identity platform"
+[5]: https://github.com/ggyin0628-code/raw-material-market-dashboard/commit/1372244d6cb32f696378595f53b6c6072678674f "Graph implementation SHA"
