@@ -39,7 +39,7 @@ const { markSnapshotStale } = require("../lib/marketData/staleManager");
 const { handleRequest } = require("../server");
 const { snapshotToRecords } = require("../lib/weekly/dailySnapshotService");
 const { readStore, upsertSnapshots, clearWriteQueue } = require("../lib/weekly/snapshotStore");
-const { buildWeeklyReport, renderWeeklyHtml, createWeeklyWorkbook } = require("../lib/weekly/reportService");
+const { buildWeeklyReport, renderWeeklyHtml, createWeeklyWorkbook, buildCategoryMomentum, getSignalDistribution } = require("../lib/weekly/reportService");
 const { buildSignal } = require("../lib/weekly/weeklyAnalytics");
 const { backfillPublicHistory, getHistoryConcurrency, runWithConcurrency } = require("../lib/weekly/backfillService");
 const { parseArgs, run: runWeeklyCommand, summarizeProductionWeekly, commandExitCode, errorExitCode } = require("../lib/weekly/cli");
@@ -410,18 +410,46 @@ test("weekly quality states stay distinct and threshold boundaries are determini
   assert.equal(buildSignal({ ...current, weeklyChangePct: 0, rollingVolatilityPct: 3 }).signal, "HIGH_VOLATILITY");
 });
 
-test("weekly report HTML and XLSX are complete and remain understandable without images", async () => {
+test("weekly report HTML and XLSX use the approved procurement-management presentation layer", async () => {
   const report = buildWeeklyReport({ records: weeklyFixtureRecords(), reportingWeek: "2026-W33", generatedAt: "2026-08-17T01:00:00Z" });
   const html = renderWeeklyHtml(report);
   assert.match(html, /採購市場情報週報｜2026-W33/);
+  assert.match(html, /WEEKLY MARKET INTELLIGENCE/);
+  assert.match(html, /Weekly change overview/);
+  assert.match(html, /Procurement review priorities/);
+  assert.match(html, /Category momentum/);
+  assert.match(html, /Market signal distribution/);
+  assert.match(html, /Market detail/);
+  assert.match(html, /Energy｜能源/);
+  assert.match(html, /Metals｜金屬/);
+  assert.match(html, /Agriculture｜農產品/);
+  assert.match(html, /Precious metals｜貴金屬/);
   assert.match(html, /公開市場參考資訊/);
-  assert.match(html, /主要指標明細/);
   assert.match(html, /非採購指示/);
+  assert.ok(html.indexOf("class=\"disclaimer\"") > html.indexOf("class=\"table-wrap\""));
+  assert.equal(report.indicators.find((item) => item.materialId === "copper").weeklyChangePct, 20);
+  assert.equal(report.qualityGate.state, "SEND_BLOCKED");
+  assert.equal(buildCategoryMomentum(report).find((item) => item.key === "Metals").indicatorCount, 1);
+  assert.equal(getSignalDistribution(report).reduce((sum, item) => sum + item.count, 0), report.indicators.length);
+
   const workbook = createWeeklyWorkbook(report);
   const buffer = await workbook.xlsx.writeBuffer();
   assert.equal(buffer.subarray(0, 2).toString(), "PK");
   assert.deepEqual(workbook.worksheets.map((sheet) => sheet.name), ["本週摘要", "市場明細", "歷史資料", "資料來源與說明"]);
-  assert.ok(workbook.getWorksheet("市場明細").rowCount >= 15);
+  const summary = workbook.getWorksheet("本週摘要");
+  assert.equal(summary.getCell("A1").value, "採購市場情報週報｜2026-W33");
+  assert.equal(summary.views[0].state, "frozen");
+  assert.equal(summary.views[0].ySplit, 11);
+  assert.equal(summary.autoFilter.from, "A11");
+  assert.ok(summary.conditionalFormattings?.length >= 1);
+  const detail = workbook.getWorksheet("市場明細");
+  assert.ok(detail.rowCount >= 15);
+  assert.equal(detail.views[0].xSplit, 2);
+  assert.equal(detail.views[0].ySplit, 4);
+  assert.equal(detail.autoFilter.from, "A4");
+  assert.equal(detail.getColumn(11).hidden, true);
+  assert.equal(detail.getCell(5, 5).numFmt, "0.00%;[Red]-0.00%");
+  assert.ok(detail.conditionalFormattings?.length >= 2);
 });
 
 test("weekly backfill is public-only, idempotent, and leaves missing dates absent", async () => {

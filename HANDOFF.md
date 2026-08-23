@@ -7,15 +7,15 @@
 | Repository | `ggyin0628-code/raw-material-market-dashboard` |
 | Authoritative baseline | `8390a0234fb5d18e28e100ee1ff40750b6b0d95e` |
 | Existing bootstrap remediation | `fix/bootstrap-performance-v1`, certified by `bootstrap-performance-certified-v1` |
-| New feature branch | `feat/outlook-graph-mail-v1` |
-| Graph implementation SHA | `1372244d6cb32f696378595f53b6c6072678674f` |
-| Final promoted SHA | The final fast-forward commit containing this handoff and certification docs; verify from `outlook-graph-mail-v1` and `main` after promotion |
-| Required checkpoint tag | `outlook-graph-mail-v1` |
-| Required tag message | `Personal Outlook Graph delegated OAuth2 mail provider — test-mail verification next` |
+| Presentation feature | Local approved presentation-layer redesign; final commit/push pending |
+| Existing main before presentation finalization | `586dea1d33cf8e1873213fcd0d8ed8f138db1962` |
+| Final promoted SHA | To be recorded after approved presentation commit/push |
+| Current weekly provider | Gmail SMTP; `MAIL_PROVIDER=smtp` |
+| Presentation preview | Approved offline `2026-W33` HTML/XLSX preview |
 | Product boundary | External public market intelligence and purchasing-reference context only |
 | Deployment / paid resources | Not performed / none added |
 
-The feature is based on the already-promoted bootstrap-performance baseline. The final delivery must be fast-forward only: push the feature, update `main` by fast-forward, push the required annotated tag at the promoted SHA, and verify both refs. No force push, reset, destructive migration, data truncation, application deployment or workflow trigger is part of this change.
+The presentation change is based on the already-promoted bootstrap-performance baseline. Final delivery uses the existing safe process: commit the approved presentation changes, push `main`, verify the remote SHA and clean tree. No force push, reset, destructive migration, data truncation, application deployment or workflow trigger is part of this change.
 
 ## Permanent safety boundary
 
@@ -27,17 +27,17 @@ Do not add SAP, company procurement history, supplier quotations or names, compa
 
 The cancelled `Market Production Bootstrap #1` run `32609131444` on baseline main completed setup, checkout, `npm ci`, code validation, migration and storage readiness in about 14 seconds, then occupied the 30-minute safety ceiling in `Bootstrap public history`. The bottleneck was classified as **BOTH**: sequential public history fetches and per-record PostgreSQL lookup/write round-trips.
 
-The remediation kept the complete three-year public history and 30-minute safety ceiling. It added bounded history concurrency 3 (cap 4), default Postgres batch size 250 (cap 500), one parameterized multi-row upsert transaction per batch, status-quality preservation, chunk resumability and safe progress. The first promoted-main run `32611318090` succeeded with 11,351 inserted public rows; the final-SHA telemetry run `32611472483` succeeded with 11,351 replaced rows, 60 batch events and no provider failures. Both runs were bootstrap-only and mail `NOT_REQUESTED` / `sent: false`. No bootstrap rerun is required for the Graph change.
+The remediation kept the complete three-year public history and 30-minute safety ceiling. It added bounded history concurrency 3 (cap 4), default Postgres batch size 250 (cap 500), one parameterized multi-row upsert transaction per batch, status-quality preservation, chunk resumability and safe progress. The first promoted-main run `32611318090` succeeded with 11,351 inserted public rows; the final-SHA telemetry run `32611472483` succeeded with 11,351 replaced rows, 60 batch events and no provider failures. Both runs were bootstrap-only and mail `NOT_REQUESTED` / `sent: false`. No bootstrap rerun is required for the presentation change.
 
-## Graph mail design
+## Historical isolated Graph code (not active in production weekly)
 
-Production weekly uses `MAIL_PROVIDER=outlook_graph` and `MICROSOFT_TENANT=consumers` for the owner-approved personal account `ggyin0628@hotmail.com`. The workflow injects only `MICROSOFT_CLIENT_ID`, `MICROSOFT_REFRESH_TOKEN`, `MAIL_FROM`, `MAIL_TO` and `MAIL_TEST_TO` from Actions secrets; it no longer injects Gmail SMTP settings. The Graph adapter requests delegated `offline_access` and `https://graph.microsoft.com/Mail.Send`, exchanges the refresh token at the v2.0 `consumers` token endpoint, keeps the access token in memory, and calls `POST https://graph.microsoft.com/v1.0/me/sendMail`.
+The production weekly workflow currently uses the existing Gmail SMTP provider: `MAIL_PROVIDER=smtp`, `MAIL_HOST=smtp.gmail.com`, port `465`, secure TLS, `MAIL_USER`, `MAIL_PASSWORD`, `MAIL_FROM`, `MAIL_TO` and `MAIL_TEST_TO`. The workflow does not use Microsoft Graph configuration. Graph implementation files from an earlier isolated experiment remain in the repository but are not part of the active weekly path; the existing SMTP mail architecture is unchanged.
 
-The JSON payload contains the existing HTML report and one XLSX `#microsoft.graph.fileAttachment` with base64 `contentBytes`. HTTP `202 Accepted` records `TEST_SENT` or `SENT`; it indicates Graph accepted processing and does not prove final mailbox delivery. HTTP `401`, `403`, refresh-token failure, malformed payload and configuration failures are explicit sanitized failures. Graph `429`, `5xx`, bounded network errors and timeouts use the bounded retry path. There is no silent SMTP fallback. The legacy SMTP implementation remains only for explicit `MAIL_PROVIDER=smtp` compatibility.
+The historical Graph adapter is not called by the active weekly workflow. Gmail SMTP remains the production delivery path, with the existing test-mode, recipient-isolation, duplicate guard and delivery-ledger semantics unchanged.
 
 `MAIL_TEST_MODE=1` selects only `MAIL_TEST_TO` and removes production CC／Reply-To. The Postgres delivery ledger and duplicate guard are unchanged. The CLI now emits only a concise safe summary containing reporting week, quality state/counts, provider/mail state, recipient/attachment counts, artifact basenames and duration; it does not dump the full report or history.
 
-## OAuth helper and owner procedure
+## Historical Graph helper (not required by current production weekly)
 
 `npm run microsoft:oauth` is a one-time owner-controlled device-code helper. It uses the `consumers` authority, requests only `offline_access` and delegated `Mail.Send`, prints only the verification URL, transient user code, tenant, scopes and output path, refuses any output inside the repository and writes the refresh token only to a mode-600 file outside the repository. It never sends mail and never prints an access or refresh token.
 
@@ -51,11 +51,11 @@ All Graph/OAuth requests are mocked in tests. No real Microsoft OAuth exchange, 
 
 ## Schedule and activation gate
 
-`market-weekly.yml` remains scheduled only when `PRODUCTION_SCHEDULES_ENABLED=1`; manual dispatch remains available. The repository variable must stay absent or `0` until the owner verifies the first Graph test email and XLSX attachment. The feature does not enable or modify the schedule variable.
+`market-weekly.yml` remains scheduled only when `PRODUCTION_SCHEDULES_ENABLED=1`; manual dispatch remains available. The repository variable must stay absent or `0` until the owner completes the existing Gmail SMTP test-mode receipt and XLSX attachment review. The presentation change does not enable or modify the schedule variable.
 
-The exact next owner action after tag verification is:
+The approved 2026-W33 offline preview is presentation-only and requires no production action. The exact next owner action after this handoff is:
 
-> Run exactly one `Market Weekly Intelligence Report` manually while `WEEKLY_MAIL_TEST_MODE=1`, verify the received Outlook HTML report and XLSX attachment, then set `PRODUCTION_SCHEDULES_ENABLED=1`.
+> Run exactly one `Market Weekly Intelligence Report` manually while `WEEKLY_MAIL_TEST_MODE=1`, verify the received Gmail HTML report and XLSX attachment, then set `PRODUCTION_SCHEDULES_ENABLED=1`.
 
 The remediation agent must not execute this live action.
 
