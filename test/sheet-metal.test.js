@@ -6,7 +6,7 @@ const assert = require("node:assert/strict");
 const { DATA_LAYERS, MARKET_ROLES, normalizeProvenance } = require("../lib/sheetMetal/sheetMetalContract");
 const { buildPayload } = require("../lib/sheetMetal/sheetMetalService");
 const { DEFAULT_WEIGHTS, buildComponent, buildSheetMetalReference, normalizeWeights } = require("../lib/sheetMetal/pressureModel");
-const { GLOBAL_SOURCE_CATALOG, getGlobalSheetMetalSources, getMoeaIndustrialBundle, freshnessStatus, parseFredCsv, parseMoeaIndustrialCsv } = require("../lib/sheetMetal/sourceService");
+const { GLOBAL_SOURCE_CATALOG, getGlobalSheetMetalSources, getMoeaIndustrialBundle, freshnessStatus, parseFredCsv, parseMoeaIndustrialCsv, unavailableSource } = require("../lib/sheetMetal/sourceService");
 const { buildMachiningReference } = require("../lib/machining/pressureModel");
 const { handleRequest, resolveStaticPath } = require("../server");
 const { clearWriteQueue, listPublicObservations, upsertPublicObservations } = require("../lib/machining/publicObservationStore");
@@ -107,6 +107,10 @@ test("FRED parser and audited global sources preserve monthly history and explic
   assert.equal(global.stainlessSteel.source.marketRole, "GLOBAL_IMPORT_REFERENCE");
   assert.equal(global.nickel.source.marketRole, "GLOBAL_INPUT_PROXY");
   assert.equal(global.nickel.source.currency, "USD");
+  assert.equal(global.coldRolledSteel.source.participatesInScoring, true);
+  assert.equal(global.stainlessSteel.source.participatesInScoring, false);
+  assert.match(global.stainlessSteel.source.scoringReason, /pipe\/tube/);
+  assert.equal(global.nickel.source.participatesInScoring, true);
   assert.notEqual(global.nickel.source.pricingBasis, global.stainlessSteel.source.pricingBasis);
   const fallback = await getGlobalSheetMetalSources({ now: new Date("2026-08-23T00:00:00Z"), fetcher: async () => { throw new Error("network down"); } });
   assert.equal(fallback.coldRolledSteel.status, "API_ERROR");
@@ -132,9 +136,50 @@ test("FRED parser and audited global sources preserve monthly history and explic
     fetchedAt: null,
     layer: DATA_LAYERS.OBSERVED_PUBLIC_DATA,
     note: "",
+    participatesInScoring: true,
+    scoringReason: "",
   });
   assert.deepEqual(Object.values(GLOBAL_SOURCE_CATALOG).map((source) => source.marketRole), ["GLOBAL_IMPORT_REFERENCE", "GLOBAL_IMPORT_REFERENCE", "GLOBAL_INPUT_PROXY"]);
   assert.deepEqual(MARKET_ROLES, ["TAIWAN_DOMESTIC", "GLOBAL_IMPORT_REFERENCE", "GLOBAL_INPUT_PROXY", "STRUCTURAL"]);
+});
+
+test("stainless pipe/tube is provenance-only while cold-rolled and nickel remain scoring-eligible", () => {
+  const stainlessGap = unavailableSource("tw-sheet-metal-stainless-steel-proxy", "Taiwan stainless-sheet domestic gap", "Taiwan stainless sheet remains NO_DATA.");
+  assert.equal(stainlessGap.status, "NO_DATA");
+  assert.equal(stainlessGap.marketRole, "TAIWAN_DOMESTIC");
+  assert.equal(stainlessGap.participatesInScoring, false);
+  assert.match(stainlessGap.note, /NO_DATA|Taiwan stainless/);
+  assert.equal(GLOBAL_SOURCE_CATALOG.stainlessSteel.marketRole, "GLOBAL_IMPORT_REFERENCE");
+  assert.equal(GLOBAL_SOURCE_CATALOG.stainlessSteel.participatesInScoring, false);
+  assert.match(GLOBAL_SOURCE_CATALOG.stainlessSteel.scoringReason, /Product scope mismatch/);
+  assert.equal(GLOBAL_SOURCE_CATALOG.nickel.marketRole, "GLOBAL_INPUT_PROXY");
+  assert.equal(GLOBAL_SOURCE_CATALOG.nickel.participatesInScoring, true);
+  assert.equal(GLOBAL_SOURCE_CATALOG.coldRolledSteel.marketRole, "GLOBAL_IMPORT_REFERENCE");
+  assert.equal(GLOBAL_SOURCE_CATALOG.coldRolledSteel.participatesInScoring, true);
+  for (const source of Object.values(GLOBAL_SOURCE_CATALOG)) assert.notEqual(source.marketRole, "TAIWAN_DOMESTIC");
+
+  const scored = (id, values, role, participatesInScoring, scoringReason = "") => ({
+    ...observation(id, values, "monthly"),
+    sourceProvenance: { ...PUBLIC_SOURCE, sourceId: id, marketScope: role === "GLOBAL_INPUT_PROXY" ? "Global upstream input-cost proxy" : "International import-market reference", marketRole: role, pricingBasis: "Public international indicator", currency: "USD", participatesInScoring, scoringReason },
+  });
+  const coldRolled = scored("cold-rolled", [100, 101, 102, 103, 104, 105], "GLOBAL_IMPORT_REFERENCE", true, "eligible cold-rolled sheet/strip reference");
+  const nickel = scored("nickel", [100, 101, 102, 103, 104, 105], "GLOBAL_INPUT_PROXY", true, "upstream nickel input proxy");
+  const stainlessPipe = scored("stainless-pipe-tube", [100, 300, 500, 700, 900, 1100], "GLOBAL_IMPORT_REFERENCE", false, "Product scope mismatch: stainless pipe/tube is retained only as external stainless-market context, not sheet-metal price evidence.");
+  const withoutPipe = buildComponent({ id: "materialPressure", label: "材料壓力", expectedEvidence: 2, observations: [coldRolled, nickel] });
+  const withPipe = buildComponent({ id: "materialPressure", label: "材料壓力", expectedEvidence: 2, observations: [coldRolled, nickel, stainlessPipe] });
+  assert.equal(withPipe.evidenceCount, withoutPipe.evidenceCount);
+  assert.equal(withPipe.pressureScore, withoutPipe.pressureScore);
+  assert.equal(withPipe.sourceProvenance.find((source) => source.sourceId === "stainless-pipe-tube").participatesInScoring, false);
+  assert.equal(withPipe.observedValues.some((item) => item.seriesId === "stainless-pipe-tube"), false);
+  assert.ok(withPipe.explanation.some((line) => line.includes("排除計分") && line.includes("pipe/tube")));
+  const reference = buildSheetMetalReference({ components: completeComponents({ materialPressure: { label: "材料壓力", expectedEvidence: 2, observations: [coldRolled, nickel, stainlessPipe] } }) });
+  assert.equal(reference.sourceProvenance.find((source) => source.sourceId === "stainless-pipe-tube").participatesInScoring, false);
+  assert.equal(reference.scoringSourceRoleSummary.GLOBAL_IMPORT_REFERENCE, 1);
+  assert.equal(reference.scoringSourceRoleSummary.GLOBAL_INPUT_PROXY, 1);
+  assert.equal(reference.scoringSourceRoleSummary.TAIWAN_DOMESTIC, 5);
+  assert.equal(reference.derivedMarketReference.scoringSourceRoleSummary.GLOBAL_IMPORT_REFERENCE, 1);
+  assert.equal(reference.derivedMarketReference.scoringSourceRoleSummary.GLOBAL_INPUT_PROXY, 1);
+  assert.equal(reference.derivedMarketReference.scoringSourceRoleSummary.TAIWAN_DOMESTIC, 5);
 });
 
 test("MOEA source failure is explicit and persisted public history recovers as FALLBACK", async () => {
@@ -270,6 +315,9 @@ test("sheet-metal page and API contract contain required public-only labels and 
   assert.match(client, /GLOBAL_IMPORT_REFERENCE/);
   assert.match(client, /GLOBAL_INPUT_PROXY/);
   assert.match(client, /pricingBasis/);
+  assert.match(client, /participatesInScoring/);
+  assert.match(client, /僅供來源沿革／不計分/);
+  assert.match(client, /scoringReason/);
   const reference = buildSheetMetalReference({ components: completeComponents() });
   const payload = buildPayload(reference, reference.sourceProvenance, "2026-08-23T00:00:00.000Z");
   assert.deepEqual(Object.keys(payload).sort(), ["disclaimer", "generatedAt", "reference", "sourceCoverage", "state"].sort());

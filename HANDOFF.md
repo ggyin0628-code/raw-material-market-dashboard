@@ -164,3 +164,28 @@ The focused refinement remains on `feat/sheet-metal-market-reference-v1`, based 
 | Production protection | No deployment, main promotion, production migration, bootstrap, schedule, mail, Gmail, Neon, secret or certified machining operation performed |
 
 The international source audit and citations are in `docs/phase3a-international-source-findings.md` and `docs/SHEET_METAL_MARKET_REFERENCE.md`. Visual evidence is in `docs/visual-review/sheet-metal-role-desktop.webp`, `docs/visual-review/sheet-metal-role-mobile.png`, and `docs/visual-review/sheet-metal-visual-findings.md`. The implementation refinement commit SHA is `f6b982a9e25890053dfe9b5813087aa27eb4be73`; this documentation-only follow-up records that SHA, and main remains unchanged until a separate explicit approval.
+
+## Phase 3A stainless product-scope scoring correction — Ready for review
+
+**FEATURE_BRANCH_READY_FOR_REVIEW — DO NOT PROMOTE MAIN**
+
+The approved narrow correction is implemented on `feat/sheet-metal-market-reference-v1`. FRED/BLS `WPU10170674` remains visible in `sourceCoverage` and component provenance as `GLOBAL_IMPORT_REFERENCE`, but now carries `participatesInScoring=false` and the explicit reason: `Product scope mismatch: stainless pipe/tube is retained only as external stainless-market context, not sheet-metal price evidence.` It is excluded before material-pressure evidence counts, comparison windows and scores are calculated. It is not relabeled as Taiwan stainless-sheet data.
+
+FRED/BLS `WPU101707` remains `GLOBAL_IMPORT_REFERENCE` with `participatesInScoring=true` because its documented product scope is cold-rolled steel sheet and strip; it remains a U.S. BLS producer-price index and is explicitly not a Taiwan supplier price or an import transaction/CIF price. IMF/FRED `PNICKUSDM` remains `GLOBAL_INPUT_PROXY` with `participatesInScoring=true`; it contributes upstream nickel context only and is not treated as finished stainless-sheet pricing. Taiwan stainless-sheet domestic pricing remains an explicit `NO_DATA` gap.
+
+| Correction evidence | Result |
+|---|---|
+| Deterministic test suite | PASS: **82 passed / 0 failed** |
+| Required offline gates | PASS: `npm ci`, `npm run check`, `npm test`, `npm run build`, `npm audit --omit=dev`, `git diff --check`; audit 0 vulnerabilities |
+| Final local smoke | One HTTP 200 `GET /api/sheet-metal/reference?force=true`; saved response inspected without another live request |
+| Corrected score | `48.47` |
+| Level / direction | `NORMAL` / `FALLING` |
+| Evidence | `6` usable components against minimum `3` |
+| Data quality | `STALE` |
+| Source coverage | `21` records; all four roles represented; no unclassified role |
+| Scoring role summary | `GLOBAL_IMPORT_REFERENCE=4`, `GLOBAL_INPUT_PROXY=3`, `TAIWAN_DOMESTIC=9`; structural metadata remains outside scoring |
+| Stainless pipe/tube | Visible in provenance; `LIVE`, monthly through `2026-07-01`, `participatesInScoring=false`; does not appear in `observedValues` or scoring evidence |
+| Domestic gaps | Taiwan cold-rolled and Taiwan stainless-sheet proxies remain `NO_DATA` |
+| Safety | `engineeringEstimate=null`; no supplier quote, company target price, internal rate, inventory or other private/company fields |
+
+The implementation preserves minimum evidence 3, all component weights, machining logic, persistence architecture, routes/navigation and public-only boundaries. No deployment, main promotion, migration, workflow, bootstrap, Neon, Gmail, schedule or secret operation was performed. The feature branch remains pending separate main-promotion approval.

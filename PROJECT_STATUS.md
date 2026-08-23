@@ -166,3 +166,27 @@ Phase 3A remains isolated on `feat/sheet-metal-market-reference-v1` from main ch
 | Production operations | NONE: no deploy, migration, bootstrap, schedule, mail, Gmail, Neon, secret or main operation |
 
 Technical specification and references: `docs/SHEET_METAL_MARKET_REFERENCE.md` and `docs/phase3a-international-source-findings.md`. Visual artifacts: `docs/visual-review/sheet-metal-role-desktop.webp`, `docs/visual-review/sheet-metal-role-mobile.png`, and `docs/visual-review/sheet-metal-visual-findings.md`. Final refinement implementation SHA: `f6b982a9e25890053dfe9b5813087aa27eb4be73`; main remains unchanged pending explicit approval.
+
+## Phase 3A stainless product-scope scoring correction — Ready for review
+
+**FEATURE_BRANCH_READY_FOR_REVIEW — DO NOT PROMOTE MAIN**
+
+The narrow approved correction is complete on `feat/sheet-metal-market-reference-v1`. FRED/BLS `WPU10170674` (Steel Pipe and Tube, Stainless Steel) remains in source coverage as `GLOBAL_IMPORT_REFERENCE`, with `participatesInScoring=false` and a visible product-scope mismatch reason. It is provenance-only and cannot affect `materialPressure`. Taiwan stainless-sheet domestic pricing remains `NO_DATA`. FRED/BLS `WPU101707` remains an eligible international cold-rolled sheet/strip reference, explicitly not Taiwan domestic or CIF pricing. IMF/FRED `PNICKUSDM` remains an eligible `GLOBAL_INPUT_PROXY` for upstream nickel context.
+
+| Status item | Result |
+|---|---|
+| Deterministic regression | PASS: **82 passed / 0 failed** |
+| Required gates | PASS: npm ci, check, test, build, audit, diff check; 0 vulnerabilities |
+| Final local smoke | One HTTP 200 force-refresh smoke; response saved and inspected |
+| Revised score | `48.47` |
+| Level / direction | `NORMAL` / `FALLING` |
+| Evidence | `6/3` |
+| Data quality | `STALE` |
+| Source coverage | `21`; all roles classified; no unclassified source |
+| Scoring roles | `GLOBAL_IMPORT_REFERENCE=4`, `GLOBAL_INPUT_PROXY=3`, `TAIWAN_DOMESTIC=9`; structural remains non-momentum |
+| Pipe/tube check | Visible in provenance, `LIVE`, monthly through `2026-07-01`, excluded from `observedValues` and score |
+| Remaining gaps | Taiwan cold-rolled and Taiwan stainless-sheet domestic proxies remain explicit `NO_DATA` |
+| Protected paths | Machining logic, weights, minimum evidence 3, persistence, routes/navigation and `engineeringEstimate=null` unchanged |
+| Production operations | NONE: no deploy, main promotion, migration, workflow, bootstrap, Neon, Gmail, schedules or secrets |
+
+The exact source-role refinement head remains documented at `d308f5c68cba8dbcd5328e924b93c6a1d3aea2e9`; this scoring correction will receive its own feature-branch commit and SHA after final checks.
