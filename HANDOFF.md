@@ -76,7 +76,7 @@ The next operational certification is for the owner to enable the existing sched
 
 **狀態：FEATURE_BRANCH_READY_FOR_REVIEW**
 
-本功能在 `feat/machining-market-reference-v1` 上完成，基於本文件所列的正式生產 checkpoint 建立。它新增獨立的 `machining.html` 頁面與 `GET /api/machining/reference` API，使用台灣優先的外部公開指標觀察加工成本壓力方向；不產生供應商報價、不產生公司目標價格，也不估算加工時薪、循環時間或機台內部成本。
+本功能在 `feat/machining-market-reference-v1` 上完成，基於本文件所列的正式生產 checkpoint 建立；首個完整功能 commit 為 `57ccdbf08908f062b3e4b88164986373a59db92b`。它新增獨立的 `machining.html` 頁面與 `GET /api/machining/reference` API，使用台灣優先的外部公開指標觀察加工成本壓力方向；不產生供應商報價、不產生公司目標價格，也不估算加工時薪、循環時間或機台內部成本。
 
 | 交接項目 | Phase 2A 結果 |
 | --- | --- |
@@ -92,4 +92,4 @@ The next operational certification is for the owner to enable the existing sched
 
 ## Phase 2A 驗證
 
-目前新功能的確定性測試已通過，完整現有回歸套件亦保持通過。正式交接前以 `npm ci`、`npm run check`、`npm test`、`npm run build`、`npm audit --omit=dev` 及 `git diff --check` 重跑並記錄最終結果。功能分支的精確 commit SHA 會在提交與推送後補入本文件與 `PROJECT_STATUS.md`。
+目前新功能的確定性測試已通過，完整現有回歸套件亦保持通過。正式交接前以 `npm ci`、`npm run check`、`npm test`、`npm run build`、`npm audit --omit=dev` 及 `git diff --check` 重跑並記錄最終結果。首個完整功能 commit SHA 為 `57ccdbf08908f062b3e4b88164986373a59db92b`；文件在此 SHA 後的交接更新會另形成最終文件 commit，並於推送後回報最終 HEAD SHA。
