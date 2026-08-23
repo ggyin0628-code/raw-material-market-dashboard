@@ -217,12 +217,14 @@ function sendEngineeringValidationError(res, error) {
   sendJson(res, Number(error.statusCode) || 400, {
     state: "VALIDATION_ERROR",
     generatedAt: new Date().toISOString(),
+    code: error.code || "VALIDATION_ERROR",
+    message: error.message || "輸入驗證失敗。",
     errors: error.errors || [{ path: "input", code: "VALIDATION_ERROR", message: error.message }],
     disclaimer: "工程估算基礎；非供應商報價、非公司目標價格、非實際公司成本，也不代表任何市場交易價格。",
   });
 }
 
-async function handleRequest(req, res) {
+async function handleRequest(req, res, runtimeEnv = process.env) {
   if (req.method !== "GET" && req.method !== "POST") {
     res.writeHead(405, { ...securityHeaders(), allow: "GET, POST" });
     res.end("Method Not Allowed");
@@ -239,7 +241,7 @@ async function handleRequest(req, res) {
 
   if (requestUrl.pathname === "/api/engineering/estimate" || requestUrl.pathname === "/api/engineering/estimate/schema") {
     if (requestUrl.pathname === "/api/engineering/estimate/schema" && req.method === "GET") {
-      sendJson(res, 200, createEngineeringSchemaResponse());
+      sendJson(res, 200, createEngineeringSchemaResponse({ environment: runtimeEnv.NODE_ENV }));
       return;
     }
     if (requestUrl.pathname === "/api/engineering/estimate" && req.method === "POST") {
@@ -250,7 +252,7 @@ async function handleRequest(req, res) {
           error.statusCode = 415;
           throw error;
         }
-        sendJson(res, 200, createEngineeringEstimateResponse(await readJsonRequest(req)));
+        sendJson(res, 200, createEngineeringEstimateResponse(await readJsonRequest(req), new Date(), { environment: runtimeEnv.NODE_ENV }));
       } catch (error) {
         if (error.code === "VALIDATION_ERROR" || Array.isArray(error.errors)) sendEngineeringValidationError(res, error);
         else sendApiError(res, error);

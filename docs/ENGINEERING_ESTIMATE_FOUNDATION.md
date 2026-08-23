@@ -106,7 +106,7 @@ utilizationRatio = 1 - s / 100
 
 預設或未提供 `rateProfile` 時，回應的 `rateProfile.mode` 為 `NO_RATE`，來源標記為 `NO_RATE / 未載入公司成本參數`。`costBreakdown` 中的材料、切割、穿孔、折彎、焊接、表面處理、設定、總估算、單件估算與貨幣欄位全部為 `null`。這不是零成本，也不是市場價格；它表示本階段沒有可合法使用的成本率。
 
-`SYNTHETIC_TEST` 只可使用顯式提供的 fixture rate 欄位，包括每公斤材料率、每公尺切割率、每次穿孔率、每次折彎率、每公尺焊接率、每平方公尺表面處理率與每批次設定率。它只用於 deterministic test 或 demo，不是 production UI 預設，不是公司成本，不是供應商報價，也不是任何市場交易價格。來源標記固定為 `SYNTHETIC / DEMO / TEST ONLY`，UI 不提供 production synthetic rate 輸入。
+`SYNTHETIC_TEST` 只可使用顯式提供的 fixture rate 欄位，包括每公斤材料率、每公尺切割率、每次穿孔率、每次折彎率、每公尺焊接率、每平方公尺表面處理率與每批次設定率。核心 estimator 在 deterministic test 或非 production local/test execution 中保留這項計算能力，但 production HTTP runtime 會以 `SYNTHETIC_RATE_NOT_ALLOWED_IN_PRODUCTION` 回傳 HTTP 400 並拒絕它。它不是 production UI 預設，不是公司成本，不是供應商報價，也不是任何市場交易價格。來源標記固定為 `SYNTHETIC / DEMO / TEST ONLY`，UI 不提供 production synthetic rate 輸入。
 
 `PRIVATE_CALIBRATED` 在契約中只作未來保留名稱，目前會被拒絕；Phase 4A 不接受私人、公司或供應商 rate。`NO_RATE` 也不接受任何 rate 欄位，以防止呼叫端在模式標記與數值內容間形成歧義。
 
@@ -135,21 +135,24 @@ utilizationRatio = 1 - s / 100
 | `GET` | `/api/engineering/estimate/schema` | 回傳嚴格輸入、單位、rate mode 與輸出契約 metadata |
 | `POST` | `/api/engineering/estimate` | 只接受 `Content-Type: application/json` 的明確輸入，成功回傳估算或結構化驗證錯誤 |
 
-估算 endpoint 的 request body 上限為 256 KiB。未知方法、錯誤 Content-Type、無效 JSON、超過 body 上限、未知製程家族、零／負值、缺少啟用製程輸入、無效密度、未知欄位與非法 rate mode 都會保留明確錯誤，不會產生部分估算。既有 GET-only 市場與靜態路由仍拒絕 POST；engineering POST 不會放寬既有 API。
+`GET /api/engineering/estimate/schema` 會依 runtime environment 回傳可用 rate mode：內部 test／local schema 可保留 `NO_RATE` 與 `SYNTHETIC_TEST` 的契約 metadata；`NODE_ENV=production` 時，`schema.rateProfile.allowedModes` 與 `runtime.allowedRateModes` 只包含 `NO_RATE`，並另外以 `testOnlyModes` 說明 `SYNTHETIC_TEST` 僅供測試／示範且會被 production HTTP runtime 拒絕。
 
-回應錯誤採用 `state = "VALIDATION_ERROR"`、`generatedAt`、`errors[]` 與 disclaimer。每個錯誤至少含 `path`、`code` 與 `message`，例如 `input.blank.lengthMm`、`OUT_OF_RANGE`。這使 UI 能按欄位顯示問題，也讓測試能穩定驗證契約，而不必依賴自然語言全文。
+估算 endpoint 的 request body 上限為 256 KiB。未知方法、錯誤 Content-Type、無效 JSON、超過 body 上限、未知製程家族、零／負值、缺少啟用製程輸入、無效密度、未知欄位與非法 rate mode 都會保留明確錯誤，不會產生部分估算。
+當 `NODE_ENV=production` 且 `rateProfile.mode=SYNTHETIC_TEST` 時，HTTP runtime 會以 HTTP 400 回傳 top-level `code = SYNTHETIC_RATE_NOT_ALLOWED_IN_PRODUCTION`、對應 `message` 與 `errors[]`，而不會進入成本計算。既有 GET-only 市場與靜態路由仍拒絕 POST；engineering POST 不會放寬既有 API。
+
+回應錯誤採用 `state = "VALIDATION_ERROR"`、`generatedAt`、top-level `code`、top-level `message`、`errors[]` 與 disclaimer。每個 errors 項目至少含 `path`、`code` 與 `message`，例如 `input.rateProfile.mode`、`SYNTHETIC_RATE_NOT_ALLOWED_IN_PRODUCTION`。這使 UI 能按欄位顯示問題，也讓測試能穩定驗證契約，而不必依賴自然語言全文。
 
 ## 8. 使用者介面與安全標示
 
-`/estimate` 是獨立的 Traditional Chinese 工程估算頁，顯示並固定標示：**工程估算**、**非供應商報價**、**未載入公司成本參數**。使用者可填寫材料、毛坯、切割、折彎、焊接、表面處理、利用率／損耗與批次條件；預設頁面只送 `NO_RATE` 估算。結果區分物理量、製程工作量、成本結構、警告與「公式與計算依據」展開區。NO_RATE 的金額以 null 語義顯示，不顯示為零，不顯示 synthetic fixture rate，也不把市場 score 轉成價格。
+`/estimate` 是獨立的 Traditional Chinese 工程估算頁，顯示並固定標示：**工程估算**、**非供應商報價**、**未載入公司成本參數**。使用者可填寫材料、毛坯、切割、折彎、焊接、表面處理、利用率／損耗與批次條件；預設頁面只送 `NO_RATE` 估算；production UI 也不提供 synthetic rate panel。結果區分物理量、製程工作量、成本結構、警告與「公式與計算依據」展開區。NO_RATE 的金額以 null 語義顯示，不顯示為零，不顯示 synthetic fixture rate，也不把市場 score 轉成價格。
 
 頁面採獨立 HTML/CSS/JS，不把工程輸入嵌入首頁、加工市場頁或鈑金市場頁。導覽只新增一個已實作的 `工程估算 → /estimate` 連結；不存在假的 future page。
 
 ## 9. 測試與驗證要求
 
-Phase 4A deterministic suite 包含公式、單位換算、密度優先順序、利用率／損耗互斥、停用製程、批次分配、NO_RATE 全 null、SYNTHETIC_TEST 固定成本、公式 trace、strict validation、schema GET、POST 成功與錯誤、Content-Type、方法 gate、canonical routing、legacy redirect、mobile CSS contract、navigation contract 與 market isolation。既有 machining、sheet-metal 與 raw-material 回歸測試仍必須通過。
+Phase 4A deterministic suite 包含公式、單位換算、密度優先順序、利用率／損耗互斥、停用製程、批次分配、NO_RATE 全 null、SYNTHETIC_TEST 固定成本、production HTTP synthetic rejection、production NO_RATE／省略 rateProfile、production-aware schema、PRIVATE_CALIBRATED 保留拒絕、公式 trace、strict validation、schema GET、POST 成功與錯誤、Content-Type、方法 gate、canonical routing、legacy redirect、mobile CSS contract、navigation contract 與 market isolation。既有 machining、sheet-metal 與 raw-material 回歸測試仍必須通過。
 
-在本文件建立時，聚焦工程測試為 10 項，完整 repository suite 為 93 項且 0 failed；最終 gate 仍須重新執行 `npm ci`、`npm run check`、`npm test`、`npm run build`、`npm audit --omit=dev` 與 `git diff --check`。本文件中的測試數字不是替代最終 gate 的承諾值；交接時應以最後一次完整執行輸出為準。
+本次 correction 的 focused engineering suite 新增 production HTTP synthetic rejection、production NO_RATE／省略 rateProfile、production-aware schema、PRIVATE_CALIBRATED rejection 與 non-production synthetic support 覆蓋；完整 repository suite 與最終 gate 以本次 correction 完成後最後一次執行輸出為準。必須執行 `npm ci`、`npm run check`、`npm test`、`npm run build`、`npm audit --omit=dev` 與 `git diff --check`，不可用文件中的測試數字取代實際結果。
 
 ## 10. 生產與資料隔離
 

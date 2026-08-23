@@ -41,7 +41,7 @@ function responseRecorder() {
     end(body = "") { this.body = Buffer.isBuffer(body) ? body.toString("utf8") : String(body); this.done?.(this); },
   };
 }
-function capture(method, url, body = null, headers = {}) {
+function capture(method, url, body = null, headers = {}, runtimeEnv = process.env) {
   return new Promise((resolve, reject) => {
     const response = responseRecorder();
     response.done = resolve;
@@ -49,7 +49,7 @@ function capture(method, url, body = null, headers = {}) {
     request.method = method;
     request.url = url;
     request.headers = headers;
-    handleRequest(request, response).catch(reject);
+    handleRequest(request, response, runtimeEnv).catch(reject);
     if (method === "POST") process.nextTick(() => { if (body !== null) request.emit("data", Buffer.from(body)); request.emit("end"); });
   });
 }
@@ -225,6 +225,59 @@ test("POST estimate API returns physical/workload result and structured validati
   assert.equal(mediaType.statusCode, 415);
 });
 
+test("production HTTP rejects synthetic rates while retaining NO_RATE, omitted profile and non-production synthetic support", async () => {
+  const production = { NODE_ENV: "production" };
+  const synthetic = input({
+    rateProfile: {
+      rateProfileId: "production-guard-fixture",
+      mode: "SYNTHETIC_TEST",
+      materialRatePerKg: 2,
+      cuttingRatePerM: 3,
+      pierceRateEach: 1,
+      bendRateEach: 0.5,
+      weldingRatePerM: 4,
+      surfaceTreatmentRatePerM2: 5,
+      setupRatePerBatch: 100,
+    },
+  });
+  const rejected = await capture("POST", "/api/engineering/estimate", JSON.stringify(synthetic), { "content-type": "application/json" }, production);
+  assert.equal(rejected.statusCode, 400);
+  const rejectedPayload = parse(rejected);
+  assert.equal(rejectedPayload.state, "VALIDATION_ERROR");
+  assert.equal(rejectedPayload.code, "SYNTHETIC_RATE_NOT_ALLOWED_IN_PRODUCTION");
+  assert.match(rejectedPayload.message, /SYNTHETIC_TEST/);
+  assert.ok(rejectedPayload.errors.some((error) => error.code === "SYNTHETIC_RATE_NOT_ALLOWED_IN_PRODUCTION"));
+  assert.match(rejectedPayload.errors[0].message, /SYNTHETIC_TEST/);
+
+  const noRate = await capture("POST", "/api/engineering/estimate", JSON.stringify(input()), { "content-type": "application/json" }, production);
+  assert.equal(noRate.statusCode, 200);
+  assert.equal(parse(noRate).estimate.rateProfile.mode, "NO_RATE");
+  assert.equal(allCostsNull(parse(noRate).estimate.costBreakdown), true);
+
+  const omittedInput = input();
+  delete omittedInput.rateProfile;
+  const omitted = await capture("POST", "/api/engineering/estimate", JSON.stringify(omittedInput), { "content-type": "application/json" }, production);
+  assert.equal(omitted.statusCode, 200);
+  assert.equal(parse(omitted).estimate.rateProfile.mode, "NO_RATE");
+  assert.equal(allCostsNull(parse(omitted).estimate.costBreakdown), true);
+
+  const schema = parse(await capture("GET", "/api/engineering/estimate/schema", null, {}, production));
+  assert.deepEqual(schema.schema.rateProfile.allowedModes, ["NO_RATE"]);
+  assert.deepEqual(schema.schema.rateProfile.testOnlyModes, ["SYNTHETIC_TEST"]);
+  assert.equal(schema.runtime.environment, "production");
+  assert.deepEqual(schema.runtime.allowedRateModes, ["NO_RATE"]);
+  assert.match(schema.schema.rateProfile.testOnlyNote, /不可在 production API 使用/);
+
+  const nonProduction = createEngineeringEstimateResponse(synthetic, new Date("2026-08-23T00:00:00Z"), { environment: "test" });
+  assert.equal(nonProduction.state, "OK");
+  assert.equal(nonProduction.estimate.rateProfile.mode, "SYNTHETIC_TEST");
+  assert.equal(nonProduction.estimate.costBreakdown.totalEstimatedCost, 2006);
+
+  const privateRejected = await capture("POST", "/api/engineering/estimate", JSON.stringify(input({ rateProfile: { mode: "PRIVATE_CALIBRATED" } })), { "content-type": "application/json" }, production);
+  assert.equal(privateRejected.statusCode, 400);
+  assert.ok(parse(privateRejected).errors.some((error) => error.code === "UNSUPPORTED_RATE_MODE"));
+});
+
 test("engineering API method gates preserve GET-only legacy routes and POST-only estimate route", async () => {
   const legacyMachiningPost = await capture("POST", "/api/machining/reference", "{}", { "content-type": "application/json" });
   const legacySheetMetalPost = await capture("POST", "/api/sheet-metal/reference", "{}", { "content-type": "application/json" });
@@ -248,7 +301,8 @@ test("engineering page and market-layer isolation contracts remain explicit", ()
   assert.match(html, /@media\(max-width:620px\)/); // responsive layout is defined for a narrow mobile viewport
   assert.match(js, /SYNTHETIC \/ DEMO \/ TEST ONLY/);
   assert.match(js, /marketAdjustmentFactor/);
-  assert.match(js, /材料損耗率/);
+  assert.match(html, /損耗率（%，可選）/);
+  assert.doesNotMatch(html, /materialRatePerKg|cuttingRatePerM|synthetic-rate-input/);
   assert.match(marketHtml, /工程估算層在 Phase 3A 保持關閉/);
   assert.match(marketHtml, /非供應商報價/);
   assert.equal(/api\/engineering\/estimate/.test(marketHtml), false);
@@ -262,6 +316,8 @@ test("schema contract documents units, defaults, no-rate and future reservations
   assert.deepEqual(schema.output.physicalUnits, ["mm", "mm²", "mm³", "m", "m²", "kg"]);
   assert.deepEqual(schema.rateProfile.allowedModes, ["NO_RATE", "SYNTHETIC_TEST"]);
   assert.equal(schema.material.fields.densityKgM3.note.includes("ENGINEERING_DEFAULT"), true);
-  assert.equal(createEngineeringSchemaResponse().state, "OK");
-  assert.equal(createEngineeringEstimateResponse(input(), new Date("2026-08-23T00:00:00Z")).generatedAt, "2026-08-23T00:00:00.000Z");
+  assert.equal(createEngineeringSchemaResponse({ environment: "test" }).state, "OK");
+  assert.deepEqual(createEngineeringSchemaResponse({ environment: "test" }).schema.rateProfile.allowedModes, ["NO_RATE", "SYNTHETIC_TEST"]);
+  assert.deepEqual(createEngineeringSchemaResponse({ environment: "production" }).schema.rateProfile.allowedModes, ["NO_RATE"]);
+  assert.equal(createEngineeringEstimateResponse(input(), new Date("2026-08-23T00:00:00Z"), { environment: "test" }).generatedAt, "2026-08-23T00:00:00.000Z");
 });
