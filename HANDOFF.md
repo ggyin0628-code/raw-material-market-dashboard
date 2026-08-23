@@ -92,7 +92,7 @@ STORAGE_PROVIDER=postgres DATABASE_URL="$DATABASE_URL" npm run production:weekly
 
 The offline suite must use deterministic fakes and must not require a real Neon account. It covers migration idempotence, schema command contract, filesystem／Postgres parity, uniqueness, quality-preserving upsert, ledger, metadata, job state, database failure, rollback, missing URL, all three workflow source contracts, Gmail dry-run, test-recipient redirect and duplicate send. The latest suite is 38 passed／0 failed.
 
-Final delivery clones only from GitHub using `feat/zero-cost-runtime-v1`, reruns all gates and leaves the clone clean. After owner-approved fast-forward promotion, the same gates are rerun from `main`. No Manus-only files, local caches, owner secrets, real mail or paid backup service may be required.
+Final delivery clones only from GitHub using `feat/zero-cost-runtime-v1`, reruns all gates and leaves the clone clean. After owner-approved fast-forward promotion, a GitHub-only `main` clone also passed `npm ci`, `npm run check`, 38 tests, build and audit; all three workflow files are present on main. No Manus-only files, local caches, owner secrets, real mail or paid backup service may be required.
 
 ## External configuration required
 

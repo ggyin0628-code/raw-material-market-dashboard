@@ -72,16 +72,16 @@ STORAGE_PROVIDER=postgres DATABASE_URL="$DATABASE_URL" npm run production:backup
 | Gate | Result |
 | --- | --- |
 | Starting checkpoint | PASS; `weekly-market-intelligence-production-ready-v1` → `222e1a2a7a602d3700260f83753bf024708b47d6` |
-| Branch isolation | PASS; `feat/zero-cost-runtime-v1`, based on checkpoint and not `main` |
+| Branch isolation | PASS; `feat/zero-cost-runtime-v1` was based on the checkpoint; owner-approved fast-forward promotion preserved the feature branch and tag |
 | Syntax／build | PASS; `npm run check` and `npm run build` |
-| Deterministic tests | PASS; 37 passed／0 failed |
+| Deterministic tests | PASS; 38 passed／0 failed |
 | Dependency audit | PASS; `npm audit --omit=dev` reports 0 vulnerabilities |
 | Postgres migration／parity | PASS offline with FakePostgresPool; idempotence, schema command contract, filesystem parity, uniqueness and quality upsert covered |
 | Transaction／failure behavior | PASS offline; rollback, invalid payload, missing `DATABASE_URL`, database failure and safe error states covered |
 | SMTP safety | PASS; no-socket dry-run, test-recipient isolation, auth／timeout／uncertain acceptance／attachment failure and duplicate guard covered |
 | Workflow source contracts | PASS; bootstrap dispatch-only plus daily／weekly schedules, manual dispatch, secrets-only configuration and required commands are source-validated |
 | Production simulation | PASS with synthetic public-safe records and temporary storage; no Neon or Gmail connection |
-| GitHub-only fresh clone | PASS; GitHub-only feature clone verified with npm ci, 38 tests, build, audit, blocked gates, health, workflow contracts and synthetic simulation; final post-promotion main clone is required below |
+| GitHub-only fresh clone | PASS; feature clone and post-promotion main clone verified with npm ci, 38 tests, build, audit, blocked gates, health, workflow contracts, three workflow files and synthetic simulation |
 | Live Neon／Gmail integration | `EXTERNAL_CONFIGURATION_REQUIRED` |
 | GitHub Actions activation | `EXTERNAL_CONFIGURATION_REQUIRED`; workflows remain untriggered and schedules unchanged |
 | Deployment／paid resources | Not performed; no paid resource required for PASS |

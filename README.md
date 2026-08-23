@@ -138,7 +138,7 @@ npm run build
 npm audit --omit=dev
 ```
 
-`npm test` 會 mock 外部 fetch，涵蓋材料與單位契約、conversion factor、malformed quote、日期排序與去重、bounded retry、訊號門檻、歷史計算、FX nearest-prior、fresh／stale cache、`LIVE` canonicalization、fallback、total failure、無效 symbol／period、timeout、健康檢查、兩種歷史 API 與兩種 XLSX export，以及 production storage gate、quality gate、bootstrap、SMTP test mode、auth／timeout／uncertain acceptance／attachment failure 與 safe weekly health。最新 deterministic suite 為 37 passed／0 failed，測試不依賴 Yahoo 當下可用性。
+`npm test` 會 mock 外部 fetch，涵蓋材料與單位契約、conversion factor、malformed quote、日期排序與去重、bounded retry、訊號門檻、歷史計算、FX nearest-prior、fresh／stale cache、`LIVE` canonicalization、fallback、total failure、無效 symbol／period、timeout、健康檢查、兩種歷史 API 與兩種 XLSX export，以及 production storage gate、quality gate、bootstrap、SMTP test mode、auth／timeout／uncertain acceptance／attachment failure 與 safe weekly health。最新 deterministic suite 為 38 passed／0 failed，測試不依賴 Yahoo 當下可用性。
 
 ## 公開資料部署
 
