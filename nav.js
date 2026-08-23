@@ -1,11 +1,14 @@
 const ACTIVE_NAV_ITEMS = Object.freeze([
   { label: "原物料市場", href: "/" },
   { label: "加工市場參考", href: "/machining" },
+  { label: "鈑金市場參考", href: "/sheet-metal" },
 ]);
 
 function currentPagePath() {
   const path = window.location.pathname.replace(/\/+$/, "") || "/";
-  return path === "/machining.html" ? "/machining" : path;
+  if (path === "/machining.html") return "/machining";
+  if (path === "/sheet-metal.html") return "/sheet-metal";
+  return path;
 }
 
 function renderSiteNavigation() {

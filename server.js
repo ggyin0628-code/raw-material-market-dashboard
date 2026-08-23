@@ -11,6 +11,7 @@ const { canonicalizeSnapshot } = require("./lib/marketData/dataContract");
 const { getWeeklyPreview, getWeeklyWorkbook, generateWeeklyReport } = require("./lib/weekly/weeklyEngine");
 const { readProductionStatus } = require("./lib/weekly/productionService");
 const { getMachiningReference } = require("./lib/machining/machiningService");
+const { getSheetMetalReference } = require("./lib/sheetMetal/sheetMetalService");
 
 dns.setDefaultResultOrder("ipv4first");
 
@@ -118,6 +119,7 @@ function getWeeklyOptions(requestUrl) {
 function resolveStaticPath(pathname) {
   if (pathname === "/") return "/index.html";
   if (pathname === "/machining" || pathname === "/machining/") return "/machining.html";
+  if (pathname === "/sheet-metal" || pathname === "/sheet-metal/") return "/sheet-metal.html";
   return pathname;
 }
 
@@ -131,6 +133,10 @@ async function serveStatic(req, res) {
   }
   if (pathname === "/machining.html") {
     sendRedirect(res, 308, "/machining");
+    return;
+  }
+  if (pathname === "/sheet-metal.html") {
+    sendRedirect(res, 308, "/sheet-metal");
     return;
   }
   pathname = resolveStaticPath(pathname);
@@ -254,6 +260,16 @@ async function handleRequest(req, res) {
     try {
       const force = getQueryParam(requestUrl, "force", "") === "true";
       sendJson(res, 200, await getMachiningReference({ force }));
+    } catch (error) {
+      sendApiError(res, error);
+    }
+    return;
+  }
+
+  if (requestUrl.pathname === "/api/sheet-metal/reference") {
+    try {
+      const force = getQueryParam(requestUrl, "force", "") === "true";
+      sendJson(res, 200, await getSheetMetalReference({ force }));
     } catch (error) {
       sendApiError(res, error);
     }

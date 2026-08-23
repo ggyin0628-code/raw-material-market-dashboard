@@ -117,3 +117,26 @@ Historical failed run `32635052696` is retained as a failed attempt caused by pr
 The existing Render service completed read-only verification after promotion: `/`, `/machining`, `/machining/`, `/api/machining/reference?force=true`, `/health` and `/health/weekly` returned HTTP 200; `/machining.html` continued to return HTTP 308 to `/machining`. Render reported `WEB_READY`, `DATABASE_READY` and `storage.ready=true`. The machining API returned `compositePressureScore=45.54`, `pressureLevel=NORMAL`, `trend=FALLING`, `evidenceCount=6`, `minimumEvidence=3`, and `dataQuality=STALE`; `engineeringEstimate` remained `null`, with no CNC hourly price, supplier quotation, company target price or private/company data. The production response retained Yahoo/public material, DGBAS official fallback, CBC official NTD/USD and Taipower structural provenance with frequency-aware semantics.
 
 Known public-source limitations remain explicit: DGBAS PPI uses the secure official `nstatdb` CSV fallback through `2026-07-01`; manufacturing wages are monthly through `2026-06-01` and remain `STALE` because of publication lag; CBC daily data is through `2026-08-21`; and Taipower is a structural event-driven source through `2025-10-01` and does not generate weekly momentum. `MAIL_CONFIGURATION_REQUIRED` remains the expected Render status because mail configuration and schedule enablement are outside this certification. The final verified main commit is identified by the checkpoint tag `machining-data-hardening-v1` created after this documentation checkpoint.
+
+## Phase 3A — 鈑金市場參考 V1
+
+**狀態：FEATURE_BRANCH_READY_FOR_REVIEW；不得推進 main**
+
+Phase 3A is implemented on feature branch `feat/sheet-metal-market-reference-v1`, created exactly from the certified checkpoint `04de849ae9ae83fceb1cdeaf7aa09c9fcda66c62`. It adds an independent canonical `/sheet-metal` page and `GET /api/sheet-metal/reference` endpoint. The page observes Taiwan-first public indicators for sheet-metal materials, energy, labor, FX, manufacturing prices and capacity/demand heat. It never creates supplier quotations, company target prices, CNC hourly rates, cycle times or engineering estimates.
+
+| Handoff item | Phase 3A result |
+| --- | --- |
+| Taiwan-first source audit | PASS: official MOEA CSV exact industry rows for `24 基本金屬製造業`, `25 金屬製品製造業`, `29 機械設備製造業`, `C 製造業`; DGBAS PPI/wages; CBC NTD/USD; Taipower structural JSON |
+| Explicit source gaps | Taiwan cold-rolled steel and stainless-steel price proxies remain `NO_DATA`; no foreign series is silently substituted |
+| Data contract | `SHEET_METAL`; `OBSERVED_PUBLIC_DATA` and `DERIVED_MARKET_REFERENCE`; `ENGINEERING_ESTIMATE=null` |
+| Model | Sheet-metal-specific weights; minimum evidence remains 3; daily/weekly 4/12-week, monthly 1/3/12-month, annual 1/3-year, structural no momentum |
+| Persistence | Reuses the certified public-observation store with `sheet-metal:` series namespaces; no schema change or migration performed |
+| UI/routing | Independent `/sheet-metal`; `/sheet-metal/` alias; `/sheet-metal.html` 308 redirect; shared navigation exposes only real `/`, `/machining`, `/sheet-metal` pages |
+| Deterministic tests | PASS: 80 passed / 0 failed |
+| Final offline gates | PASS: `npm ci`, `npm run check`, `npm test`, `npm run build`, `npm audit --omit=dev`, `git diff --check`; audit 0 vulnerabilities |
+| Visual review | PASS: desktop, 390px mobile and homepage navigation artifacts under `docs/visual-review/` |
+| Production protection | No deployment, production migration, bootstrap, schedule, mail, Gmail, Neon, secret or main operation performed |
+
+Local read-only smoke against the public sources produced a truthful composite: score `48.47`, `NORMAL`, selected `12 週` direction `FALLING`, evidence `6/3`, overall quality `STALE` because the public manufacturing wage series was monthly and lagged. MOEA fabricated-metal activity was represented as a monthly activity index, not a price. The local response retained `LIVE`, `FALLBACK`, `STALE` and explicit `NO_DATA` coverage, including the cold-rolled and stainless gaps.
+
+Visual artifacts are `docs/visual-review/sheet-metal-desktop.webp`, `docs/visual-review/sheet-metal-mobile.png`, `docs/visual-review/homepage-navigation.webp`, with findings in `docs/visual-review/sheet-metal-visual-findings.md`. The technical source and model specification is `docs/SHEET_METAL_MARKET_REFERENCE.md`; the official source audit notes remain in `docs/phase3a-*.md`.

@@ -255,7 +255,8 @@ test("shared navigation exposes only active V1 pages and uses canonical machinin
   const machining = fs.readFileSync(path.join(__dirname, "..", "machining.html"), "utf8");
   assert.match(nav, /label: "原物料市場", href: "\/"/);
   assert.match(nav, /label: "加工市場參考", href: "\/machining"/);
-  assert.doesNotMatch(nav, /Sheet Metal|Weekly|Sources|鈑金|週報|來源/);
+  assert.match(nav, /label: "鈑金市場參考", href: "\/sheet-metal"/);
+  assert.doesNotMatch(nav, /Sheet Metal|Weekly|Sources|週報|來源/);
   assert.match(homepage, /data-site-nav/);
   assert.match(machining, /data-site-nav/);
   assert.doesNotMatch(homepage, /href="\/machining\.html"/);

@@ -119,3 +119,27 @@ Historical failed migration run `32635052696` is retained as a failed attempt ca
 Post-migration read-only Render verification passed for `/`, `/machining`, `/machining/`, `/api/machining/reference?force=true`, `/health` and `/health/weekly` with HTTP 200; `/machining.html` returned HTTP 308 to `/machining`. Render readiness was `WEB_READY`, `DATABASE_READY`, and `storage.ready=true`. The machining API returned score `45.54`, level `NORMAL`, direction `FALLING`, evidence count `6` against minimum evidence `3`, and data quality `STALE`; `engineeringEstimate` remained `null` and no CNC hourly price, supplier quotation, company target price or private/company data appeared. Provenance and frequency semantics remained correct for Yahoo/public materials, DGBAS official fallback, CBC official NTD/USD and Taipower structural JSON.
 
 Remaining public-source limitations are explicit: DGBAS PPI fallback is monthly through `2026-07-01`; manufacturing wages are monthly through `2026-06-01` and `STALE` due to publication lag; CBC daily data is through `2026-08-21`; and Taipower is structural through `2025-10-01` and does not generate weekly momentum. `MAIL_CONFIGURATION_REQUIRED` remains expected because mail configuration and schedule enablement are outside this certification. The final checkpoint tag is `machining-data-hardening-v1`.
+
+## Phase 3A — 鈑金市場參考 V1
+
+**FEATURE_BRANCH_READY_FOR_REVIEW — DO NOT PROMOTE MAIN**
+
+Phase 3A is implemented on `feat/sheet-metal-market-reference-v1`, based exactly on certified main checkpoint `04de849ae9ae83fceb1cdeaf7aa09c9fcda66c62`. The feature is an independent Taiwan-first public market reference at `/sheet-metal` with `/sheet-metal/` alias, `/sheet-metal.html` 308 redirect, and `GET /api/sheet-metal/reference`. It does not embed sheet-metal content into `/` and does not alter the existing machining or raw-material calculation paths.
+
+| Status item | Result |
+| --- | --- |
+| Official source audit | PASS: MOEA industrial CSV, DGBAS PPI/wages, CBC NTD/USD, Taipower structural JSON and existing public commodity proxies |
+| Capacity/demand proxy | PASS: monthly MOEA exact rows for basic metals, fabricated metal products, machinery and manufacturing |
+| Unavailable materials | Explicit `NO_DATA` for Taiwan cold-rolled steel and stainless-steel price proxies; no fabricated substitutes |
+| Data contract | PASS: `processFamily=SHEET_METAL`; public observed and derived layers separated; `engineeringEstimate=null` |
+| Model | PASS: sheet-metal-specific weights; minimum evidence 3; frequency-aware 4/12-week, 1/3/12-month and 1/3-year windows; structural no momentum |
+| Persistence | PASS: reuses certified public-observation store with namespaced IDs; no new schema or migration |
+| UI/routing/navigation | PASS: independent page, canonical routing, safe redirect, three real shared-nav pages only |
+| Deterministic regression | PASS: 80 passed / 0 failed |
+| Offline gates | PASS: npm ci, check, test, build, audit and diff check; 0 vulnerabilities |
+| Visual review | PASS: desktop, 390px mobile and homepage navigation screenshots; no observed horizontal overflow |
+| Production operations | NONE: no deploy, migration, bootstrap, schedule, mail, Gmail, Neon, secret or main promotion |
+
+Local read-only public-source smoke produced score `48.47`, `NORMAL`, selected 12-week direction `FALLING`, evidence `6/3`, overall `STALE` because the monthly manufacturing wage series lagged. The API exposed 18 source-coverage entries with daily, monthly and structural frequencies; forbidden private/company keys were absent. MOEA activity values remain indexes and are never shown as supplier prices.
+
+Technical specification: `docs/SHEET_METAL_MARKET_REFERENCE.md`. Source audit notes: `docs/phase3a-moea-source-findings.md`, `docs/phase3a-moea-product-findings.md`, `docs/phase3a-moea-operation-findings.md`, `docs/phase3a-dgbas-ppi-findings.md`, `docs/phase3a-dgbas-industrial-findings.md`, `docs/phase3a-data-gov-industrial-findings.md`. Visual artifacts: `docs/visual-review/sheet-metal-desktop.webp`, `docs/visual-review/sheet-metal-mobile.png`, `docs/visual-review/homepage-navigation.webp`, and `docs/visual-review/sheet-metal-visual-findings.md`.
