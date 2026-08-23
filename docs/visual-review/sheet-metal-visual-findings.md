@@ -25,3 +25,11 @@ The refined desktop view populated the source-provenance panel with explicit lab
 ## Role-label screenshot review
 
 The desktop provenance screenshot shows the international stainless reference, IMF nickel proxy, and Taiwan domestic gap records with readable role badges, status badges and limitation text; the cards remain within the viewport without horizontal clipping. The 390px mobile screenshot shows the navigation, Taiwan-first-not-only-Taiwan explanation, public-only boundary tags, refreshed status and summary cards stacked cleanly. The visible mobile viewport has no horizontal overflow; the role details continue below the fold in the normal single-column flow.
+
+## Production desktop visual review — 2026-08-23
+
+The promoted Render `/sheet-metal` page loaded with the three-page shared navigation: `原物料市場 → /`, `加工市場參考 → /machining`, and `鈑金市場參考 → /sheet-metal`. The desktop hierarchy, summary cards and six component cards were readable. The live page displayed score `48.47｜正常`, evidence `6/3`, data quality `STALE`, and the public-only boundary labels. The provenance panel showed Taiwan domestic, international/import and global upstream roles, explicit scoring labels, the FRED/BLS stainless pipe/tube limitation and `僅供來源沿革／不計分`, plus the two Taiwan domestic `NO_DATA` gap cards. No horizontal clipping was observed at the desktop viewport.
+
+## Production mobile visual review — 2026-08-23
+
+The production 390×844 screenshot shows the three shared navigation links without clipping, the public-market/non-quotation/non-target-price boundary labels, the refresh control, and the live summary cards in a readable single-column layout. The score `48.47｜正常`, evidence `6/3` and `STALE` quality are visible above the fold. The desktop provenance screenshot shows the international stainless pipe/tube context, nickel upstream proxy, and Taiwan domestic `NO_DATA` cards with role badges, `僅供來源沿革／不計分`, exclusion reason and limitations. No horizontal overflow, clipped navigation or unreadable role text was observed in either production visual review.

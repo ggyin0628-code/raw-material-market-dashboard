@@ -190,3 +190,31 @@ The narrow approved correction is complete on `feat/sheet-metal-market-reference
 | Production operations | NONE: no deploy, main promotion, migration, workflow, bootstrap, Neon, Gmail, schedules or secrets |
 
 The exact source-role refinement head remains documented at `d308f5c68cba8dbcd5328e924b93c6a1d3aea2e9`; this scoring correction will receive its own feature-branch commit and SHA after final checks.
+
+## Phase 3A — Sheet Metal Market Reference V1 production certification
+
+**PHASE_3A_SHEET_METAL_MARKET_REFERENCE_PRODUCTION_PASS**
+
+The approved Phase 3A head `ce6021dd96463baf1224aa5af8e360c48710fb74` was promoted from authoritative main `04de849ae9ae83fceb1cdeaf7aa09c9fcda66c62` by pure fast-forward. Final main is `ce6021dd96463baf1224aa5af8e360c48710fb74`. Phase 3A adds no database schema and reuses the existing certified public-observation persistence, so no migration was required.
+
+The existing Render service deployed the promoted main and passed read-only checks: `/`, `/machining`, `/machining/`, `/sheet-metal`, `/sheet-metal/`, both machining and sheet-metal reference APIs, `/health` and `/health/weekly` returned HTTP 200; `/sheet-metal.html` returned HTTP 308 to `/sheet-metal`. Render health was `OK`, `WEB_READY`, `DATABASE_READY`, with durable storage ready. `MAIL_CONFIGURATION_REQUIRED` remains the expected owner-controlled status and was not changed or triggered.
+
+| Production item | Result |
+|---|---|
+| Contract | `processFamily=SHEET_METAL`; `engineeringEstimate=null` |
+| Result | score `48.47`; `NORMAL`; `FALLING`; confidence `0.83`; `STALE` |
+| Selected window | `12 週`, `-2.52%`, `FALLING` |
+| Evidence | `6/3` usable components / minimum evidence |
+| Source roles | All exposed sources valid; `GLOBAL_IMPORT_REFERENCE=5`, `GLOBAL_INPUT_PROXY=3`, `TAIWAN_DOMESTIC=9`, `STRUCTURAL=1`; unclassified `0` |
+| Scoring roles | `GLOBAL_IMPORT_REFERENCE=4`, `GLOBAL_INPUT_PROXY=3`, `TAIWAN_DOMESTIC=9`; structural and non-scoring observations excluded from scored values |
+| Cold-rolled `WPU101707` | `LIVE`, import reference, scoring eligible; U.S. BLS sheet/strip index, not Taiwan domestic, supplier or CIF pricing |
+| Stainless pipe/tube `WPU10170674` | `LIVE`, import reference, provenance-only with `participatesInScoring=false`; limitation and exclusion reason visible; absent from scored observed values |
+| Nickel `PNICKUSDM` | `LIVE`, `GLOBAL_INPUT_PROXY`, scoring eligible only as upstream context |
+| Domestic gaps | Taiwan cold-rolled proxy `NO_DATA`; Taiwan stainless-sheet proxy `NO_DATA` |
+| Frequency | Daily/weekly 4/12-week; monthly 1/3/12-month; structural no momentum |
+| Machining | Existing machining page/API returned normally; no machining calculation path changed |
+| Visual review | Desktop provenance and 390×844 mobile passed; no horizontal overflow or clipped navigation |
+| Regression | Pre-promotion **82 passed / 0 failed**; audit **0 vulnerabilities** |
+| Safety | No supplier/company/private semantics; no migration, workflow, bootstrap, mail, schedule, secret, Neon or extra Render operation |
+
+This certification used only read-only production verification after normal Render deployment. The annotated checkpoint tag `sheet-metal-market-reference-v1` is to be created at the final verified documentation checkpoint.

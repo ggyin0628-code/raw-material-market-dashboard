@@ -189,3 +189,34 @@ FRED/BLS `WPU101707` remains `GLOBAL_IMPORT_REFERENCE` with `participatesInScori
 | Safety | `engineeringEstimate=null`; no supplier quote, company target price, internal rate, inventory or other private/company fields |
 
 The implementation preserves minimum evidence 3, all component weights, machining logic, persistence architecture, routes/navigation and public-only boundaries. No deployment, main promotion, migration, workflow, bootstrap, Neon, Gmail, schedule or secret operation was performed. The feature branch remains pending separate main-promotion approval.
+
+## Phase 3A — Sheet Metal Market Reference V1 production certification
+
+**PHASE_3A_SHEET_METAL_MARKET_REFERENCE_PRODUCTION_PASS**
+
+The approved feature head `ce6021dd96463baf1224aa5af8e360c48710fb74` was promoted from authoritative main `04de849ae9ae83fceb1cdeaf7aa09c9fcda66c62` to main by pure fast-forward. The final promoted main SHA is `ce6021dd96463baf1224aa5af8e360c48710fb74`. No database migration was required because Phase 3A reuses the certified public-observation persistence and adds no schema.
+
+The existing Render service `https://raw-material-market-dashboard-1.onrender.com` deployed from main and passed read-only verification. `/`, `/machining`, `/machining/`, `/sheet-metal`, and `/sheet-metal/` returned HTTP 200. `/sheet-metal.html` returned HTTP 308 with `Location: /sheet-metal`. `/api/machining/reference?force=true`, `/api/sheet-metal/reference?force=true`, `/health`, and `/health/weekly` returned HTTP 200. The health response reported `OK`, `WEB_READY`, `DATABASE_READY` and `storage.ready=true`; `MAIL_CONFIGURATION_REQUIRED` remains the expected owner-controlled mail status and was not modified or triggered by this certification.
+
+| Production certification item | Result |
+|---|---|
+| Sheet-metal process family | `SHEET_METAL` |
+| Composite score | `48.47` |
+| Pressure level / trend | `NORMAL` / `FALLING` |
+| Confidence | `0.83` |
+| Data quality | `STALE` |
+| Selected comparison | `12 週`, `-2.52%`, `FALLING` |
+| Evidence | `6` usable components / minimum `3` |
+| All source roles | `GLOBAL_IMPORT_REFERENCE=5`, `GLOBAL_INPUT_PROXY=3`, `TAIWAN_DOMESTIC=9`, `STRUCTURAL=1`; unclassified `0` |
+| Scoring source roles | `GLOBAL_IMPORT_REFERENCE=4`, `GLOBAL_INPUT_PROXY=3`, `TAIWAN_DOMESTIC=9`; structural and non-scoring records excluded from scored values |
+| FRED/BLS `WPU101707` | `LIVE`, `GLOBAL_IMPORT_REFERENCE`, `participatesInScoring=true`; U.S. BLS cold-rolled sheet/strip index, not Taiwan domestic, supplier quotation or CIF/import transaction price |
+| FRED/BLS `WPU10170674` | `LIVE`, `GLOBAL_IMPORT_REFERENCE`, `participatesInScoring=false`; retained in source coverage and material provenance with the pipe/tube product-scope exclusion reason, absent from scored `observedValues` |
+| IMF/FRED `PNICKUSDM` | `LIVE`, `GLOBAL_INPUT_PROXY`, `participatesInScoring=true`; upstream nickel context only, not finished stainless-sheet, Taiwan or supplier pricing |
+| Taiwan domestic gaps | Cold-rolled domestic proxy `NO_DATA`; stainless-sheet domestic proxy `NO_DATA` |
+| Engineering boundary | `engineeringEstimate=null`; no supplier quotation, company target price, price-per-piece/kg, hourly rate, internal rate, cycle time, inventory, import share or private/company data |
+| Machining regression | PASS: machining page/API remained HTTP 200 and no machining calculation path changed |
+| Visual production review | PASS: desktop provenance and 390×844 mobile review; navigation, cards, source roles, limitations and public-only labels readable; no horizontal overflow |
+
+Frequency semantics remained correct: daily sources used 4/12-week comparisons, monthly indexes used 1/3/12-month comparisons, and structural tariff metadata produced no momentum. The production response retained explicit source states, observation dates, frequencies, roles, pricing bases, currencies, limitations and `NO_DATA` gaps. The full pre-promotion regression was **82 passed / 0 failed**, with audit reporting **0 vulnerabilities**. The route/API response artifacts and visual review notes are preserved under `/tmp/phase3a-production-verification/` during the verification session; the committed visual evidence is under `docs/visual-review/`.
+
+No workflow, migration, bootstrap, daily/weekly job, mail send, Gmail change, schedule change, secret change, Neon change or additional Render service was used. The annotated checkpoint tag is created only after this documentation checkpoint and points to the final verified main commit.
