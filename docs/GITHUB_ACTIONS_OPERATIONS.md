@@ -8,6 +8,7 @@ GitHub Actions is the scheduled runtime for the zero-cost production path. It co
 
 | Workflow | Taiwan schedule | UTC cron | Mail |
 | --- | --- | --- | --- |
+| `market-bootstrap.yml` | Manual `workflow_dispatch` only | None | No; mail credentials absent |
 | `market-daily.yml` | approximately 07:17 Tuesday–Saturday | `17 23 * * 1-5` | No |
 | `market-weekly.yml` | approximately 09:17 Monday | `17 1 * * 1` | Yes, initially test-recipient only |
 
@@ -29,9 +30,9 @@ The workflow source contains no real URL, address, password or token. GitHub mas
 
 ## Activation sequence
 
-The owner first creates or selects an approved free PostgreSQL project and adds `DATABASE_URL`, Gmail secrets and `MAIL_TEST_TO` in repository settings. The owner then runs the daily workflow manually or waits for its schedule, confirms `DATABASE_READY` and `DAILY_DATA_READY`, and runs the weekly workflow manually with the default test mode. The received email must be checked for recipient isolation, public-only content, attachment presence and readable HTML/XLSX. Only after that review may the owner set `WEEKLY_MAIL_TEST_MODE=0` and enable the approved production-recipient workflow behavior.
+The owner first creates or selects an approved free PostgreSQL project and adds `DATABASE_URL`, Gmail secrets and `MAIL_TEST_TO` in repository settings. The owner runs `market-bootstrap.yml` manually first; it performs `npm ci`, code validation, migration, storage check, a three-year public-history bootstrap and final status, and contains no mail credentials or scheduled trigger. The owner then runs the daily workflow manually or waits for its schedule, confirms `DATABASE_READY` and `DAILY_DATA_READY`, and runs the weekly workflow manually with the default test mode. The received email must be checked for recipient isolation, public-only content, attachment presence and readable HTML/XLSX. Only after that review may the owner set `WEEKLY_MAIL_TEST_MODE=0` and enable the approved production-recipient workflow behavior.
 
-The repository does not activate workflows, create a Neon project, request a Gmail App Password or send a real email during this task. Those are explicit external configuration actions.
+The repository does not activate workflows, create a Neon project, request a Gmail App Password or send a real email during this task. Those are explicit external configuration actions. Scheduled workflows must remain untriggered and unchanged until the owner completes the manual bootstrap and TEST_RECIPIENT review.
 
 ## Failure behavior and recovery
 
@@ -52,7 +53,7 @@ The workflow exit is non-zero for database failure, migration failure, quality b
 
 ## Manual checks
 
-Use the Actions UI `workflow_dispatch` trigger after verifying the intended branch and secret configuration. From a checked-out environment, the corresponding safe checks are:
+Use the Actions UI `workflow_dispatch` trigger after verifying the intended branch and secret configuration. The required first manual trigger is `Market Production Bootstrap`; it must complete before daily／weekly operation. From a checked-out environment, the corresponding safe checks are:
 
 ```bash
 npm ci

@@ -792,3 +792,20 @@ test("Postgres CLI status and storage-check stay machine-readable when unconfigu
   assert.equal(commandExitCode(status), 2);
   assert.equal(commandExitCode(check), 2);
 });
+
+test("manual production bootstrap workflow is dispatch-only and never sends mail", async () => {
+  const workflow = await fs.readFile(path.join(ROOT, ".github/workflows/market-bootstrap.yml"), "utf8");
+  assert.match(workflow, /name: Market Production Bootstrap/);
+  assert.match(workflow, /workflow_dispatch:/);
+  assert.doesNotMatch(workflow, /^\s+schedule:/m);
+  assert.match(workflow, /ubuntu-latest/);
+  assert.match(workflow, /node-version: "20"/);
+  assert.match(workflow, /npm ci/);
+  assert.match(workflow, /DATABASE_URL: \$\{\{ secrets\.DATABASE_URL \}\}/);
+  assert.match(workflow, /npm run db:migrate/);
+  assert.match(workflow, /npm run production:storage-check/);
+  assert.match(workflow, /npm run production:bootstrap -- --period 3y/);
+  assert.match(workflow, /npm run production:status/);
+  assert.doesNotMatch(workflow, /MAIL_(USER|PASSWORD|FROM|TO|TEST_TO|ENABLED|HOST|PORT|SECURE)/);
+  assert.doesNotMatch(workflow, /production:weekly|weekly:send|smtp/i);
+});
