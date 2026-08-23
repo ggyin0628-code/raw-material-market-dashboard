@@ -869,6 +869,28 @@ test("manual production bootstrap workflow is dispatch-only and never sends mail
   assert.doesNotMatch(workflow, /production:weekly|weekly:send|smtp/i);
 });
 
+test("manual database migration workflow is dispatch-only and cannot run operational jobs", async () => {
+  const workflow = await fs.readFile(path.join(ROOT, ".github/workflows/market-db-migrate.yml"), "utf8");
+  assert.match(workflow, /name: Market Database Migration Only/);
+  assert.match(workflow, /workflow_dispatch:/);
+  assert.doesNotMatch(workflow, /^\s+schedule:/m);
+  assert.doesNotMatch(workflow, /^\s+(push|pull_request):/m);
+  assert.match(workflow, /permissions:\s+contents: read/);
+  assert.match(workflow, /node-version: "20"/);
+  assert.match(workflow, /DATABASE_URL: \$\{\{ secrets\.DATABASE_URL \}\}/);
+  assert.match(workflow, /NODE_ENV: production/);
+  assert.match(workflow, /STORAGE_PROVIDER: postgres/);
+  assert.match(workflow, /DATABASE_SSL: "true"/);
+  assert.match(workflow, /REQUIRE_DURABLE_STORAGE: "1"/);
+  assert.match(workflow, /npm ci/);
+  assert.match(workflow, /npm run check/);
+  assert.match(workflow, /npm test/);
+  assert.match(workflow, /npm run db:migrate/);
+  assert.match(workflow, /Verify migration completed successfully/);
+  assert.match(workflow, /grep -Eq.*DATABASE_MIGRATED/);
+  assert.doesNotMatch(workflow, /production:bootstrap|production:daily|production:weekly|weekly:send|backfill|MAIL|Gmail|smtp/i);
+});
+
 function batchFixtureRecords(count, status = "LIVE", collectedAt = "2026-08-17T01:00:00Z") {
   return Array.from({ length: count }, (_, index) => ({
     materialId: `fixture-${index % 25}`,

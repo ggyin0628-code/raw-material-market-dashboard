@@ -1,0 +1,46 @@
+name: Market Database Migration Only
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: market-db-migrate
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NODE_ENV: production
+      STORAGE_PROVIDER: postgres
+      DATABASE_SSL: "true"
+      REQUIRE_DURABLE_STORAGE: "1"
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Validate code
+        run: npm run check
+
+      - name: Run deterministic test suite
+        run: npm test
+
+      - name: Migrate PostgreSQL schema only
+        run: npm run db:migrate | tee migration-result.json
+
+      - name: Verify migration completed successfully
+        run: grep -Eq '\"state\"[[:space:]]*:[[:space:]]*\"DATABASE_MIGRATED\"' migration-result.json

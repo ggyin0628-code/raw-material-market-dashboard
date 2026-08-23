@@ -91,3 +91,9 @@ persistence 是 best-effort：資料庫或檔案儲存暫時失敗不應刪除�
 [5]: https://data.gov.tw/dataset/17060 "Taiwan Power Company — Electricity tariff schedules and calculation examples"
 [6]: https://data.gov.tw/en/datasets/9663 "Taiwan Open Government Data — Monthly ordinary wages of each employee in recent years"
 [7]: https://eng.stat.gov.tw/Point.aspx?sid=t.4&n=4203&sms=11713 "DGBAS — Monthly regular earnings of all employees indicator"
+
+## Migration-only operational path
+
+Because the existing `market-bootstrap` workflow combines schema migration with public-history bootstrap, Phase 2B adds `.github/workflows/market-db-migrate.yml` as a separate safety boundary. It is `workflow_dispatch` only, has no schedule, grants `contents: read`, uses the existing `DATABASE_URL` secret with `NODE_ENV=production`, `STORAGE_PROVIDER=postgres`, `DATABASE_SSL=true`, and `REQUIRE_DURABLE_STORAGE=1`, then runs `npm ci`, `npm run check`, `npm test`, `npm run db:migrate`, and a machine-readable success assertion for `DATABASE_MIGRATED`.
+
+The workflow does not call `production:bootstrap`, `production:daily`, `production:weekly`, `weekly:send`, any backfill command, Gmail, or mail configuration. It is safe to run repeatedly because the existing migration contract uses idempotent `CREATE TABLE IF NOT EXISTS` and `CREATE INDEX IF NOT EXISTS` statements; the deterministic Postgres migration test runs the migration twice and requires the same statement count and successful state on both runs. This task does not dispatch the workflow or execute the migration against production.
