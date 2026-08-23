@@ -220,3 +220,32 @@ The existing Render service `https://raw-material-market-dashboard-1.onrender.co
 Frequency semantics remained correct: daily sources used 4/12-week comparisons, monthly indexes used 1/3/12-month comparisons, and structural tariff metadata produced no momentum. The production response retained explicit source states, observation dates, frequencies, roles, pricing bases, currencies, limitations and `NO_DATA` gaps. The full pre-promotion regression was **82 passed / 0 failed**, with audit reporting **0 vulnerabilities**. The route/API response artifacts and visual review notes are preserved under `/tmp/phase3a-production-verification/` during the verification session; the committed visual evidence is under `docs/visual-review/`.
 
 No workflow, migration, bootstrap, daily/weekly job, mail send, Gmail change, schedule change, secret change, Neon change or additional Render service was used. The annotated checkpoint tag is created only after this documentation checkpoint and points to the final verified main commit.
+
+## Phase 4A — Engineering Estimate Foundation V1
+
+**FEATURE_BRANCH_READY_FOR_REVIEW — DO NOT PROMOTE MAIN**
+
+Phase 4A is complete on feature branch `feat/engineering-estimate-foundation-v1`, created from the authoritative production main checkpoint `30192a4d5202675df11a2e00ee97f02d2c49537d`. This branch adds a strict, deterministic and stateless `SHEET_METAL` engineering estimator; it does not promote `main`, deploy, migrate, trigger workflows or change Render.
+
+| Handoff item | Phase 4A result |
+| --- | --- |
+| Independent chain | `ENGINEERING_INPUT → PHYSICAL_CALCULATION → PROCESS_WORKLOAD → ENGINEERING_ESTIMATE` |
+| Implemented process family | `SHEET_METAL` only; future process names are reserved and rejected |
+| Geometry and physical quantities | Explicit rectangle length/width/thickness; area, volume, kg/part, theoretical total kg and explicit utilization/scrap adjustment |
+| Workload quantities | Cut length, pierce count, bend count, weld length, treatment area, batch count and quantity per batch |
+| Formula traceability | Every principal calculation returns formula text, inputs, conversion and output unit; UI exposes expandable formula details |
+| Density | User override wins; documented `ENGINEERING_DEFAULT` values are broad configurable assumptions, not certified or supplier properties; `OTHER` requires explicit density |
+| Rate behavior | Default and omitted profile are `NO_RATE`, all monetary fields `null`; `SYNTHETIC_TEST` accepts explicit fixture rates only and is labeled `SYNTHETIC / DEMO / TEST ONLY`; `PRIVATE_CALIBRATED` rejected |
+| Market separation | `marketReference=null`, `marketAdjustmentFactor=null`; no market API call or multiplier |
+| Routes | `/estimate`, `/estimate/`, `/estimate.html` → `308 /estimate`; `POST /api/engineering/estimate`; `GET /api/engineering/estimate/schema` |
+| Existing market APIs | Raw-material, machining and sheet-metal paths retain existing semantics; `engineeringEstimate=null` remains asserted for market references |
+| Persistence and operations | No schema change, migration, database write, bootstrap, daily/weekly job, mail, Gmail, schedule, secret or Neon operation |
+| Deterministic suite | PASS: **93 passed / 0 failed** |
+| Final offline gates | PASS: `npm ci`, `npm run check`, `npm test`, `npm run build`, `npm audit --omit=dev`, `git diff --check`; audit reported 0 vulnerabilities |
+| Visual review | PASS: local desktop calculated result and local 390×844 mobile full-page review; automated width metrics show `390/390` and no horizontal overflow |
+| Visual artifacts | `docs/visual-review/engineering-estimate-desktop.png`, `docs/visual-review/engineering-estimate-mobile.png`, `docs/visual-review/phase4a-capture-metrics.json`, `docs/visual-review/phase4a-visual-findings.md` |
+| Technical specification | `docs/ENGINEERING_ESTIMATE_FOUNDATION.md` |
+
+The local calculated example returned 2.355 kg per part, 235.5 kg total material mass, 145 m cut length, 800 pierces, 400 bends, one batch and 100 parts per batch. The cost panel remained a null-cost `NO_RATE` state and did not show synthetic, supplier, company or market prices. The 390×844 review rendered a stacked form/result layout with readable quantities, visible boundary labels and no horizontal overflow.
+
+The next review boundary is Phase 4B. Candidate gaps include non-rectangular geometry, hole/void subtraction, nesting and remnant models, certified material properties, process-time models, machine capability, setup/changeover detail, private rate governance and any ERP or quotation integration. None of these are implemented in Phase 4A. The current branch must remain separate from `main` until explicit review and approval.

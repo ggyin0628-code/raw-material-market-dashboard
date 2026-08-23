@@ -256,6 +256,7 @@ test("shared navigation exposes only active V1 pages and uses canonical machinin
   assert.match(nav, /label: "原物料市場", href: "\/"/);
   assert.match(nav, /label: "加工市場參考", href: "\/machining"/);
   assert.match(nav, /label: "鈑金市場參考", href: "\/sheet-metal"/);
+  assert.match(nav, /label: "工程估算", href: "\/estimate"/);
   assert.doesNotMatch(nav, /Sheet Metal|Weekly|Sources|週報|來源/);
   assert.match(homepage, /data-site-nav/);
   assert.match(machining, /data-site-nav/);

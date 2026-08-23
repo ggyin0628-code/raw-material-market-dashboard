@@ -218,3 +218,30 @@ The existing Render service deployed the promoted main and passed read-only chec
 | Safety | No supplier/company/private semantics; no migration, workflow, bootstrap, mail, schedule, secret, Neon or extra Render operation |
 
 This certification used only read-only production verification after normal Render deployment. The annotated checkpoint tag `sheet-metal-market-reference-v1` is to be created at the final verified documentation checkpoint.
+
+## Phase 4A — Engineering Estimate Foundation V1
+
+**FEATURE_BRANCH_READY_FOR_REVIEW — DO NOT PROMOTE MAIN**
+
+Phase 4A is complete on `feat/engineering-estimate-foundation-v1`, based exactly on authoritative main `30192a4d5202675df11a2e00ee97f02d2c49537d`. It adds an independent, stateless and deterministic `SHEET_METAL` engineering estimator and does not alter the certified raw-material, machining or sheet-metal market semantics.
+
+| Status item | Result |
+| --- | --- |
+| Data chain | `ENGINEERING_INPUT → PHYSICAL_CALCULATION → PROCESS_WORKLOAD → ENGINEERING_ESTIMATE` kept separate from `OBSERVED_PUBLIC_DATA → DERIVED_MARKET_REFERENCE` |
+| Input contract | Strict top-level/nested allowlists; explicit geometry and enabled-process workload; structured validation for missing, invalid, zero/negative, integer, density, units, conflicting utilization/scrap, unexpected fields and rate modes |
+| Physical formulas | Area, volume, mm³-to-kg/m³ conversion, theoretical mass, explicit utilization/scrap adjustment and batch quantity |
+| Workload formulas | Cut m, pierce each, bend each, weld m, treated m² and quantity per batch |
+| Rate behavior | Default `NO_RATE` with every monetary field `null`; explicit `SYNTHETIC_TEST` only for deterministic fixtures; no company, supplier or market rates |
+| Market separation | `marketReference=null` and `marketAdjustmentFactor=null`; no market score multiplier or market API dependency |
+| UI/routing | Independent Traditional Chinese `/estimate`; `/estimate/` alias; `/estimate.html` 308 redirect; schema GET; estimate POST; real shared navigation link |
+| Existing API isolation | Existing raw-material/machining/sheet-metal paths remain unchanged and `engineeringEstimate=null` remains tested |
+| Persistence/operations | No schema change, migration, deployment, workflow, bootstrap, daily/weekly, mail, Gmail, schedule, secret or Neon operation |
+| Deterministic suite | PASS: **93 passed / 0 failed** |
+| Final gates | PASS: `npm ci`, `npm run check`, `npm test`, `npm run build`, `npm audit --omit=dev`, `git diff --check`; audit 0 vulnerabilities |
+| Visual review | PASS: local calculated desktop and 390×844 mobile; no horizontal overflow; null-cost and boundary labels readable |
+| Artifacts | `docs/visual-review/engineering-estimate-desktop.png`, `docs/visual-review/engineering-estimate-mobile.png`, `docs/visual-review/phase4a-capture-metrics.json`, `docs/visual-review/phase4a-visual-findings.md` |
+| Specification | `docs/ENGINEERING_ESTIMATE_FOUNDATION.md` |
+
+The final local example displayed 2.355 kg/part, 235.5 kg total material mass, 145 m total cut length, 800 pierces, 400 bends, one batch and 100 parts per batch. `NO_RATE` remained visibly null-cost rather than zero-cost; no synthetic fixture rate appeared in the UI. The mobile metrics recorded viewport width 390, document width 390, body width 390 and `horizontalOverflow=false`.
+
+Phase 4B remains unimplemented and requires a separate review for richer geometry, nesting/remnant, certified material properties, process-time models, internal/private rate governance, quotation inputs or ERP integration. No main promotion is authorized by this status entry.

@@ -12,6 +12,7 @@ const { getWeeklyPreview, getWeeklyWorkbook, generateWeeklyReport } = require(".
 const { readProductionStatus } = require("./lib/weekly/productionService");
 const { getMachiningReference } = require("./lib/machining/machiningService");
 const { getSheetMetalReference } = require("./lib/sheetMetal/sheetMetalService");
+const { createEngineeringEstimateResponse, createEngineeringSchemaResponse } = require("./lib/engineering/engineeringService");
 
 dns.setDefaultResultOrder("ipv4first");
 
@@ -19,6 +20,7 @@ const PORT = Number(process.env.PORT || 4173);
 const HOST = process.env.HOST || "0.0.0.0";
 const ROOT = __dirname;
 const MAX_QUERY_VALUE_LENGTH = 128;
+const MAX_JSON_BODY_LENGTH = 256 * 1024;
 
 const mimeTypes = {
   ".html": "text/html; charset=utf-8",
@@ -120,6 +122,7 @@ function resolveStaticPath(pathname) {
   if (pathname === "/") return "/index.html";
   if (pathname === "/machining" || pathname === "/machining/") return "/machining.html";
   if (pathname === "/sheet-metal" || pathname === "/sheet-metal/") return "/sheet-metal.html";
+  if (pathname === "/estimate" || pathname === "/estimate/") return "/estimate.html";
   return pathname;
 }
 
@@ -137,6 +140,10 @@ async function serveStatic(req, res) {
   }
   if (pathname === "/sheet-metal.html") {
     sendRedirect(res, 308, "/sheet-metal");
+    return;
+  }
+  if (pathname === "/estimate.html") {
+    sendRedirect(res, 308, "/estimate");
     return;
   }
   pathname = resolveStaticPath(pathname);
@@ -167,9 +174,57 @@ async function serveStatic(req, res) {
   }
 }
 
+function readJsonRequest(req) {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    let totalBytes = 0;
+    const chunks = [];
+    req.on("data", (chunk) => {
+      if (settled) return;
+      totalBytes += chunk.length;
+      if (totalBytes > MAX_JSON_BODY_LENGTH) {
+        settled = true;
+        const error = new Error("請求內容過大。");
+        error.statusCode = 413;
+        reject(error);
+        req.resume();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on("end", () => {
+      if (settled) return;
+      settled = true;
+      const raw = Buffer.concat(chunks).toString("utf8");
+      try {
+        resolve(raw ? JSON.parse(raw) : null);
+      } catch {
+        const error = new Error("請求內容必須是有效 JSON。");
+        error.statusCode = 400;
+        reject(error);
+      }
+    });
+    req.on("error", (error) => {
+      if (!settled) {
+        settled = true;
+        reject(error);
+      }
+    });
+  });
+}
+
+function sendEngineeringValidationError(res, error) {
+  sendJson(res, Number(error.statusCode) || 400, {
+    state: "VALIDATION_ERROR",
+    generatedAt: new Date().toISOString(),
+    errors: error.errors || [{ path: "input", code: "VALIDATION_ERROR", message: error.message }],
+    disclaimer: "工程估算基礎；非供應商報價、非公司目標價格、非實際公司成本，也不代表任何市場交易價格。",
+  });
+}
+
 async function handleRequest(req, res) {
-  if (req.method !== "GET") {
-    res.writeHead(405, { ...securityHeaders(), allow: "GET" });
+  if (req.method !== "GET" && req.method !== "POST") {
+    res.writeHead(405, { ...securityHeaders(), allow: "GET, POST" });
     res.end("Method Not Allowed");
     return;
   }
@@ -179,6 +234,37 @@ async function handleRequest(req, res) {
     requestUrl = new URL(req.url || "/", "http://localhost");
   } catch {
     sendJson(res, 400, { state: "API_ERROR", error: "網址格式錯誤" });
+    return;
+  }
+
+  if (requestUrl.pathname === "/api/engineering/estimate" || requestUrl.pathname === "/api/engineering/estimate/schema") {
+    if (requestUrl.pathname === "/api/engineering/estimate/schema" && req.method === "GET") {
+      sendJson(res, 200, createEngineeringSchemaResponse());
+      return;
+    }
+    if (requestUrl.pathname === "/api/engineering/estimate" && req.method === "POST") {
+      try {
+        const contentType = String(req.headers["content-type"] || "").toLowerCase();
+        if (!contentType.startsWith("application/json")) {
+          const error = new Error("Content-Type 必須為 application/json。");
+          error.statusCode = 415;
+          throw error;
+        }
+        sendJson(res, 200, createEngineeringEstimateResponse(await readJsonRequest(req)));
+      } catch (error) {
+        if (error.code === "VALIDATION_ERROR" || Array.isArray(error.errors)) sendEngineeringValidationError(res, error);
+        else sendApiError(res, error);
+      }
+      return;
+    }
+    res.writeHead(405, { ...securityHeaders(), allow: requestUrl.pathname.endsWith("/schema") ? "GET" : "POST" });
+    res.end("Method Not Allowed");
+    return;
+  }
+
+  if (req.method !== "GET") {
+    res.writeHead(405, { ...securityHeaders(), allow: "GET" });
+    res.end("Method Not Allowed");
     return;
   }
 
