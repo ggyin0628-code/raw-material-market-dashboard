@@ -299,3 +299,27 @@ The approved Phase 4A head `baaec1ba78c0c475d58ac3320c08e55829610e9b` was promot
 The production visual and payload evidence is recorded under `docs/visual-review/phase4a-production-verification.md`, `production-estimate-desktop.png`, `production-estimate-mobile.png` and `phase4a-production-capture-metrics.json`. The production page continues to expose engineering quantities only; it does not show supplier quotations, company cost parameters or market-derived prices.
 
 There is no Phase 4A production blocker. The existing owner-controlled `MAIL_CONFIGURATION_REQUIRED` notice remains a non-blocking health status and was not changed or triggered by this certification. Phase 4B remains separate future scope. The final documentation-only commit and annotated tag are the certification handoff records; they do not alter the verified runtime behavior.
+
+## Phase 4B — Private Cost Calibration & Process-Time Foundation V1
+
+**Status: FEATURE_BRANCH_READY_FOR_REVIEW — DO NOT PROMOTE MAIN — DO NOT IMPORT REAL PRIVATE DATA**
+
+| Item | Status |
+|---|---|
+| Feature branch | `feat/private-cost-calibration-foundation-v1`, based on certified Phase 4A main checkpoint `73f1c5ef14266ed162ff8f2127859b877e69a385` |
+| Scope | Architecture foundation and deterministic synthetic verification only |
+| Real private data | NONE requested, loaded, persisted, logged, committed, backed up or exposed |
+| Process family | `SHEET_METAL` only |
+| Process time | Explicit cutting, piercing, bending, welding and batch setup calibration; missing calibration is `CALIBRATION_REQUIRED`; surface treatment is `NO_MODEL` |
+| Private profile | Strict version/lifecycle contract; `PRIVATE_CALIBRATED` requires `ACTIVE`, safe metadata only, no raw rate return |
+| Authorization | Protected service requires authenticated identity, `engineering:private-cost` scope and audit logger; anonymous public API denied |
+| Public API/schema/UI | Public production remains `NO_RATE`; no private endpoint, raw rate field or private-rate input |
+| Market isolation | `marketReference=null`, `marketAdjustmentFactor=null`; existing market APIs remain outside private cost chain |
+| Storage decision | First real calibration should use local/private runtime; later multi-user use requires separate authenticated private service or protected database |
+| Security audit | Completed in `docs/phase4b-storage-authorization-audit.md`; OWASP/GitHub research saved in `docs/phase4b-security-research-notes.md` |
+| Tests | **105 passed / 0 failed** |
+| Gates | `npm ci`, `npm run check`, `npm test`, `npm run build`, `npm audit --omit=dev`, `git diff --check` passed; 0 vulnerabilities |
+| Visual review | Desktop and 390×844 local screenshots; calibration-required, NO_RATE, no private-rate UI and no horizontal overflow |
+| Production operations | NONE: no migration, schema change, workflow, deployment, Render config, schedule, bootstrap, daily/weekly, backfill, mail, Gmail, secret, Neon or real-data operation |
+
+The detailed foundation is documented in `docs/PRIVATE_COST_CALIBRATION_FOUNDATION.md`. The feature is intentionally blocked from real private-rate onboarding until identity, authorization, encryption and key management, private storage, backup/restore, profile approval and revocation, audit trail, leakage scans, calibration reconciliation and independent production certification are complete. Existing Phase 4A production certification and annotated checkpoint remain unchanged.

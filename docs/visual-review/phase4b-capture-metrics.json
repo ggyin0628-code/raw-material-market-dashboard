@@ -1,0 +1,38 @@
+[
+  {
+    "name": "phase4b-estimate-desktop",
+    "viewport": {
+      "width": 1440,
+      "height": 1000
+    },
+    "documentWidth": 1440,
+    "bodyWidth": 1440,
+    "horizontalOverflow": false,
+    "status": "已完成 SHEET_METAL 工程量計算；成本模式 NO_RATE。",
+    "hasNoRate": true,
+    "hasCalibrationRequired": true,
+    "hasPrivateBoundary": true,
+    "hasPrivateRateInput": false,
+    "hasTimeCard": true,
+    "hasFormulaTrace": true,
+    "quantities": true
+  },
+  {
+    "name": "phase4b-estimate-mobile",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "documentWidth": 390,
+    "bodyWidth": 390,
+    "horizontalOverflow": false,
+    "status": "已完成 SHEET_METAL 工程量計算；成本模式 NO_RATE。",
+    "hasNoRate": true,
+    "hasCalibrationRequired": true,
+    "hasPrivateBoundary": true,
+    "hasPrivateRateInput": false,
+    "hasTimeCard": true,
+    "hasFormulaTrace": true,
+    "quantities": true
+  }
+]

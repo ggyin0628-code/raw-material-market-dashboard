@@ -67,6 +67,14 @@ function renderCost(cost, rateProfile) {
   if (rateProfile.mode === "NO_RATE") return `<div class="estimate-cost"><strong>尚未設定成本參數</strong>目前為 NO_RATE；所有貨幣欄位保持 null，不呈現任何假價格或公司成本。</div>`;
   return `<div class="estimate-cost"><strong>SYNTHETIC / DEMO / TEST ONLY</strong>此模式只供 deterministic tests；成本不是市場價格、公司成本或供應商報價。總額：${escapeHtml(formatNumber(cost.totalEstimatedCost))}</div>`;
 }
+function renderProcessTime(processTime) {
+  if (!processTime || processTime.state !== "CALCULATED") return `<div class="estimate-cost"><strong>尚未載入製程時間校正參數</strong>目前不猜測切割速度、每折秒數、焊接速度、setup 或操作效率；製程時間欄位保持 null。</div>`;
+  return `<div class="estimate-metric-grid">
+    ${renderMetric("總 setup 時間", processTime.overall.totalSetupMinutes, "min")}
+    ${renderMetric("總 run 時間", processTime.overall.totalRunMinutes, "min")}
+    ${renderMetric("總製程時間", processTime.overall.totalProcessMinutes, "min")}
+  </div>`;
+}
 function renderResult(payload) {
   const estimate = payload.estimate;
   const physical = estimate.physical;
@@ -98,6 +106,7 @@ function renderResult(payload) {
       ${renderMetric("批次數", workload.batchCount, "批")}
       ${renderMetric("每批數量", workload.quantityPerBatch, "件／批")}
     </div></section>
+    <section class="estimate-result-section"><h3>製程時間</h3>${renderProcessTime(estimate.processTimeEstimate)}</section>
     <section class="estimate-result-section"><h3>成本估算</h3>${renderCost(costs, estimate.rateProfile)}</section>
     <section class="estimate-result-section"><h3>警示與資料邊界</h3>${warnings}</section>
     <section class="estimate-result-section"><details><summary><strong>查看公式與計算依據</strong></summary><ol class="estimate-trace-list">${trace}</ol></details></section>

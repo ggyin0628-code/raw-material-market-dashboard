@@ -274,8 +274,9 @@ test("production HTTP rejects synthetic rates while retaining NO_RATE, omitted p
   assert.equal(nonProduction.estimate.costBreakdown.totalEstimatedCost, 2006);
 
   const privateRejected = await capture("POST", "/api/engineering/estimate", JSON.stringify(input({ rateProfile: { mode: "PRIVATE_CALIBRATED" } })), { "content-type": "application/json" }, production);
-  assert.equal(privateRejected.statusCode, 400);
-  assert.ok(parse(privateRejected).errors.some((error) => error.code === "UNSUPPORTED_RATE_MODE"));
+  assert.equal(privateRejected.statusCode, 403);
+  assert.equal(parse(privateRejected).code, "PRIVATE_CALIBRATED_NOT_AVAILABLE_ON_PUBLIC_API");
+  assert.ok(parse(privateRejected).errors.some((error) => error.code === "PRIVATE_CALIBRATED_NOT_AVAILABLE_ON_PUBLIC_API"));
 });
 
 test("engineering API method gates preserve GET-only legacy routes and POST-only estimate route", async () => {

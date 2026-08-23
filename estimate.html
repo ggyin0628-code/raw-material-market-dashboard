@@ -49,16 +49,16 @@
             <fieldset><legend>材料利用與成本參數</legend><div class="estimate-fields">
               <div class="estimate-field"><label for="materialUtilizationPct">材料利用率（%，可選）</label><input id="materialUtilizationPct" type="number" min="0.000001" max="100" step="any" placeholder="不填不假設排版效率"></div>
               <div class="estimate-field"><label for="scrapPct">損耗率（%，可選）</label><input id="scrapPct" type="number" min="0" max="99.999999" step="any" placeholder="與利用率互斥"></div>
-              <div class="estimate-field full"><small>成本模式固定為 <strong>NO_RATE</strong>：未載入公司成本參數。SYNTHETIC_TEST 僅由 deterministic tests 使用，不在此 production-like UI 顯示。</small></div>
+              <div class="estimate-field full"><small>成本模式固定為 <strong>NO_RATE</strong>：未載入公司成本參數。SYNTHETIC_TEST 僅由 deterministic tests 使用，不在此 production-like UI 顯示。尚未載入製程時間校正參數；公開頁面不接受 private rate。</small></div>
             </div></fieldset>
             <div class="estimate-actions"><button type="submit">計算工程量</button><button id="estimateReset" type="button" class="secondary">清除結果</button></div>
           </form>
         </section>
-        <section class="estimate-panel" aria-label="工程估算結果"><h2>工程估算結果</h2><p>結果分成物理量、製造工作量與成本結構；金額欄位在 NO_RATE 下保持 null。計算後可展開「公式與計算依據」查看每個數字的輸入、單位轉換與公式。</p>
+        <section class="estimate-panel" aria-label="工程估算結果"><h2>工程估算結果</h2><p>結果分成物理量、製造工作量、製程時間與成本結構；金額欄位在 NO_RATE 下保持 null。沒有受核准的時間校正參數時，不猜測速度、setup 或操作效率。計算後可展開「公式與計算依據」查看每個數字的輸入、單位轉換與公式。</p>
           <div id="estimateResult" class="estimate-result-grid"><div class="estimate-cost"><strong>尚未計算</strong>請先輸入工程條件並按下「計算工程量」。</div></div>
         </section>
       </div>
-      <p class="estimate-footer-note">本頁是 ENGINEERING_INPUT → PHYSICAL_CALCULATION → PROCESS_WORKLOAD → ENGINEERING_ESTIMATE 的獨立基礎層，不會把市場壓力轉成價格，也不會改寫原物料、加工市場或鈑金市場 API。</p>
+      <p class="estimate-footer-note">本頁是 ENGINEERING_INPUT → PHYSICAL_CALCULATION → PROCESS_WORKLOAD → PROCESS_TIME_ESTIMATE → ENGINEERING_ESTIMATE 的公開基礎層；未載入校正參數時不猜測製程時間，PRIVATE_CALIBRATED 不在 anonymous public API/UI 啟用。不會把市場壓力轉成價格，也不會改寫原物料、加工市場或鈑金市場 API。</p>
     </main>
     <script src="/nav.js"></script><script src="/estimate.js"></script>
   </body>
