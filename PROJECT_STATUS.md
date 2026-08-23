@@ -2,13 +2,13 @@
 
 ## Status verdict
 
-**WEEKLY_REPORT_PRESENTATION_REDESIGN_READY**
+**WEEKLY_REPORT_PRESENTATION_REDESIGN_COMPLETE**
 
-**OFFLINE_GAPS = 0**
+**PRODUCTION_GMAIL_SMTP_TEST = PASS**
 
 **CODEX_HANDOFF_READY = YES**
 
-The existing bootstrap-performance certification remains valid. The current change is a presentation-layer-only weekly report redesign; production weekly remains on the existing Gmail SMTP provider. No market logic, analytics thresholds, quality semantics, Neon schema, three-year bootstrap behavior, purchasing-reference boundary or mail architecture was changed.
+The approved procurement-management weekly report presentation redesign is complete, committed and pushed to `main`. The authoritative final presentation main SHA is `8a9fd80c30a339b9eeea1a176c174459368a39b9`. The existing Gmail SMTP live test also succeeded: the HTML email was received and the XLSX attachment was received.
 
 ## Delivery identity
 
@@ -17,73 +17,69 @@ The existing bootstrap-performance certification remains valid. The current chan
 | Repository | `ggyin0628-code/raw-material-market-dashboard` |
 | Authoritative baseline | `8390a0234fb5d18e28e100ee1ff40750b6b0d95e` |
 | Existing bootstrap remediation | `fix/bootstrap-performance-v1` / `bootstrap-performance-certified-v1` |
-| New feature branch | `feat/outlook-graph-mail-v1` |
-| Graph implementation SHA | `1372244d6cb32f696378595f53b6c6072678674f` |
-| Existing promoted main SHA | `586dea1d33cf8e1873213fcd0d8ed8f138db1962` before presentation finalization |
-| Presentation finalization | Pending commit/push after approved preview |
-| Current weekly provider | Gmail SMTP; `MAIL_PROVIDER=smtp` |
-| Main promotion | Required fast-forward only; no force push |
-| Schedule state | Not enabled or modified; `PRODUCTION_SCHEDULES_ENABLED` remains owner-controlled and off/absent |
-| Live mail state | Not triggered; no Microsoft OAuth exchange or Graph send performed by this change |
+| Final presentation main SHA | `8a9fd80c30a339b9eeea1a176c174459368a39b9` |
+| Presentation status | Approved, committed and pushed; no longer pending |
+| Active production mail provider | Gmail SMTP; `MAIL_PROVIDER=smtp` |
+| Gmail live test | PASS: HTML received and XLSX attachment received |
+| Microsoft Graph | Historical/inactive only; not the production provider |
+| Bootstrap | Complete; must not be rerun |
+| Schedule state | Owner-controlled; not enabled or modified by this cleanup |
+| Company data / company mail integration | None |
 | Paid resources / deployment | None added / not performed |
 
-## Permanent product and data boundary
+## Permanent product, data and mail boundary
 
-This is an **external public market intelligence and purchasing-reference platform**. Only public external market observations, public-source provenance, canonical quality states and derived public reports may be stored. SAP, company procurement history, supplier quotations or names, company target prices, private thresholds, inventory, MOQ, payment terms, company email systems, private mappings, credentials and private runtime reports remain permanently out of scope. The account boundary is the owner’s personal `ggyin0628@hotmail.com`; company Microsoft 365 is prohibited.
+This is an **external public market intelligence and purchasing-reference platform**. Only public external market observations, public-source provenance, canonical quality states and derived public reports may be stored. SAP, company procurement history, supplier quotations or names, company target prices, private thresholds, inventory, MOQ, payment terms, company email systems, private mappings, credentials and private runtime reports remain permanently out of scope.
+
+The active production mail provider is the existing owner-configured Gmail SMTP path. No company Microsoft 365 integration is present or required. GitHub Actions secret values must not be read, printed, exported, rotated or modified by this project state cleanup.
 
 ## Existing bootstrap certification retained
 
-The cancelled `Market Production Bootstrap #1` run `32609131444` on baseline main completed setup, checkout, dependency installation, code validation, migration and storage check in approximately 14 seconds, then occupied the 30-minute safety ceiling in `Bootstrap public history`. The bottleneck was **BOTH**: sequential public-history fetching and per-record PostgreSQL lookup/write round-trips.
+The cancelled `Market Production Bootstrap #1` run `32609131444` on the original baseline completed setup, checkout, dependency installation, code validation, migration and storage readiness in approximately 14 seconds, then occupied the 30-minute safety ceiling in `Bootstrap public history`. The bottleneck was **BOTH**: sequential public-history fetching and per-record PostgreSQL lookup/write round-trips.
 
-The existing remediation kept the complete `--period 3y` bootstrap and 30-minute safety ceiling, added bounded fetch concurrency 3 (cap 4), default Postgres batch upsert size 250 (cap 500), one parameterized multi-row transaction per batch, status-quality preservation, chunk resumability and safe progress. Run `32611318090` established the successful promoted-main Neon bootstrap, and run `32611472483` verified final callback-forwarded batch telemetry. Both were bootstrap-only, with no weekly mail and no schedule activation. No bootstrap rerun is needed for this Graph change.
+The remediation kept the complete `--period 3y` bootstrap and 30-minute safety ceiling, added bounded fetch concurrency 3 (cap 4), default Postgres batch upsert size 250 (cap 500), one parameterized multi-row transaction per batch, status-quality preservation, chunk resumability and safe progress. Run `32611318090` established the successful promoted-main Neon bootstrap, and run `32611472483` verified final callback-forwarded batch telemetry. Bootstrap is complete. **Do not rerun bootstrap for this documentation cleanup or for the presentation redesign.**
 
-## Historical isolated Graph implementation (not active in production weekly)
+## Production weekly mail state
 
-The production weekly workflow currently sets `MAIL_PROVIDER=smtp`, `MAIL_HOST=smtp.gmail.com`, `MAIL_PORT="465"`, `MAIL_SECURE="true"`, `MAIL_USER`, `MAIL_PASSWORD`, `MAIL_FROM`, `MAIL_TO` and `MAIL_TEST_TO`. Microsoft Graph implementation files from an earlier isolated experiment remain outside the production weekly workflow and are not used by it. The existing SMTP mail architecture is unchanged.
+The production weekly workflow remains on Gmail SMTP with the existing `MAIL_USER`, `MAIL_PASSWORD`, `MAIL_FROM`, `MAIL_TO` and `MAIL_TEST_TO` secret references, the existing Gmail host/port/security settings and unchanged `WEEKLY_MAIL_TEST_MODE` behavior. The owner-confirmed manual Gmail test is complete and successful: the HTML email was received, and the XLSX attachment was received.
 
-The Graph provider exchanges the delegated refresh token for an access token in memory and posts the existing report as JSON to `/me/sendMail`. It requests only `offline_access` and `https://graph.microsoft.com/Mail.Send`. The XLSX is encoded as a `#microsoft.graph.fileAttachment` with base64 `contentBytes`. Graph `202 Accepted` records `TEST_SENT` or `SENT`; `401`, `403`, refresh-token failure, malformed payload and config errors are explicit redacted failures. `429`, `5xx`, bounded network errors and timeouts use bounded retry. No response body, OAuth token or recipient list is logged or stored in the ledger, and there is no silent SMTP fallback.
+The manual Gmail test is already complete and must not be listed as a next action. This documentation-only cleanup did not send email or trigger the weekly workflow.
 
-`MAIL_TEST_MODE=1` forwards only `MAIL_TEST_TO` and omits production CC／Reply-To. The delivery ledger and duplicate guard are unchanged. `production:weekly` now prints a concise safe summary containing reporting week, quality state/counts, provider/mail state, recipient/attachment counts, artifact basenames and duration; it no longer dumps the full report/history payload.
+Microsoft Graph is historical/inactive only. Earlier Graph implementation files or references are not an active production dependency and do not change the current Gmail SMTP architecture. No company Microsoft 365 or company mail integration is part of the system.
 
-## Historical Graph helper (not required by current production weekly)
+## Presentation redesign state
 
-`npm run microsoft:oauth` is a one-time owner-controlled device-code helper. It uses the `consumers` authority, prints only a verification URL, transient user code, tenant, scopes and output path, refuses repository output, writes a mode-600 refresh-token file outside the repository, and never prints access or refresh tokens. The owner must register **Personal Microsoft accounts** only, add delegated Microsoft Graph `Mail.Send` only, sign in as `ggyin0628@hotmail.com`, store the client ID and refresh token in Actions secrets, and delete the temporary file. No client secret, application permission or corporate Microsoft 365 account is used.
+The approved procurement-management redesign is committed and pushed at main SHA `8a9fd80c30a339b9eeea1a176c174459368a39b9`. It includes the accepted HTML and XLSX presentation: four KPI cards, weekly change overview, procurement review priorities, category momentum, signal distribution, compact prioritized detail sheet, filters, frozen headers, alternating row shading, directional indicators, warning/data-quality highlighting and a bottom disclaimer.
+
+The accepted offline `2026-W33` preview was generated from synthetic public-safe fixture data with zero network calls and no mail send. Presentation changes did not alter market collection, calculations, `weeklyChangePct`, `fourWeekChangePct`, signals, reason codes, quality gate, Neon/PostgreSQL, bootstrap, mail delivery, recipients, GitHub Actions or schedules.
 
 ## Validation status
 
-| Gate | Result |
+| Gate or production state | Result |
 | --- | --- |
-| Existing bootstrap/storage/report suite | PASS: 43 passed / 0 failed before Graph additions |
-| Outlook Graph deterministic suite | PASS: 53 passed / 0 failed |
-| OAuth token refresh | PASS: mocked consumers endpoint, required scopes, explicit refresh failure |
-| Graph sendMail | PASS: mocked `202`, HTML body and XLSX fileAttachment |
-| Graph HTTP failures | PASS: mocked `401`, `403`, `429`, `500`, `503`; sanitized and bounded |
-| Test recipient isolation | PASS: only `MAIL_TEST_TO`; production recipients and SMTP not called |
-| Duplicate guard | PASS: `TEST_SENT` week returns `DUPLICATE_PREVENTED` |
-| OAuth secret redaction | PASS: tokens and authorization values absent from result/ledger/error output |
-| Device-code helper | PASS: mocked polling, consumers scopes, no token print, repository-output rejection |
-| Concise CLI output | PASS: full report/history excluded |
-| Local gates | PASS: `npm ci`, check, explicit syntax, test, build, audit, YAML, diff check and security scan |
-| Neon/bootstrap | UNCHANGED / not rerun |
-| Weekly live mail | NOT PERFORMED |
-| Schedule activation | NOT PERFORMED; gate remains off/absent |
+| Presentation redesign preview | PASS: approved offline `2026-W33` preview |
+| Final presentation main SHA | `8a9fd80c30a339b9eeea1a176c174459368a39b9` |
+| Deterministic regression suite | PASS: 53 passed / 0 failed |
+| `npm ci`, check and syntax | PASS |
+| Build, audit and YAML validation | PASS |
+| Presentation scope guard | PASS |
+| Protected runtime unchanged | PASS |
+| Gmail SMTP live test | PASS: HTML email received |
+| XLSX live attachment receipt | PASS: attachment received |
+| Microsoft Graph production use | INACTIVE / historical only |
+| Bootstrap / Neon state | COMPLETE; no rerun required |
+| Weekly workflow triggered by cleanup | NO |
+| Email sent by cleanup | NO |
+| Schedule activation by cleanup | NO |
+| Company data / company mail integration | NONE |
 
-All external Microsoft calls are mocked in tests. No real Microsoft OAuth exchange, Graph sendMail, weekly workflow, bootstrap rerun, schedule activation, Neon write or Actions secret operation was performed for this change.
+## Next operational certification
 
-## Presentation finalization and preview
-
-The approved `2026-W33` offline preview contains the new procurement-management HTML/XLSX presentation and was generated with synthetic public-safe fixture data, zero network calls and `mailSent=false`. The presentation finalization must be committed and pushed to `main`; no workflow or email is part of that action.
-
-## Next owner action
-
-> Run exactly one `Market Weekly Intelligence Report` manually while `WEEKLY_MAIL_TEST_MODE=1`, verify the received Gmail HTML report and XLSX attachment, then set `PRODUCTION_SCHEDULES_ENABLED=1`.
-
-The remediation agent must not trigger this workflow, send mail, modify the schedule variable or handle the refresh token.
+The next operational certification is owner-controlled schedule enablement. When the owner is ready, set `PRODUCTION_SCHEDULES_ENABLED=1` to activate the existing production schedule gate. The Gmail test and HTML/XLSX receipt verification are already complete and must not be repeated as part of this cleanup. No bootstrap rerun, Microsoft Graph setup, company mail integration or additional email is required.
 
 ## References
 
-[1]: https://learn.microsoft.com/en-us/graph/api/user-sendmail?view=graph-rest-1.0 "Microsoft Graph user: sendMail"
-[2]: https://learn.microsoft.com/en-us/entra/identity-platform/v2-oauth2-device-code "Microsoft identity platform OAuth 2.0 device authorization grant"
-[3]: https://learn.microsoft.com/en-us/graph/auth-register-app-v2 "Register an application with the Microsoft identity platform"
-[4]: https://learn.microsoft.com/en-us/entra/identity-platform/scopes-oidc "Scopes and permissions in the Microsoft identity platform"
-[5]: https://github.com/ggyin0628-code/raw-material-market-dashboard/commit/1372244d6cb32f696378595f53b6c6072678674f "Graph implementation SHA"
+[1]: https://github.com/ggyin0628-code/raw-material-market-dashboard/actions/runs/32609131444 "Cancelled bootstrap run"
+[2]: https://github.com/ggyin0628-code/raw-material-market-dashboard/actions/runs/32611318090 "Successful promoted-main bootstrap"
+[3]: https://github.com/ggyin0628-code/raw-material-market-dashboard/actions/runs/32611472483 "Bootstrap batch telemetry verification"
+[4]: https://github.com/ggyin0628-code/raw-material-market-dashboard/commit/8a9fd80c30a339b9eeea1a176c174459368a39b9 "Final presentation main commit"
