@@ -86,7 +86,7 @@ The next operational certification is owner-controlled schedule enablement. When
 
 ## Phase 2A — CNC／一般加工公開市場參考 V1
 
-**FEATURE_BRANCH_READY_FOR_REVIEW**
+**PROMOTED_TO_MAIN_RENDER_VERIFIED**
 
 功能分支 `feat/machining-market-reference-v1` 已完成 CNC／一般加工公開市場參考 V1；首個完整功能 commit SHA 為 `57ccdbf08908f062b3e4b88164986373a59db92b`。新增 canonical 頁面 `/machining` 與 API `/api/machining/reference`，以台灣優先的外部公開指標提供材料、能源、勞動、匯率、製造價格及機械／資本代理構面；結果只表達外部成本壓力方向，不是供應商報價、公司目標價格或任何採購核決。
 
@@ -106,4 +106,4 @@ The next operational certification is owner-controlled schedule enablement. When
 
 本次窄幅 refinement 將 `/machining` 設為 canonical user-facing URL；`/machining/` 同樣服務加工頁，內部 `/machining.html` 只作安全靜態檔案解析並導向 `/machining`。原物料首頁與加工頁現在共用可重用的雙項導覽基礎：`原物料市場 → /`、`加工市場參考 → /machining`；未建立 Sheet Metal、Weekly 或 Sources 假頁面。加工內容仍維持獨立頁，不嵌入原物料首頁。
 
-視覺審查工件已存於 `docs/visual-review-machining-desktop.png`、`docs/visual-review-machining-mobile.png`、`docs/visual-review-homepage-navigation.png`，審查摘要位於 `docs/visual-review-notes.md`。本次完成後仍未部署或推進 main。
+視覺審查工件已存於 `docs/visual-review-machining-desktop.png`、`docs/visual-review-machining-mobile.png`、`docs/visual-review-homepage-navigation.png`，審查摘要位於 `docs/visual-review-notes.md`。本次已依核准以純 fast-forward 將 main 從 `902af25eac2d29439e2021c348041b25e21d8d7d` 推進至 `976df477f1b7c12265150c9c5a72e1bada7607f8` 並推送。既有 Render 服務已自動部署並完成唯讀驗證：首頁、`/machining`、`/machining/`、`/api/machining/reference`、`/health` 與 `/health/weekly` 均正常；`/machining.html` 回傳 308 導向 `/machining`。Render readiness 為 `WEB_READY`、`DATABASE_READY`、`storage.ready=true`；沒有手動觸發 Actions、寄信、重跑 bootstrap、修改 Neon、schedules 或 secrets。

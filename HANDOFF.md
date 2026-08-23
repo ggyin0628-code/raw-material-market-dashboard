@@ -74,7 +74,7 @@ The next operational certification is for the owner to enable the existing sched
 
 ## Phase 2A — CNC／一般加工公開市場參考 V1
 
-**狀態：FEATURE_BRANCH_READY_FOR_REVIEW**
+**狀態：PROMOTED_TO_MAIN_RENDER_VERIFIED**
 
 本功能在 `feat/machining-market-reference-v1` 上完成，基於本文件所列的正式生產 checkpoint 建立；首個完整功能 commit 為 `57ccdbf08908f062b3e4b88164986373a59db92b`。它新增獨立的 `machining.html` 頁面與 `GET /api/machining/reference` API，使用台灣優先的外部公開指標觀察加工成本壓力方向；不產生供應商報價、不產生公司目標價格，也不估算加工時薪、循環時間或機台內部成本。
 
@@ -104,4 +104,4 @@ The next operational certification is for the owner to enable the existing sched
 
 新增 deterministic routing/navigation 測試涵蓋 `/machining`、`/machining/`、`.html` redirect、active navigation 與禁止假頁面；最終完整 suite 為 63 passed / 0 failed。視覺審查工件為 `docs/visual-review-machining-desktop.png`、`docs/visual-review-machining-mobile.png`、`docs/visual-review-homepage-navigation.png`，摘要為 `docs/visual-review-notes.md`。
 
-本次僅完成本地驗證與功能分支更新，未部署、未修改 production schedules、Neon、Gmail、bootstrap、secrets 或 certified production paths，也未推進 main。
+本次已依核准以純 fast-forward 將 main 從 `902af25eac2d29439e2021c348041b25e21d8d7d` 推進至 `976df477f1b7c12265150c9c5a72e1bada7607f8`，並推送至 GitHub；沒有 force push 或 history rewrite。既有 Render 服務 `https://raw-material-market-dashboard-1.onrender.com` 已由 main 自動部署並完成唯讀驗證：`/`、`/machining`、`/machining/`、`/api/machining/reference`、`/health` 與 `/health/weekly` 均正常，`/machining.html` 回傳 308 並導向 `/machining`。Render 回報 `WEB_READY`、`DATABASE_READY`、`storage.ready=true`；`MAIL_CONFIGURATION_REQUIRED` 仍是 Render 僅作 dashboard hosting 的預期狀態。本次未修改 production schedules、Neon、Gmail、bootstrap、secrets 或 certified production paths，也未手動觸發 Actions。
