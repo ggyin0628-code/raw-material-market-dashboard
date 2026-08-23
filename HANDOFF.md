@@ -271,3 +271,34 @@ A narrow safety correction was applied on `feat/engineering-estimate-foundation-
 | Production operations | NONE: no main promotion, deployment, migration, workflow, bootstrap, daily/weekly, backfill, mail, Gmail, schedule, secret or Neon operation |
 
 The Phase 4A UI remains NO_RATE-only and continues to show `尚未設定成本參數`, `非供應商報價` and `未載入公司成本參數`; no synthetic-rate input panel was added. The technical specification was updated to distinguish the internal test-only mode from the production HTTP allowlist. The feature branch remains pending explicit review and must not be promoted to `main`.
+
+## Phase 4A — Engineering Estimate Foundation V1 production certification
+
+**PHASE_4A_ENGINEERING_ESTIMATE_FOUNDATION_PRODUCTION_PASS**
+
+The approved Phase 4A head `baaec1ba78c0c475d58ac3320c08e55829610e9b` was promoted from authoritative main `30192a4d5202675df11a2e00ee97f02d2c49537d` by pure fast-forward. The existing Render service automatically deployed from `main`; no new Render service was created. The final documentation checkpoint SHA will be recorded by the follow-up documentation commit and annotated tag `engineering-estimate-foundation-v1`.
+
+| Production certification item | Result |
+| --- | --- |
+| Promotion SHA | `baaec1ba78c0c475d58ac3320c08e55829610e9b` |
+| Final main SHA | To be recorded at the final documentation checkpoint commit |
+| Render deployment | PASS: existing Render service auto-deployed from main and became available for read-only verification |
+| Routing | PASS: `/`, `/machining`, `/sheet-metal`, `/estimate`, `/estimate/`, `/api/engineering/estimate/schema`, `/health` and `/health/weekly` returned HTTP 200; `/estimate.html` returned HTTP 308 to `/estimate` |
+| Production schema | PASS: `runtime.environment=production`; `runtime.allowedRateModes=["NO_RATE"]`; `schema.rateProfile.allowedModes=["NO_RATE"]`; `SYNTHETIC_TEST` appears only in test-only metadata; `PRIVATE_CALIBRATED` remains unavailable |
+| Explicit NO_RATE POST | PASS: HTTP 200; safe fixture returned all monetary fields `null`, `marketReference=null` and `marketAdjustmentFactor=null` |
+| Omitted rateProfile POST | PASS: HTTP 200; production defaulted safely to `NO_RATE` with all monetary fields `null` |
+| Synthetic negative POST | PASS: one intentional HTTP 400 request returned `state=VALIDATION_ERROR`, top-level `code=SYNTHETIC_RATE_NOT_ALLOWED_IN_PRODUCTION`, structured path `input.rateProfile.mode`, test/demo-only message and no `estimate` object |
+| Physical reference fixture | PASS: `blankMassKgPerPart=2.355 kg`, `theoreticalTotalBlankMassKg=235.5 kg`, `totalMaterialMassKg=235.5 kg`, with no utilization/scrap input |
+| Workload reference fixture | PASS: `totalCutLengthM=145`, `totalPierceCount=800`, `totalBendCount=400`, `totalWeldLengthM=0`, `totalTreatedAreaM2=0`, `batchCount=1`, `quantityPerBatch=100` |
+| Formula trace | PASS: 10 principal trace entries with formulas, explicit inputs, conversions and units `mm`, `mm²`, `mm³`, `m`, `m²`, `kg` |
+| Hidden adjustments | PASS: no hidden nesting, scrap, utilization, market adjustment, supplier margin or company rate; omitted utilization/scrap kept total material mass equal to theoretical mass |
+| Market isolation | PASS: `/api/machining/reference?force=true` and `/api/sheet-metal/reference?force=true` returned HTTP 200; both retained `reference.engineeringEstimate=null` and no engineering price injection |
+| Production health | PASS: `/health` and `/health/weekly` returned top-level `status=OK`; existing readiness and durable storage remained available; no health operation triggered mail or scheduled work |
+| Production UI | PASS: `/estimate` desktop and 390×844 mobile screenshots show readable inputs, quantities, formula trace, NO_RATE null-cost state and boundary labels; no horizontal overflow, synthetic-rate panel, company-rate UI or fake price output |
+| Regression and security gates | PASS: **94 passed / 0 failed**; `npm ci`, check, build, audit and diff check passed; audit reported 0 vulnerabilities |
+| Database/schema | PASS: stateless Phase 4A introduced no database schema; no migration was required or run |
+| Private/company/supplier rates | NONE introduced |
+
+The production verification record and screenshots are preserved in `docs/visual-review/phase4a-production-verification.md`, `production-estimate-desktop.png`, `production-estimate-mobile.png` and `phase4a-production-capture-metrics.json`. Existing public market outputs retain their established states and provenance; this certification does not reinterpret market references as engineering prices.
+
+No production workflow, migration, bootstrap, daily/weekly job, backfill, mail, Gmail, schedule, secret or Neon operation was performed. The only remaining non-blocking operational notice is the existing owner-controlled `MAIL_CONFIGURATION_REQUIRED` health warning. Phase 4B remains a separate future scope for richer geometry, nesting/remnant, certified properties, process-time models, private-rate governance, quotations or ERP integration.

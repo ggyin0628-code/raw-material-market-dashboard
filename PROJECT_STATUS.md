@@ -269,3 +269,32 @@ A narrow production-safety correction is complete on `feat/engineering-estimate-
 | Production operations | NONE: no deploy, main promotion, migration, Neon, workflow, bootstrap, daily/weekly, mail, Gmail, schedule or secret operation |
 
 The authoritative production main remains `30192a4d5202675df11a2e00ee97f02d2c49537d`. This correction must be reviewed separately and must not be promoted automatically.
+
+## Phase 4A — Engineering Estimate Foundation V1 production certification
+
+**PHASE_4A_ENGINEERING_ESTIMATE_FOUNDATION_PRODUCTION_PASS**
+
+The approved Phase 4A head `baaec1ba78c0c475d58ac3320c08e55829610e9b` was promoted from authoritative main `30192a4d5202675df11a2e00ee97f02d2c49537d` by pure fast-forward to main. The existing Render service automatically deployed the promoted main. No new Render service was created, and no database migration was required because Phase 4A is stateless and introduces no schema.
+
+| Status item | Result |
+|---|---|
+| Promotion SHA | `baaec1ba78c0c475d58ac3320c08e55829610e9b` |
+| Final main SHA | To be recorded at the final documentation checkpoint commit |
+| Render deployment | PASS: existing service deployed normally from main and became available for read-only checks |
+| Routing | PASS: `/`, `/machining`, `/sheet-metal`, `/estimate`, `/estimate/`, schema endpoint, `/health` and `/health/weekly` returned HTTP 200; `/estimate.html` returned HTTP 308 to `/estimate` |
+| Production schema | PASS: `runtime.environment=production`; runtime and schema allowed modes are `NO_RATE` only; `SYNTHETIC_TEST` is test-only metadata; `PRIVATE_CALIBRATED` unavailable |
+| Production NO_RATE POST | PASS: HTTP 200; physical/workload fixture matched; every monetary field was `null`; `marketReference` and `marketAdjustmentFactor` were `null` |
+| Omitted rateProfile | PASS: HTTP 200; safe production default `NO_RATE`; every monetary field `null` |
+| Production synthetic rejection | PASS: one intentional HTTP 400; `state=VALIDATION_ERROR`; top-level code `SYNTHETIC_RATE_NOT_ALLOWED_IN_PRODUCTION`; path `input.rateProfile.mode`; no estimate or synthetic money returned |
+| Physical/workload fixture | PASS: 2.355 kg/part; 235.5 kg theoretical and total material mass; 145 m cut; 800 pierces; 400 bends; 0 m weld; 0 m² treatment; batch 1; 100 parts/batch |
+| Formula trace | PASS: 10 entries; formulas, input values, conversions and explicit units retained |
+| Hidden factors | PASS: no hidden nesting, scrap, utilization, market multiplier, supplier margin or company rate; omitted utilization/scrap equals theoretical mass |
+| Existing market isolation | PASS: machining and sheet-metal force-reference APIs returned HTTP 200 and kept `reference.engineeringEstimate=null` |
+| Health | PASS: `/health` and `/health/weekly` top-level `status=OK`; existing readiness and durable storage remained available |
+| Production UI | PASS: desktop and 390×844 mobile; readable form/results, formula trace, NO_RATE and boundary labels; no horizontal overflow or synthetic/company rate UI |
+| Regression / audit | PASS: **94 passed / 0 failed**; all required gates passed; 0 vulnerabilities |
+| Production operations | No migration, workflow, bootstrap, daily/weekly, backfill, mail, Gmail, schedule, secret, Neon or extra Render operation |
+
+The production visual and payload evidence is recorded under `docs/visual-review/phase4a-production-verification.md`, `production-estimate-desktop.png`, `production-estimate-mobile.png` and `phase4a-production-capture-metrics.json`. The production page continues to expose engineering quantities only; it does not show supplier quotations, company cost parameters or market-derived prices.
+
+There is no Phase 4A production blocker. The existing owner-controlled `MAIL_CONFIGURATION_REQUIRED` notice remains a non-blocking health status and was not changed or triggered by this certification. Phase 4B remains separate future scope. The final documentation checkpoint SHA and annotated tag `engineering-estimate-foundation-v1` must be created only after this documentation update is verified.

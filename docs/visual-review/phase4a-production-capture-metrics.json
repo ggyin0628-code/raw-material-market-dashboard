@@ -1,0 +1,40 @@
+[
+  {
+    "name": "production-estimate-desktop",
+    "viewport": {
+      "width": 1440,
+      "height": 1000
+    },
+    "documentWidth": 1440,
+    "bodyWidth": 1440,
+    "horizontalOverflow": false,
+    "status": "已完成 SHEET_METAL 工程量計算；成本模式 NO_RATE。",
+    "costText": "尚未設定成本參數目前為 NO_RATE；所有貨幣欄位保持 null，不呈現任何假價格或公司成本。",
+    "hasNoRate": true,
+    "hasSupplierQuoteLabel": true,
+    "hasCompanyRateLabel": true,
+    "hasSyntheticRateInput": false,
+    "hasFormulaTrace": true,
+    "traceCount": 10,
+    "quantities": true
+  },
+  {
+    "name": "production-estimate-mobile",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "documentWidth": 390,
+    "bodyWidth": 390,
+    "horizontalOverflow": false,
+    "status": "已完成 SHEET_METAL 工程量計算；成本模式 NO_RATE。",
+    "costText": "尚未設定成本參數目前為 NO_RATE；所有貨幣欄位保持 null，不呈現任何假價格或公司成本。",
+    "hasNoRate": true,
+    "hasSupplierQuoteLabel": true,
+    "hasCompanyRateLabel": true,
+    "hasSyntheticRateInput": false,
+    "hasFormulaTrace": true,
+    "traceCount": 10,
+    "quantities": true
+  }
+]
