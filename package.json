@@ -23,7 +23,8 @@
     "production:bootstrap": "node lib/weekly/cli.js production:bootstrap",
     "production:daily": "node lib/weekly/cli.js production:daily",
     "production:weekly": "node lib/weekly/cli.js production:weekly",
-    "production:backup": "node lib/weekly/cli.js production:backup"
+    "production:backup": "node lib/weekly/cli.js production:backup",
+    "microsoft:oauth": "node scripts/microsoft-oauth-device.js"
   },
   "dependencies": {
     "exceljs": "^4.4.0",

@@ -42,10 +42,12 @@ const { readStore, upsertSnapshots, clearWriteQueue } = require("../lib/weekly/s
 const { buildWeeklyReport, renderWeeklyHtml, createWeeklyWorkbook } = require("../lib/weekly/reportService");
 const { buildSignal } = require("../lib/weekly/weeklyAnalytics");
 const { backfillPublicHistory, getHistoryConcurrency, runWithConcurrency } = require("../lib/weekly/backfillService");
-const { parseArgs, run: runWeeklyCommand, commandExitCode, errorExitCode } = require("../lib/weekly/cli");
+const { parseArgs, run: runWeeklyCommand, summarizeProductionWeekly, commandExitCode, errorExitCode } = require("../lib/weekly/cli");
 const { sendWeeklyEmail, readMailConfig, validateMailConfig, writeLedger, readLedger, createMimeMessage } = require("../lib/weekly/mailService");
+const { GRAPH_SENDMAIL_URL, GRAPH_SCOPE, GRAPH_SCOPES, graphTokenUrl, createGraphMessage, refreshGraphAccessToken, graphSend } = require("../lib/weekly/graphMailService");
+const { DEVICE_CODE_URL, TOKEN_URL, runDeviceFlow } = require("../scripts/microsoft-oauth-device");
 const { getStorageConfig, assertProductionStorage } = require("../lib/weekly/storageConfig");
-const { ensureStorageDirectories, getStorageStatus, backupPublicStorage, readJobState } = require("../lib/weekly/storageService");
+const { ensureStorageDirectories, getStorageStatus, backupPublicStorage, readJobState, safeError } = require("../lib/weekly/storageService");
 const { evaluateWeeklyQuality } = require("../lib/weekly/qualityGate");
 const { runProductionBootstrap, runProductionWeekly, readProductionStatus, runDatabaseMigration } = require("../lib/weekly/productionService");
 const postgres = require("../lib/weekly/postgresAdapter");
@@ -791,7 +793,11 @@ test("GitHub Actions workflows expose safe daily and weekly runtime contracts", 
   assert.match(weekly, /17 1 \* \* 1/);
   assert.match(weekly, /WEEKLY_MAIL_TEST_MODE/);
   assert.match(weekly, /secrets\.DATABASE_URL/);
-  assert.match(weekly, /secrets\.MAIL_PASSWORD/);
+  assert.match(weekly, /MAIL_PROVIDER: outlook_graph/);
+  assert.match(weekly, /secrets\.MICROSOFT_CLIENT_ID/);
+  assert.match(weekly, /secrets\.MICROSOFT_REFRESH_TOKEN/);
+  assert.match(weekly, /MICROSOFT_TENANT: consumers/);
+  assert.doesNotMatch(weekly, /MAIL_HOST|MAIL_PORT|MAIL_SECURE|secrets\.MAIL_USER|secrets\.MAIL_PASSWORD/);
   assert.match(weekly, /npm run production:weekly/);
   assert.match(weekly, /if: github\.event_name != 'schedule' \|\| vars\.PRODUCTION_SCHEDULES_ENABLED == '1'/);
   assert.doesNotMatch(`${daily}\n${weekly}`, /postgres:\/\/[^$\s]+|BEGIN (RSA|EC|OPENSSH) PRIVATE KEY/);
@@ -1017,4 +1023,243 @@ test("production bootstrap records safe progress and completion summary", async 
   assert.equal(jobs.jobs.productionBootstrap.state, "BOOTSTRAP_COMPLETE");
   assert.equal(jobs.jobs.productionBootstrap.fetchedRows, records.length);
   assert.equal(jobs.jobs.productionBootstrap.apiErrorMaterials, 0);
+});
+
+function mockGraphResponse(status, payload = {}, headers = {}) {
+  return {
+    status,
+    ok: status >= 200 && status < 300,
+    headers: { get: (name) => headers[String(name).toLowerCase()] || null },
+    async json() { return payload; },
+  };
+}
+
+function graphFixtureEnv(overrides = {}) {
+  return {
+    MAIL_ENABLED: "1",
+    MAIL_PROVIDER: "outlook_graph",
+    MICROSOFT_CLIENT_ID: "client-id-fixture",
+    MICROSOFT_REFRESH_TOKEN: "refresh-token-fixture",
+    MICROSOFT_TENANT: "consumers",
+    MAIL_FROM: "ggyin0628@hotmail.com",
+    MAIL_TO: "production@example.com",
+    MAIL_TEST_TO: "ggyin0628@hotmail.com",
+    MAIL_TEST_MODE: "1",
+    ...overrides,
+  };
+}
+
+test("Outlook Graph configuration validates personal delegated Mail.Send and required secrets", () => {
+  const config = readMailConfig(graphFixtureEnv());
+  assert.equal(config.provider, "outlook_graph");
+  assert.equal(config.tenant, "consumers");
+  assert.deepEqual(config.to, ["ggyin0628@hotmail.com"]);
+  assert.deepEqual(config.envelopeRecipients, ["ggyin0628@hotmail.com"]);
+  assert.equal(validateMailConfig(config).valid, true);
+  const missingClient = validateMailConfig(readMailConfig(graphFixtureEnv({ MICROSOFT_CLIENT_ID: "" })));
+  assert.equal(missingClient.valid, false);
+  assert.ok(missingClient.errors.includes("MICROSOFT_CLIENT_ID 缺少"));
+  const missingRefresh = validateMailConfig(readMailConfig(graphFixtureEnv({ MICROSOFT_REFRESH_TOKEN: "" })));
+  assert.equal(missingRefresh.valid, false);
+  assert.ok(missingRefresh.errors.includes("MICROSOFT_REFRESH_TOKEN 缺少"));
+  assert.equal(validateMailConfig(readMailConfig(graphFixtureEnv({ MICROSOFT_TENANT: "organizations" }))).valid, false);
+});
+
+test("Microsoft OAuth refresh token exchange uses consumers and required scopes without exposing token", async () => {
+  const config = readMailConfig(graphFixtureEnv());
+  let request;
+  const token = await refreshGraphAccessToken(config, {
+    fetchImpl: async (url, options) => {
+      request = { url, options };
+      return mockGraphResponse(200, { access_token: "access-token-fixture", expires_in: 3600, scope: GRAPH_SCOPE });
+    },
+  });
+  assert.equal(request.url, graphTokenUrl("consumers"));
+  assert.match(request.options.body, /grant_type=refresh_token/);
+  assert.match(request.options.body, /scope=offline_access/);
+  assert.match(request.options.body, /Mail.Send/);
+  assert.equal(token.accessToken, "access-token-fixture");
+  assert.deepEqual(GRAPH_SCOPES, ["offline_access", "https://graph.microsoft.com/Mail.Send"]);
+  assert.match(request.options.body, /refresh_token=refresh-token-fixture/);
+});
+
+test("Microsoft OAuth refresh failure is explicit and sanitized", async () => {
+  const config = readMailConfig(graphFixtureEnv());
+  await assert.rejects(() => refreshGraphAccessToken(config, { fetchImpl: async () => mockGraphResponse(400, { error: "invalid_grant", error_description: "refresh token revoked" }) }), (error) => {
+    assert.equal(error.code, "GRAPH_TOKEN_REFRESH_FAILED");
+    assert.doesNotMatch(error.message, /refresh token revoked|refresh-token-fixture|access-token/);
+    return true;
+  });
+});
+
+test("Graph sendMail serializes HTML and XLSX as a fileAttachment", async () => {
+  const config = readMailConfig(graphFixtureEnv());
+  const payload = createGraphMessage({
+    config,
+    subject: "採購市場情報週報｜2026-W33",
+    html: "<p>public fixture</p>",
+    attachments: [{ filename: "weekly.xlsx", contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", content: Buffer.from("xlsx-fixture") }],
+  });
+  assert.equal(payload.message.body.contentType, "HTML");
+  assert.deepEqual(payload.message.toRecipients, [{ emailAddress: { address: "ggyin0628@hotmail.com" } }]);
+  assert.equal(payload.message.attachments[0]["@odata.type"], "#microsoft.graph.fileAttachment");
+  assert.equal(Buffer.from(payload.message.attachments[0].contentBytes, "base64").toString(), "xlsx-fixture");
+  let calls = 0;
+  const result = await graphSend(config, { subject: "fixture", html: "<p>fixture</p>", attachments: [{ filename: "weekly.xlsx", contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", content: Buffer.from("xlsx-fixture") }] }, {
+    fetchImpl: async (url, options) => {
+      calls += 1;
+      if (calls === 1) return mockGraphResponse(200, { access_token: "access-token-fixture", expires_in: 3600 });
+      assert.equal(url, GRAPH_SENDMAIL_URL);
+      assert.match(options.headers.authorization, /^Bearer access-token-fixture$/);
+      const body = JSON.parse(options.body);
+      assert.equal(body.message.attachments[0]["@odata.type"], "#microsoft.graph.fileAttachment");
+      return mockGraphResponse(202);
+    },
+  });
+  assert.deepEqual(result, { ok: true, status: 202 });
+  assert.equal(calls, 2);
+});
+
+test("Graph HTTP 401, 403, 429 and 5xx remain explicit sanitized failures", async () => {
+  const config = readMailConfig(graphFixtureEnv());
+  for (const status of [401, 403, 429, 500, 503]) {
+    let calls = 0;
+    await assert.rejects(() => graphSend(config, { subject: "fixture", html: "<p>fixture</p>", attachments: [] }, {
+      fetchImpl: async () => {
+        calls += 1;
+        return calls === 1 ? mockGraphResponse(200, { access_token: "access-token-fixture" }) : mockGraphResponse(status, { error: { code: "sensitive_graph_detail" } }, { "retry-after": "1" });
+      },
+    }), (error) => {
+      assert.equal(error.statusCode, status);
+      assert.match(error.code, /^GRAPH_/);
+      assert.doesNotMatch(error.message, /access-token-fixture|sensitive_graph_detail/);
+      return true;
+    });
+    assert.equal(calls, 2);
+  }
+});
+
+test("Outlook Graph weekly send is TEST mode isolated, duplicate-safe and never falls back to Gmail SMTP", async () => {
+  const report = buildWeeklyReport({ records: fullProductionFixtureRecords(), reportingWeek: "2026-W33", generatedAt: "2026-08-17T01:00:00Z" });
+  const directory = await tempDirectory();
+  const env = graphFixtureEnv();
+  let graphCalls = 0;
+  let smtpCalls = 0;
+  const result = await sendWeeklyEmail({
+    report,
+    html: "<p>fixture public report</p>",
+    xlsxBuffer: Buffer.from("xlsx-fixture"),
+    env,
+    ledgerPath: path.join(directory, "graph-ledger.json"),
+    smtpSender: async () => { smtpCalls += 1; throw new Error("Gmail fallback must not be called"); },
+    graphSender: async (config, message) => {
+      graphCalls += 1;
+      assert.equal(config.provider, "outlook_graph");
+      assert.deepEqual(config.to, ["ggyin0628@hotmail.com"]);
+      assert.deepEqual(config.configuredTo, ["production@example.com"]);
+      assert.equal(message.attachments.length, 1);
+    },
+  });
+  assert.equal(result.state, "TEST_SENT");
+  assert.equal(result.provider, "outlook_graph");
+  assert.equal(result.testMode, true);
+  assert.equal(result.recipientCount, 1);
+  assert.equal(result.attachmentCount, 1);
+  assert.equal(result.sent, true);
+  assert.equal(graphCalls, 1);
+  assert.equal(smtpCalls, 0);
+
+  await writeLedger({ weeks: { "2026-W33": { state: "TEST_SENT" } } }, path.join(directory, "duplicate.json"));
+  let duplicateGraphCalls = 0;
+  const duplicate = await sendWeeklyEmail({
+    report,
+    html: "<p>fixture</p>",
+    xlsxBuffer: Buffer.from("xlsx-fixture"),
+    env,
+    ledgerPath: path.join(directory, "duplicate.json"),
+    graphSender: async () => { duplicateGraphCalls += 1; },
+  });
+  assert.equal(duplicate.state, "DUPLICATE_PREVENTED");
+  assert.equal(duplicate.provider, "outlook_graph");
+  assert.equal(duplicateGraphCalls, 0);
+});
+
+test("Graph failure ledger and safeError redact OAuth secrets", async () => {
+  const report = buildWeeklyReport({ records: fullProductionFixtureRecords(), reportingWeek: "2026-W34", generatedAt: "2026-08-17T01:00:00Z" });
+  const directory = await tempDirectory();
+  const secretError = new Error("Graph failure refresh_token=refresh-token-fixture access_token=access-token-fixture authorization=Bearer access-token-fixture");
+  const result = await sendWeeklyEmail({
+    report,
+    html: "<p>fixture</p>",
+    xlsxBuffer: Buffer.from("xlsx-fixture"),
+    env: graphFixtureEnv(),
+    ledgerPath: path.join(directory, "failure.json"),
+    graphSender: async () => { throw secretError; },
+  });
+  assert.equal(result.state, "FAILED");
+  assert.equal(result.provider, "outlook_graph");
+  assert.doesNotMatch(JSON.stringify(result), /refresh-token-fixture|access-token-fixture|Bearer access-token-fixture/);
+  assert.doesNotMatch(JSON.stringify(await readLedger(path.join(directory, "failure.json"))), /refresh-token-fixture|access-token-fixture/);
+  const safe = safeError(secretError);
+  assert.doesNotMatch(safe, /refresh-token-fixture|access-token-fixture/);
+});
+
+test("concise production weekly summary excludes full report/history payload", () => {
+  const summary = summarizeProductionWeekly({
+    reportingWeek: "2026-W33",
+    qualityGate: { state: "SEND_OK", trackedIndicatorCount: 14, usableIndicatorCount: 14, materialUsabilityPct: 100 },
+    mail: { provider: "outlook_graph", testMode: true, state: "TEST_SENT", recipientCount: 1, attachmentCount: 1, error: null },
+    artifacts: { jsonPath: "/tmp/reports/report.json", htmlPath: "/tmp/reports/report.html", xlsxPath: "/tmp/reports/report.xlsx", metadata: { internal: true } },
+    report: { indicators: Array.from({ length: 1000 }, () => ({ history: ["must-not-print"] })) },
+  }, graphFixtureEnv(), 1234);
+  assert.deepEqual(summary, {
+    reportingWeek: "2026-W33",
+    qualityGate: { state: "SEND_OK", trackedIndicatorCount: 14, usableIndicatorCount: 14, materialUsabilityPct: 100 },
+    mail: { provider: "outlook_graph", testMode: true, state: "TEST_SENT", recipientCount: 1, attachmentCount: 1, error: null },
+    artifacts: { jsonPath: "report.json", htmlPath: "report.html", xlsxPath: "report.xlsx" },
+    durationMs: 1234,
+  });
+  assert.doesNotMatch(JSON.stringify(summary), /must-not-print|indicators|history/);
+});
+
+test("device-code OAuth helper uses consumers scopes and never prints or stores token in repository", async () => {
+  const output = path.join(await tempDirectory(), "microsoft-refresh-token.json");
+  let calls = 0;
+  let stdout = "";
+  const originalWrite = process.stdout.write;
+  process.stdout.write = (chunk) => { stdout += String(chunk); return true; };
+  try {
+    const result = await runDeviceFlow({
+      clientId: "client-id-fixture",
+      output,
+      maxPolls: 2,
+      sleepImpl: async () => {},
+      fetchImpl: async (url, options) => {
+        calls += 1;
+        if (calls === 1) {
+          assert.equal(url, DEVICE_CODE_URL);
+          assert.match(options.body, /offline_access/);
+          assert.match(options.body, /Mail.Send/);
+          return mockGraphResponse(200, { device_code: "device-code-fixture", user_code: "ABCD-EFGH", verification_uri: "https://microsoft.com/devicelogin", expires_in: 900, interval: 1 });
+        }
+        if (calls === 2) return mockGraphResponse(400, { error: "authorization_pending" });
+        assert.equal(url, TOKEN_URL);
+        return mockGraphResponse(200, { refresh_token: "refresh-token-fixture" });
+      },
+    });
+    assert.equal(result.state, "MICROSOFT_OAUTH_BOOTSTRAP_COMPLETE");
+    assert.equal(result.tenant, "consumers");
+    assert.match(stdout, /verification_uri=https:\/\/microsoft\.com\/devicelogin/);
+    assert.doesNotMatch(stdout, /device-code-fixture|refresh-token-fixture/);
+    const stored = JSON.parse(await fs.readFile(output, "utf8"));
+    assert.equal(stored.refreshToken, "refresh-token-fixture");
+    assert.equal(stored.tenant, "consumers");
+  } finally {
+    process.stdout.write = originalWrite;
+    await fs.rm(output, { force: true });
+  }
+});
+
+test("device-code OAuth helper rejects output inside repository", async () => {
+  await assert.rejects(() => runDeviceFlow({ clientId: "client-id-fixture", output: path.join(ROOT, "microsoft-refresh-token.json"), fetchImpl: async () => { throw new Error("must not call network"); } }), (error) => error.code === "OAUTH_OUTPUT_MUST_BE_OUTSIDE_REPOSITORY");
 });

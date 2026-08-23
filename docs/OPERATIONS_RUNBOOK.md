@@ -4,7 +4,7 @@
 
 This service is permanently limited to external public market intelligence and purchasing-reference context. It is not a procurement system and must never ingest SAP, private purchasing data, supplier names or quotations, inventory, MOQ, payment terms, company target prices, private thresholds, company email data, credentials or private runtime reports.
 
-The scheduled runtime is GitHub Actions. Render Free is optional dashboard hosting only; it is not the durable storage provider and it does not send scheduled SMTP. The zero-cost durable provider is Neon-compatible PostgreSQL selected by `STORAGE_PROVIDER=postgres` and secret-managed `DATABASE_URL`.
+The scheduled runtime is GitHub Actions. Render Free is optional dashboard hosting only; it is not the durable storage provider and it does not send scheduled mail. The zero-cost durable provider is Neon-compatible PostgreSQL selected by `STORAGE_PROVIDER=postgres` and secret-managed `DATABASE_URL`.
 
 ## Safe observability
 
@@ -16,7 +16,7 @@ STORAGE_PROVIDER=postgres DATABASE_URL="$DATABASE_URL" npm run production:status
 curl -i https://<host>/health/weekly
 ```
 
-`/health/weekly` returns sanitized readiness fields for `WEB_READY`, database, daily data, weekly report and mail configuration, together with public job states, completed-week label and warnings. It never exposes `DATABASE_URL`, `MAIL_PASSWORD`, SMTP credentials, recipient lists, message body, absolute paths or stack traces. Missing Postgres configuration returns HTTP 503 with `DATABASE_URL_REQUIRED`; a database outage returns a safe unavailable state. `/health` only proves that the web process responds.
+`/health/weekly` returns sanitized readiness fields for `WEB_READY`, database, daily data, weekly report and mail configuration, together with public job states, completed-week label and warnings. It never exposes `DATABASE_URL`, `MICROSOFT_REFRESH_TOKEN`, access tokens, SMTP credentials, recipient lists, message body, absolute paths or stack traces. Missing Postgres configuration returns HTTP 503 with `DATABASE_URL_REQUIRED`; a database outage returns a safe unavailable state. `/health` only proves that the web process responds.
 
 ## Failure matrix and recovery
 
@@ -33,10 +33,11 @@ curl -i https://<host>/health/weekly
 | Partial daily failure | successful rows retained; failed rows visible | Review coverage and rerun daily | Do not delete successful rows |
 | Weekly insufficient data | `SEND_BLOCKED`, non-zero | Obtain provider-supported public history or wait, then dry-run | Do not interpolate or use private data |
 | Weekly degraded but usable | `SEND_WITH_WARNINGS` | Review warnings and approve delivery if appropriate | Do not hide warnings |
-| Missing／malformed Gmail config | `FAILED` before socket | Correct Actions secrets; run dry-run first | Do not pass secrets as committed args |
-| Gmail authentication failure | `FAILED`, non-transient | Correct personal Gmail App Password／sender authorization; repeat test mode | Do not retry blindly |
-| SMTP pre-DATA timeout | `FAILED`, bounded transient retry | Review connectivity and rerun after approval | Do not exceed bounded retry |
-| SMTP timeout after DATA | `FAILED`, acceptance uncertain | Inspect Postgres ledger and Gmail mailbox before resend | Do not automatic retry |
+| Missing／malformed Graph config | `FAILED` before network | Correct Graph client ID／refresh-token secret; run dry-run first | Do not pass secrets as committed args |
+| Microsoft refresh-token failure | `GRAPH_TOKEN_REFRESH_FAILED`, non-transient | Owner reruns device-code helper and replaces only the refresh-token secret | Do not print or retry blindly |
+| Graph `401`／`403` | `GRAPH_UNAUTHORIZED`／`GRAPH_FORBIDDEN` | Review personal-account audience, delegated `Mail.Send` and consent | Do not fall back to SMTP |
+| Graph `429`／`5xx`／network timeout | `FAILED`, bounded transient retry | Review Graph availability/throttle and rerun after approval | Do not exceed bounded retry |
+| Graph `202` acceptance uncertainty | `TEST_SENT`／`SENT` but final delivery unconfirmed | Inspect Postgres ledger and Outlook mailbox before resend | Do not automatic retry |
 | Attachment failure | `FAILED`, no successful send | Regenerate public artifacts and rerun controlled test | Do not mark sent manually |
 | Duplicate week | `DUPLICATE_PREVENTED` | Review ledger; owner-approved resend only | Do not delete ledger row |
 | Public export failure | non-zero | Correct destination／database access and rerun export | Do not claim backup exists without manifest |
@@ -55,7 +56,7 @@ Capture workflow run URL, timestamp and safe status output. Check `DATABASE_READ
 
 ## Weekly incident procedure
 
-Confirm the completed prior Monday–Sunday week in `production:status`. Run the weekly workflow in default test mode or run a dry-run. If quality is `SEND_BLOCKED`, inspect coverage／FX／history and do not send. If report artifacts are valid but Gmail fails, preserve public artifacts and correct secrets. If SMTP acceptance is uncertain after DATA, inspect the mailbox and ledger before any owner-approved resend. If the state is `DUPLICATE_PREVENTED`, require both `ALLOW_WEEKLY_RESEND=1` and explicit `--allow-resend` after reviewing the existing delivery state.
+Confirm the completed prior Monday–Sunday week in `production:status`. Run the weekly workflow in default test mode or run a dry-run. If quality is `SEND_BLOCKED`, inspect coverage／FX／history and do not send. If report artifacts are valid but Graph fails, preserve public artifacts and correct owner-managed OAuth configuration. If Graph returns `202` but final acceptance is uncertain, inspect the Outlook mailbox and ledger before any owner-approved resend. If the state is `DUPLICATE_PREVENTED`, require both `ALLOW_WEEKLY_RESEND=1` and explicit `--allow-resend` after reviewing the existing delivery state.
 
 ## Backup and restoration
 
@@ -73,10 +74,10 @@ The quality gate counts tracked indicators and classifies usable `LIVE`／`FALLB
 
 ## Workflow operations
 
-GitHub Actions schedules are best-effort and may be delayed. Public repositories may have scheduled workflows disabled after extended inactivity. `workflow_dispatch` is the manual recovery path. The daily／weekly job-level schedule gate runs scheduled jobs only when repository variable `PRODUCTION_SCHEDULES_ENABLED` equals `1`; manual dispatch is always allowed. Keep this variable absent or `0` until the manual bootstrap succeeds and the first live TEST_RECIPIENT receipt／attachment review passes. Keep `WEEKLY_MAIL_TEST_MODE=1` until that review; only then may the owner set it to `0` and enable approved production-recipient operation.
+GitHub Actions schedules are best-effort and may be delayed. Public repositories may have scheduled workflows disabled after extended inactivity. `workflow_dispatch` is the manual recovery path. The daily／weekly job-level schedule gate runs scheduled jobs only when repository variable `PRODUCTION_SCHEDULES_ENABLED` equals `1`; manual dispatch is always allowed. Keep this variable absent or `0` until the certified bootstrap is complete and the first live Graph TEST_RECIPIENT receipt／attachment review passes. Keep `WEEKLY_MAIL_TEST_MODE=1` until that review; only then may the owner set it to `0` and enable approved production-recipient operation.
 
 The bootstrap certification has completed on promoted `main`: run `32611318090` established the performance result and run `32611472483` verified final-SHA batch progress telemetry. No weekly workflow was triggered, no email was sent, and the schedule gate variable was not changed. Do not trigger another bootstrap or weekly workflow as part of this handoff.
 
 ## Owner activation handoff
 
-The explicit next human action is: **Run exactly one Market Weekly Intelligence Report manually while `WEEKLY_MAIL_TEST_MODE=1`, verify the received Gmail HTML report and XLSX attachment, then set `PRODUCTION_SCHEDULES_ENABLED=1`.** The owner must keep test mode enabled until receipt／attachment review passes; the remediation agent must not trigger weekly mail or change the schedule variable.
+The explicit next human action is: **Run exactly one Market Weekly Intelligence Report manually while `WEEKLY_MAIL_TEST_MODE=1`, verify the received Outlook HTML report and XLSX attachment, then set `PRODUCTION_SCHEDULES_ENABLED=1`.** The owner must keep test mode enabled until receipt／attachment review passes; the remediation agent must not trigger weekly mail or change the schedule variable.

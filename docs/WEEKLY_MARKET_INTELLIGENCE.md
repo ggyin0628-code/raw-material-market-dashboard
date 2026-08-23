@@ -89,17 +89,17 @@ Weekly quality gate 在任何 mail attempt 前評估 `SEND_OK`、`SEND_WITH_WARN
 
 ## Production runtime
 
-Postgres production 由 GitHub Actions 執行 `db:migrate`、`production:bootstrap`、`production:daily`、`production:weekly` 與 `production:backup`。Daily workflow 約於週二至週六 `07:17 Asia/Taipei`，UTC cron 為 `17 23 * * 1-5`；weekly workflow 約於週一 `09:17 Asia/Taipei`，UTC cron 為 `17 1 * * 1`。兩者都提供 manual dispatch。Weekly Gmail delivery 僅使用 owner-approved personal Gmail SMTP，且 first live workflow 必須以 `MAIL_TEST_MODE=1`／`MAIL_TEST_TO` 開始。
+Postgres production 由 GitHub Actions 執行 `db:migrate`、`production:bootstrap`、`production:daily`、`production:weekly` 與 `production:backup`。Daily workflow 約於週二至週六 `07:17 Asia/Taipei`，UTC cron 為 `17 23 * * 1-5`；weekly workflow 約於週一 `09:17 Asia/Taipei`，UTC cron 為 `17 1 * * 1`。兩者都提供 manual dispatch。Weekly production delivery 使用 owner-approved personal Microsoft Graph delegated OAuth2（`MAIL_PROVIDER=outlook_graph`、`MICROSOFT_TENANT=consumers`、delegated `Mail.Send`），且 first live workflow 必須以 `MAIL_TEST_MODE=1`／`MAIL_TEST_TO` 開始；company Microsoft 365 永久不在範圍內。
 
-Render Free 只作 optional dashboard hosting，不承擔 scheduled SMTP，也不依賴 local filesystem durability。缺少 `DATABASE_URL` 時 production 回 `DATABASE_URL_REQUIRED`；filesystem production 未配置 approved durable root 時回 `STORAGE_CONFIGURATION_REQUIRED`。不會將 ephemeral filesystem 假裝成 durable。
+Render Free 只作 optional dashboard hosting，不承擔 scheduled mail，也不依賴 local filesystem durability。缺少 `DATABASE_URL` 時 production 回 `DATABASE_URL_REQUIRED`；filesystem production 未配置 approved durable root 時回 `STORAGE_CONFIGURATION_REQUIRED`。不會將 ephemeral filesystem 假裝成 durable。
 
 ## 外部限制與 recovery
 
-Public provider availability、rate limit、timeout、資料延遲與來源授權都是 operational dependencies。Postgres connection failure、migration failure、query timeout、transaction rollback、malformed payload、Gmail authentication failure、SMTP timeout、attachment failure 與 duplicate delivery 都必須以明確 failure state 可觀測。Provider-supported public re-backfill 與 public export 是 recovery source；不得製造資料或使用私有採購資料補洞。
+Public provider availability、rate limit、timeout、資料延遲與來源授權都是 operational dependencies。Postgres connection failure、migration failure、query timeout、transaction rollback、malformed payload、Microsoft token refresh failure、Graph `401`／`403`／`429`／`5xx`、attachment failure 與 duplicate delivery 都必須以明確 failure state 可觀測；Graph errors 必須 redacted 且不得 silent fallback 到 SMTP。Provider-supported public re-backfill 與 public export 是 recovery source；不得製造資料或使用私有採購資料補洞。
 
 ## Explicit owner activation
 
-本次不建立 Neon project、不設定或修改 GitHub Actions secrets、不取得 Gmail App Password、不發送 real mail、不啟用 schedule、不部署或啟用 paid resources。三年 Neon bootstrap certification 已在 promoted `main` 完成；owner 後續只需執行一次 `Market Weekly Intelligence Report` manual workflow，在 `WEEKLY_MAIL_TEST_MODE=1` 下驗證收件與 HTML／XLSX attachment，最後才將 `PRODUCTION_SCHEDULES_ENABLED` 設為 `1`。
+本次不建立 Neon project、不設定或修改 GitHub Actions secrets、不建立或讀取 Microsoft refresh token、不發送 real mail、不啟用 schedule、不部署或啟用 paid resources。三年 Neon bootstrap certification 已在 promoted `main` 完成；owner 後續只需執行一次 `Market Weekly Intelligence Report` manual workflow，在 `WEEKLY_MAIL_TEST_MODE=1` 下驗證 Outlook 收件與 HTML／XLSX attachment，最後才將 `PRODUCTION_SCHEDULES_ENABLED` 設為 `1`。
 
 ## References
 

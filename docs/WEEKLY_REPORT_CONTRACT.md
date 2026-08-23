@@ -2,7 +2,7 @@
 
 ## Contract identity
 
-`buildWeeklyReport({ records, reportingWeek, generatedAt })` returns the single source of truth consumed by the JSON route, Traditional Chinese HTML preview, XLSX export and Gmail mail adapter. Records may come from the local filesystem adapter or the Neon-compatible PostgreSQL adapter, but analytics and rendering are shared. The report is public-market reference information only.
+`buildWeeklyReport({ records, reportingWeek, generatedAt })` returns the single source of truth consumed by the JSON route, Traditional Chinese HTML preview, XLSX export and Microsoft Graph mail adapter. Records may come from the local filesystem adapter or the Neon-compatible PostgreSQL adapter, but analytics and rendering are shared. The report is public-market reference information only.
 
 | Field | Type | Meaning |
 | --- | --- | --- |
@@ -78,9 +78,9 @@ Before delivery, `evaluateWeeklyQuality` counts tracked indicators, usable `LIVE
 
 | Result | Rule | Delivery behavior |
 | --- | --- | --- |
-| `SEND_OK` | Usable public observations meet the threshold, no blocking integrity failure and no material warning | Live send is eligible after SMTP and owner approval |
+| `SEND_OK` | Usable public observations meet the threshold, no blocking integrity failure and no material warning | Live send is eligible after Graph configuration and owner approval |
 | `SEND_WITH_WARNINGS` | Report is materially usable but exposes fallback, stale, provider, history or FX warnings | Live send is eligible only with warnings preserved |
-| `SEND_BLOCKED` | No usable rows, usable ratio below 50%, or required artifact integrity failure | No SMTP attempt; job records a blocked result |
+| `SEND_BLOCKED` | No usable rows, usable ratio below 50%, or required artifact integrity failure | No mail-provider attempt; job records a blocked result |
 
 The gate does not fabricate data, convert stale rows to fresh rows or hide provider failure. The same result is present in canonical report metadata and safe operational status.
 
@@ -92,9 +92,9 @@ The XLSX report contains exactly these minimum sheets: 「本週摘要」、「�
 
 ## Storage and delivery integration
 
-The report generator does not know whether persistence uses `STORAGE_PROVIDER=filesystem` or `STORAGE_PROVIDER=postgres`. Both providers return the canonical records described above. PostgreSQL stores public report metadata keyed by `reporting_week`; filesystem stores the equivalent atomic JSON metadata for local／test use. HTML／XLSX artifacts are generated before any delivery attempt, and the quality gate is evaluated before Gmail SMTP.
+The report generator does not know whether persistence uses `STORAGE_PROVIDER=filesystem` or `STORAGE_PROVIDER=postgres`. Both providers return the canonical records described above. PostgreSQL stores public report metadata keyed by `reporting_week`; filesystem stores the equivalent atomic JSON metadata for local／test use. HTML／XLSX artifacts are generated before any delivery attempt, and the quality gate is evaluated before Microsoft Graph delivery.
 
-The production delivery path is GitHub Actions using owner-approved personal Gmail SMTP. The first live run must keep `MAIL_TEST_MODE=1` and use only `MAIL_TEST_TO`; production recipients remain an owner-controlled external configuration. Render Free is not the scheduler or durable storage provider.
+The production delivery path is GitHub Actions using Microsoft Graph delegated OAuth2 for the owner-approved personal Microsoft account `ggyin0628@hotmail.com`. The first live run must keep `MAIL_TEST_MODE=1` and use only `MAIL_TEST_TO`; production recipients remain an owner-controlled external configuration. The workflow uses `MAIL_PROVIDER=outlook_graph`, `MICROSOFT_TENANT=consumers`, delegated `Mail.Send`, and a secret-managed refresh token. The legacy Gmail SMTP adapter remains isolated for explicit `MAIL_PROVIDER=smtp` compatibility only. Render Free is not the scheduler or durable storage provider.
 
 ## References
 

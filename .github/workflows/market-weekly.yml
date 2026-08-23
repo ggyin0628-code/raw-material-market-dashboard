@@ -25,11 +25,10 @@ env:
   REQUIRE_DURABLE_STORAGE: "1"
   DATABASE_URL: ${{ secrets.DATABASE_URL }}
   MAIL_ENABLED: "1"
-  MAIL_HOST: smtp.gmail.com
-  MAIL_PORT: "465"
-  MAIL_SECURE: "true"
-  MAIL_USER: ${{ secrets.MAIL_USER }}
-  MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
+  MAIL_PROVIDER: outlook_graph
+  MICROSOFT_CLIENT_ID: ${{ secrets.MICROSOFT_CLIENT_ID }}
+  MICROSOFT_REFRESH_TOKEN: ${{ secrets.MICROSOFT_REFRESH_TOKEN }}
+  MICROSOFT_TENANT: consumers
   MAIL_FROM: ${{ secrets.MAIL_FROM }}
   MAIL_TO: ${{ secrets.MAIL_TO }}
   MAIL_TEST_TO: ${{ secrets.MAIL_TEST_TO }}
