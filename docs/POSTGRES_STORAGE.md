@@ -23,7 +23,9 @@ Production PostgreSQL is configured only through environment variables. `DATABAS
 
 ## Transaction and upsert semantics
 
-Snapshot writes run in a transaction. Each row is locked by its deterministic identity before comparison. A higher-quality `LIVE` or `FALLBACK` row cannot be silently replaced by a lower-quality `STALE`, `NO_DATA` or `API_ERROR` row. Equal-status writes use collected time as the deterministic tie-breaker. A duplicate identity is never inserted as a second row. Any validation or database failure rolls back the whole transaction and returns an explicit non-zero failure state.
+Snapshot writes use bounded chunk transactions rather than one transaction for the complete three-year history. `POSTGRES_UPSERT_BATCH_SIZE` defaults to **250** and is clamped to a safe maximum of 500; each row contributes five parameters, so the largest generated statement remains well below PostgreSQL's parameter limit. Each batch uses one parameterized multi-row `INSERT ... ON CONFLICT ... DO UPDATE ... RETURNING` statement and does not perform per-record `SELECT FOR UPDATE` or per-record `INSERT`／`UPDATE` round-trips.
+
+The `ON CONFLICT` predicate compares the stored and incoming status ranks directly: `LIVE > FALLBACK > STALE > API_ERROR > NO_DATA`; a lower rank is ignored, a higher rank replaces, and an equal rank replaces only when `collected_at` is newer or equal. The payload, status and collected timestamp are updated together. Duplicate identities within a batch are reduced deterministically before SQL. A duplicate identity is never inserted as a second logical row. Any validation or database failure rolls back only the active batch and returns an explicit non-zero failure state; completed prior batches remain durable.
 
 The report and analytics layer consumes the same canonical record shape for both filesystem and PostgreSQL providers. Therefore weekly change windows, volatility, signals, quality summaries and rendered artifacts use one implementation and are parity-tested with the same fixture data.
 
@@ -36,7 +38,7 @@ STORAGE_PROVIDER=postgres DATABASE_URL="$DATABASE_URL" npm run db:migrate
 STORAGE_PROVIDER=postgres DATABASE_URL="$DATABASE_URL" npm run production:bootstrap -- --period 3y
 ```
 
-Migration creates missing tables and indexes only. Bootstrap performs migration, provider-supported public history backfill, snapshot validation, completed-week report generation and job-state update. It does not send email and is safe to rerun.
+Migration creates missing tables and indexes only. Bootstrap performs migration, provider-supported public history backfill, snapshot validation, completed-week report generation and job-state update. Public history fetching uses bounded concurrency of three material requests by default, capped at four, with the existing per-provider timeout／retry policy and per-material failure isolation. Prepared records are written in durable batches as they become available. It does not send email and is safe to rerun.
 
 ## Failure states and recovery
 
@@ -47,8 +49,14 @@ Migration creates missing tables and indexes only. Bootstrap performs migration,
 | Migration statement fails | `DATABASE_MIGRATION_FAILED`, transaction rollback | Inspect safe error, correct schema access, rerun migration |
 | Query timeout or disconnect | bounded `DATABASE_READ_FAILED`／`DATABASE_WRITE_FAILED` | Rerun workflow; no infinite retry or fabricated data |
 | Invalid JSONB／canonical row | `SNAPSHOT_PAYLOAD_INVALID` or corresponding contract error | Reject payload and investigate provider response |
-| Partial batch failure | transaction rollback; no partial Postgres commit | Rerun idempotent job after cause is resolved |
+| Partial batch failure | active batch transaction rolls back; prior batches remain durable | Correct cause and rerun idempotent job; no destructive reset |
 | Corrupted filesystem adapter data | existing `*_INVALID` state | Restore from public export or use provider re-backfill |
+
+## Performance and resumability
+
+A three-year bootstrap can be interrupted after any committed batch. The next manual bootstrap rerun continues through the same public history, and identity／quality-aware upsert prevents duplicate growth or lower-quality downgrade. The durable `productionBootstrap` job state records the latest safe progress event, material／batch counters, fetched rows, inserted／replaced／ignored totals, API-error material count and elapsed time. Progress output contains only public identifiers and numeric counters; it never contains database URLs, passwords or Gmail secrets.
+
+For `N` prepared rows and batch size `B`, the snapshot write path performs `ceil(N / B)` snapshot INSERT statements plus one `BEGIN`／`COMMIT` pair per batch, rather than approximately `2N` record-level statements in the prior implementation. Database query count is therefore batch-bounded and independent of individual record lookup／write round-trips.
 
 ## Public export
 

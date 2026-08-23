@@ -69,6 +69,12 @@ The Gmail adapter remains provider-neutral but is configured for owner-approved 
 
 ## Failure recovery
 
+The cancelled `Market Production Bootstrap #1` run on main `8390a0234fb5d18e28e100ee1ff40750b6b0d95e` completed checkout, Node setup, `npm ci`, code validation, migration and storage check in approximately 14 seconds, then spent the remaining 30-minute ceiling in `Bootstrap public history`. Source diagnosis identified both sequential public-history fetches and per-record Postgres lookup／write round-trips as contributing bottlenecks. The remediation keeps `--period 3y`, adds bounded history concurrency of three capped at four, and replaces the snapshot write path with `POSTGRES_UPSERT_BATCH_SIZE=250` default／500 max parameterized batch upserts.
+
+Each snapshot batch commits independently, preserves `LIVE > FALLBACK > STALE > API_ERROR > NO_DATA`, and leaves prior committed batches durable if a later batch fails. Rerunning the same bootstrap is safe and does not reset or truncate tables. Safe progress reports FX fetch, material X/Y, prepared rows, batch X/Y, committed counters and final elapsed／failure summary without database or Gmail secrets.
+
+Daily and weekly scheduled jobs run only when repository variable `PRODUCTION_SCHEDULES_ENABLED=1`; manual dispatch remains allowed and bootstrap remains dispatch-only. The pre-promotion remediation suite is 43 passed／0 failed; the GitHub-only remediation clone and post-promotion live bootstrap must be completed before certification.
+
 External public API total failure remains visible as `API_ERROR`／`NO_DATA`; partial source failure may remain `SEND_WITH_WARNINGS` when the report contract allows it. Missing `DATABASE_URL`, Neon unavailability, migration failure, invalid payload, query timeout, transaction rollback, quality block, Gmail authentication failure, SMTP timeout, attachment failure and failed mail return non-zero workflow outcomes. `DUPLICATE_PREVENTED` is a safe terminal state. For uncertain SMTP acceptance, inspect the ledger and mailbox before an owner-approved resend; do not retry automatically.
 
 GitHub scheduled workflows may be delayed and are not real-time guarantees. Public repositories may have scheduled workflows disabled after extended inactivity. Use `workflow_dispatch` for manual recovery and do not create artificial commits to hide inactivity.
@@ -90,15 +96,15 @@ STORAGE_PROVIDER=postgres DATABASE_URL="$DATABASE_URL" npm run production:daily
 STORAGE_PROVIDER=postgres DATABASE_URL="$DATABASE_URL" npm run production:weekly -- --dry-run --send
 ```
 
-The offline suite must use deterministic fakes and must not require a real Neon account. It covers migration idempotence, schema command contract, filesystem／Postgres parity, uniqueness, quality-preserving upsert, ledger, metadata, job state, database failure, rollback, missing URL, all three workflow source contracts, Gmail dry-run, test-recipient redirect and duplicate send. The latest suite is 38 passed／0 failed.
+The offline suite must use deterministic fakes and must not require a real Neon account. It covers migration idempotence, schema command contract, filesystem／Postgres parity, uniqueness, quality-preserving upsert, ledger, metadata, job state, database failure, rollback, missing URL, all three workflow source contracts, Gmail dry-run, test-recipient redirect and duplicate send, batch boundaries, 1,000／3,000-record query bounds, all status pairs, chunk rollback, resumable rerun, bounded history concurrency and safe bootstrap progress. The latest remediation suite is 43 passed／0 failed.
 
-Final delivery clones only from GitHub using `feat/zero-cost-runtime-v1`, reruns all gates and leaves the clone clean. After owner-approved fast-forward promotion, a GitHub-only `main` clone also passed `npm ci`, `npm run check`, 38 tests, build and audit; all three workflow files are present on main. No Manus-only files, local caches, owner secrets, real mail or paid backup service may be required.
+Final delivery for this remediation must clone only from GitHub using `fix/bootstrap-performance-v1`, rerun all gates and leave the clone clean. The prior zero-cost main clone evidence (38 tests) is historical; this remediation requires a new 43-test clone before promotion, followed by one owner-approved manual bootstrap on promoted main. No Manus-only files, local caches, owner secrets, real mail or paid backup service may be required.
 
 ## External configuration required
 
 The allowed remaining external states are `EXTERNAL_CONFIGURATION_REQUIRED` for an owner-approved Neon Free project／`DATABASE_URL`, Gmail Actions secrets, `MAIL_TEST_TO`, first live test send and GitHub Actions activation. These are not offline implementation gaps. The task does not create the Neon project, read／print／rotate the configured secrets, send real mail or activate schedules. The owner-approved code promotion is complete; runtime activation remains external.
 
-**Explicit next human action:** create the owner-approved Neon Free project, configure `DATABASE_URL` and Gmail credentials only as GitHub Actions secrets, run the manual bootstrap workflow, execute one `MAIL_TEST_MODE=1` live weekly send to the approved personal recipient, verify receipt and attachment, then enable scheduled daily and weekly workflows.
+**Explicit next human action after the bootstrap remediation is certified:** run exactly one `Market Weekly Intelligence Report` manually while `WEEKLY_MAIL_TEST_MODE=1`, verify the received Gmail HTML report and XLSX attachment, then set `PRODUCTION_SCHEDULES_ENABLED=1`. During this remediation, trigger only `Market Production Bootstrap` on promoted `main`; do not trigger the weekly workflow and do not send email.
 
 ## References
 

@@ -41,13 +41,13 @@ STORAGE_PROVIDER=postgres DATABASE_URL="$DATABASE_URL" npm run production:bootst
 STORAGE_PROVIDER=postgres DATABASE_URL="$DATABASE_URL" npm run production:status
 ```
 
-Migration is idempotent and non-destructive. Bootstrap performs migration, provider-supported public history backfill, canonical validation, completed prior-week report generation and job-state update without email. Snapshot identity remains `material_id + observation_date`; missing dates remain missing and source failures remain visible.
+Migration is idempotent and non-destructive. Bootstrap performs migration, provider-supported public history backfill, canonical validation, completed prior-week report generation and job-state update without email. The remediation uses bounded history concurrency of three, capped at four, and `POSTGRES_UPSERT_BATCH_SIZE=250` by default, capped at 500. Each snapshot batch uses one parameterized multi-row `INSERT ... ON CONFLICT` transaction, preserving status quality and leaving completed batches durable for safe rerun. Snapshot identity remains `material_id + observation_date`; missing dates remain missing and source failures remain visible.
 
 ## Stage 2 — daily workflow
 
 Run `.github/workflows/market-daily.yml` by manual dispatch first. It installs locked dependencies, validates source, migrates schema, checks database readiness, captures public daily data and validates status. It does not invoke the mail command. A database or process failure is non-zero; partial public-source failures remain explicit per row.
 
-The scheduled daily expression is `17 23 * * 1-5` UTC, approximately 07:17 Tuesday–Saturday in Taiwan. GitHub schedule is best-effort and may be delayed; use manual dispatch for recovery.
+The scheduled daily expression is `17 23 * * 1-5` UTC, approximately 07:17 Tuesday–Saturday in Taiwan. The job runs on a schedule only when repository variable `PRODUCTION_SCHEDULES_ENABLED=1`; manual dispatch is always allowed. GitHub schedule is best-effort and may be delayed; use manual dispatch for recovery.
 
 ## Stage 3 — weekly dry-run
 
@@ -71,12 +71,12 @@ Only after manual receipt and attachment review pass may the owner set `WEEKLY_M
 
 ## Stage 6 — scheduled workflow activation
 
-After the controlled production-recipient send passes, the owner may rely on the weekly schedule `17 1 * * 1` UTC, approximately Monday 09:17 Asia/Taipei. The workflow performs migration, storage check, quality-gated report generation, Gmail delivery and final status validation. It stops on database failure, `SEND_BLOCKED`, attachment failure, failed SMTP or any other materially unsuccessful state.
+After the controlled production-recipient send passes, the owner may set repository variable `PRODUCTION_SCHEDULES_ENABLED=1` and rely on the weekly schedule `17 1 * * 1` UTC, approximately Monday 09:17 Asia/Taipei. The workflow performs migration, storage check, quality-gated report generation, Gmail delivery and final status validation. It stops on database failure, `SEND_BLOCKED`, attachment failure, failed SMTP or any other materially unsuccessful state. Until that variable is `1`, scheduled daily／weekly jobs safely skip while manual dispatch remains available.
 
 ## Recovery and non-destructive behavior
 
-Migration uses non-destructive create-if-missing operations. Transactional Postgres snapshot upsert rolls back on batch failure. Provider re-backfill and public Postgres export are the recovery sources of truth. Filesystem adapter corruption remains explicit and does not silently become valid data. Delivery duplicate protection remains keyed by reporting week. There is no paid backup requirement.
+Migration uses non-destructive create-if-missing operations. Transactional Postgres snapshot upsert rolls back only the active batch on failure; prior committed batches remain durable, and the 3y rerun is idempotent without reset or truncate. Provider re-backfill and public Postgres export are the recovery sources of truth. Filesystem adapter corruption remains explicit and does not silently become valid data. Delivery duplicate protection remains keyed by reporting week. There is no paid backup requirement.
 
 ## Required final human action
 
-Create the owner-approved Neon Free project, configure `DATABASE_URL` and Gmail credentials only as GitHub Actions secrets, run the manual bootstrap workflow, execute one `MAIL_TEST_MODE=1` live weekly send to the approved personal recipient, verify receipt and attachment, then enable scheduled daily and weekly workflows.
+After this remediation is certified by the single manual bootstrap on promoted `main`, run exactly one `Market Weekly Intelligence Report` manually while `WEEKLY_MAIL_TEST_MODE=1`, verify the received Gmail HTML report and XLSX attachment, then set `PRODUCTION_SCHEDULES_ENABLED=1`. Do not trigger the weekly workflow or send email from the remediation agent.

@@ -8,14 +8,14 @@ The scheduler runs only public external market intelligence jobs. It does not re
 
 All business dates and completed-week calculations use `Asia/Taipei` (UTC+08:00). Taiwan has no daylight-saving transition, so the conversion is deterministic year-round. Schedules are intentionally not at the top of the hour.
 
-| Workflow | Taiwan time | UTC cron | Purpose |
-| --- | --- | --- | --- |
-| `market-daily.yml` | approximately 07:17 Tuesday–Saturday | `17 23 * * 1-5` | Capture completed prior market-day public data; no email |
-| `market-weekly.yml` | approximately 09:17 Monday | `17 1 * * 1` | Generate completed prior Monday–Sunday report and send Gmail email |
-| Bootstrap | Owner-triggered `workflow_dispatch` | Not recurring | Migration, public history backfill, validation and first report |
-| Backup | Owner policy／workflow command | Not prescribed | PostgreSQL public export／manifest; no paid backup service required |
+| Workflow | Taiwan time | UTC cron | Purpose | Gate |
+| --- | --- | --- | --- | --- |
+| `market-daily.yml` | approximately 07:17 Tuesday–Saturday | `17 23 * * 1-5` | Capture completed prior market-day public data; no email | `PRODUCTION_SCHEDULES_ENABLED=1` for schedule; manual always allowed |
+| `market-weekly.yml` | approximately 09:17 Monday | `17 1 * * 1` | Generate completed prior Monday–Sunday report and send Gmail email | `PRODUCTION_SCHEDULES_ENABLED=1` for schedule; manual always allowed |
+| `market-bootstrap.yml` | Owner-triggered `workflow_dispatch` | Not recurring | Migration, public history backfill, validation and first report | No schedule; not gated |
+| Backup | Owner policy／workflow command | Not prescribed | PostgreSQL public export／manifest; no paid backup service required | Owner-controlled |
 
-GitHub schedule is best-effort and may be delayed. Public repositories may have scheduled workflows disabled after extended repository inactivity. `workflow_dispatch` is the manual recovery path. Do not create artificial commits merely to hide inactivity.
+GitHub schedule is best-effort and may be delayed. Public repositories may have scheduled workflows disabled after extended repository inactivity. `workflow_dispatch` is the manual recovery path. The daily／weekly job-level condition is `github.event_name != 'schedule' || vars.PRODUCTION_SCHEDULES_ENABLED == '1'`; absent or non-`1` values safely skip scheduled jobs while leaving manual dispatch available. Keep the variable absent or `0` until bootstrap and mail test verification pass. Do not create artificial commits merely to hide inactivity.
 
 ## Required secret gate
 
@@ -32,7 +32,7 @@ STORAGE_PROVIDER=postgres DATABASE_URL="$DATABASE_URL" npm run production:bootst
 STORAGE_PROVIDER=postgres DATABASE_URL="$DATABASE_URL" npm run production:status
 ```
 
-Migration is idempotent and non-destructive. Bootstrap backfills provider-supported public history, validates the canonical record contract, creates the first completed-week report and records job state without sending email. Both commands fail closed when `DATABASE_URL` is missing or the database is unavailable.
+Migration is idempotent and non-destructive. Bootstrap backfills provider-supported public history, validates the canonical record contract, creates the first completed-week report and records job state without sending email. It uses bounded history concurrency of three (capped at four), `POSTGRES_UPSERT_BATCH_SIZE=250` by default (capped at 500), one transaction per batch and one parameterized multi-row upsert per batch. Progress and final counters are safe and resumable. Both commands fail closed when `DATABASE_URL` is missing or the database is unavailable.
 
 ### Daily workflow
 
@@ -52,7 +52,7 @@ The scheduler must stop on `DATABASE_URL_REQUIRED`, `DATABASE_UNAVAILABLE`, `DAT
 
 A migration rerun is safe because it uses `CREATE TABLE IF NOT EXISTS` and `CREATE INDEX IF NOT EXISTS`. A bootstrap or daily rerun is safe because snapshot identity is `material_id + observation_date` and upsert quality ranking prevents lower-quality replacement. A weekly rerun for a `SENT` or `TEST_SENT` week returns `DUPLICATE_PREVENTED`; owner-approved resend requires `ALLOW_WEEKLY_RESEND=1` and explicit `--allow-resend` after ledger／mailbox review.
 
-For a Neon outage or query timeout, inspect the safe workflow log, correct the secret／service condition and rerun via `workflow_dispatch`. For public API failures, inspect per-source status and report quality; never fabricate observations. For SMTP disconnect after DATA submission, do not retry automatically because acceptance is uncertain. For migration or transaction rollback, correct the database condition and rerun the idempotent command. Public PostgreSQL export and provider-supported re-backfill are the recovery source of truth.
+For a Neon outage or query timeout, inspect the safe workflow log, correct the secret／service condition and rerun via `workflow_dispatch`. For a bootstrap timeout, inspect step timing and the latest safe progress counters, then rerun the unchanged 3y bootstrap; committed batches remain durable and the rerun is idempotent. For public API failures, inspect per-source status and report quality; never fabricate observations. For SMTP disconnect after DATA submission, do not retry automatically because acceptance is uncertain. For migration or transaction rollback, correct the database condition and rerun the idempotent command. Public PostgreSQL export and provider-supported re-backfill are the recovery source of truth.
 
 ## Scheduler activation checklist
 
@@ -68,4 +68,4 @@ For a Neon outage or query timeout, inspect the safe workflow log, correct the s
 | Approved recipient send | One controlled send after test pass |
 | Scheduled workflows | Enabled only after all preceding checks |
 
-The final human action is to create the owner-approved Neon Free project, configure `DATABASE_URL` and Gmail credentials only as GitHub Actions secrets, run manual bootstrap, perform one `MAIL_TEST_MODE=1` live weekly send to the approved personal recipient, verify receipt and attachment, then enable scheduled daily and weekly workflows.
+After this remediation PASS, the exact next human action is to run **one** `Market Weekly Intelligence Report` manually while `WEEKLY_MAIL_TEST_MODE=1`, verify the received Gmail HTML report and XLSX attachment, then set `PRODUCTION_SCHEDULES_ENABLED=1`. Do not trigger the weekly workflow during this remediation, and do not send email from the agent.

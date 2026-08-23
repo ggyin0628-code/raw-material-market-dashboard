@@ -22,6 +22,8 @@ jobs:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       MARKET_TIMEOUT_MS: "10000"
       MARKET_RETRIES: "2"
+      POSTGRES_UPSERT_BATCH_SIZE: "250"
+      BOOTSTRAP_HISTORY_CONCURRENCY: "3"
     steps:
       - name: Checkout
         uses: actions/checkout@v4

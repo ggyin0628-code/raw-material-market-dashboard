@@ -133,15 +133,21 @@ A separate bounded live public smoke may report current source availability, mat
 
 Historical filesystem production simulation completed with synthetic public-safe records on `feat/weekly-market-intelligence-production-v1`: unconfigured storage returned `STORAGE_CONFIGURATION_REQUIRED`／not ready; configured absolute temporary root returned `DURABLE_CONFIGURED`; bootstrap returned `BOOTSTRAP_COMPLETE` with 45 persisted records; daily snapshot returned `OK` with 15 records／15 inserted; weekly generated JSON／HTML／XLSX and returned `SEND_WITH_WARNINGS` plus mail `DRY_RUN`／`sent: false`; duplicate guard returned `DUPLICATE_PREVENTED`; `/health/weekly` returned HTTP 200 with no path or secret leak; public-only backup manifest was created. No SMTP socket or real email was used. Exact safe output is retained outside the repository at `/home/ubuntu/raw-material-production-simulation.md`.
 
-The historical filesystem production gate recorded `31 passed／0 failed`; the current zero-cost deterministic gate is `38 passed／0 failed`; `npm run check`, `npm run build` and `npm audit --omit=dev` pass with 0 vulnerabilities. Production storage, SMTP credentials, approved sender／recipients, TEST_RECIPIENT receipt and scheduler activation remain `EXTERNAL_CONFIGURATION_REQUIRED` by design.
+The historical filesystem production gate recorded `31 passed／0 failed`; the current pre-remediation zero-cost deterministic gate was `38 passed／0 failed`; the current bootstrap-remediation gate is `43 passed／0 failed`; `npm run check`, `npm run build` and `npm audit --omit=dev` pass with 0 vulnerabilities. Production storage, SMTP credentials, approved sender／recipients, TEST_RECIPIENT receipt and scheduler activation remain `EXTERNAL_CONFIGURATION_REQUIRED` by design.
 
 ## Zero-Cost Runtime V1 verification
 
-The current zero-cost branch is `feat/zero-cost-runtime-v1`, based on `weekly-market-intelligence-production-ready-v1` target `222e1a2a7a602d3700260f83753bf024708b47d6`. Its deterministic suite is **38 passed／0 failed**. `npm run check`, `npm run build` and `npm audit --omit=dev` pass; the Postgres adapter tests do not require a real Neon account.
+The current bootstrap-remediation branch is `fix/bootstrap-performance-v1`, based on main `8390a0234fb5d18e28e100ee1ff40750b6b0d95e`. Its deterministic suite is **43 passed／0 failed**. `npm run check`, `npm run build` and `npm audit --omit=dev` pass; the Postgres adapter and performance tests do not require a real Neon account.
 
 | Area | Verification |
 | --- | --- |
 | Provider boundary | `filesystem` local/test adapter and `postgres` Neon-compatible adapter use shared canonical records and shared analytics |
+| Bootstrap timeout diagnosis | Cancelled run `32609131444`: setup／migration／storage check completed in approximately 14 seconds; `Bootstrap public history` occupied the remaining 30-minute ceiling |
+| Batch write remediation | `POSTGRES_UPSERT_BATCH_SIZE=250` default, max 500; one parameterized multi-row upsert per batch; no per-record `SELECT FOR UPDATE` |
+| History fetch remediation | Bounded concurrency 3, capped at 4; existing timeout／retry and per-material isolation retained |
+| Resumability | Each batch commits independently; prior committed batches survive interruption; rerun is identity／quality-safe |
+| Schedule safety | Daily／weekly scheduled jobs require `PRODUCTION_SCHEDULES_ENABLED=1`; manual dispatch remains allowed; bootstrap is dispatch-only |
+| Live bootstrap | Not yet executed on remediation branch; post-promotion owner-controlled single bootstrap is required before certification |
 | Database migration | `db:migrate` creates required tables/indexes idempotently and non-destructively |
 | Postgres semantics | Snapshot uniqueness, quality-preserving upsert, transaction rollback, invalid payload, database failure, query timeout contract and safe redaction |
 | Parity | Same fixture data produces equivalent weekly indicators and quality summary through filesystem／Postgres reads |

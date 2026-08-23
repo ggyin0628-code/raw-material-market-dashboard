@@ -41,7 +41,7 @@ const { snapshotToRecords } = require("../lib/weekly/dailySnapshotService");
 const { readStore, upsertSnapshots, clearWriteQueue } = require("../lib/weekly/snapshotStore");
 const { buildWeeklyReport, renderWeeklyHtml, createWeeklyWorkbook } = require("../lib/weekly/reportService");
 const { buildSignal } = require("../lib/weekly/weeklyAnalytics");
-const { backfillPublicHistory } = require("../lib/weekly/backfillService");
+const { backfillPublicHistory, getHistoryConcurrency, runWithConcurrency } = require("../lib/weekly/backfillService");
 const { parseArgs, run: runWeeklyCommand, commandExitCode, errorExitCode } = require("../lib/weekly/cli");
 const { sendWeeklyEmail, readMailConfig, validateMailConfig, writeLedger, readLedger, createMimeMessage } = require("../lib/weekly/mailService");
 const { getStorageConfig, assertProductionStorage } = require("../lib/weekly/storageConfig");
@@ -49,6 +49,7 @@ const { ensureStorageDirectories, getStorageStatus, backupPublicStorage, readJob
 const { evaluateWeeklyQuality } = require("../lib/weekly/qualityGate");
 const { runProductionBootstrap, runProductionWeekly, readProductionStatus, runDatabaseMigration } = require("../lib/weekly/productionService");
 const postgres = require("../lib/weekly/postgresAdapter");
+const { DEFAULT_UPSERT_BATCH_SIZE, MAX_UPSERT_BATCH_SIZE } = postgres;
 
 const originalFetch = global.fetch;
 const originalSnapshotFile = process.env.MARKET_SNAPSHOT_FILE;
@@ -636,6 +637,8 @@ class FakePostgresPool {
     this.failOn = null;
     this.transactionBackup = null;
     this.schemaReady = false;
+    this.insertQueryCount = 0;
+    this.failOnInsertNumber = null;
   }
 
   async connect() {
@@ -684,8 +687,22 @@ class FakePostgresPool {
     if (normalized.startsWith("SELECT reporting_week, payload FROM weekly_report_metadata")) return { rows: [...this.metadata.entries()].sort().map(([reporting_week, payload]) => ({ reporting_week, payload })) };
     if (normalized.startsWith("SELECT job_name, payload FROM weekly_job_state")) return { rows: [...this.jobs.entries()].sort().map(([job_name, payload]) => ({ job_name, payload })) };
     if (normalized.startsWith("INSERT INTO market_snapshots")) {
-      this.snapshots.set(`${params[0]}|${params[1]}`, JSON.parse(params[2]));
-      return { rows: [] };
+      this.insertQueryCount += 1;
+      if (this.failOnInsertNumber && this.insertQueryCount === this.failOnInsertNumber) throw new Error("synthetic batch failure");
+      const rows = [];
+      for (let offset = 0; offset < params.length; offset += 5) {
+        const key = `${params[offset]}|${params[offset + 1]}`;
+        const incoming = JSON.parse(params[offset + 2]);
+        const existing = this.snapshots.get(key);
+        const rank = { LIVE: 4, FALLBACK: 3, STALE: 2, API_ERROR: 1, NO_DATA: 0 };
+        const shouldWrite = !existing
+          || (rank[incoming.status] ?? -1) > (rank[existing.status] ?? -1)
+          || ((rank[incoming.status] ?? -1) === (rank[existing.status] ?? -1) && String(incoming.collectedAt || "") >= String(existing.collectedAt || ""));
+        if (!shouldWrite) continue;
+        this.snapshots.set(key, incoming);
+        rows.push({ inserted: !existing });
+      }
+      return { rows };
     }
     if (normalized.startsWith("INSERT INTO weekly_delivery_ledger")) { this.delivery.set(params[0], JSON.parse(params[1])); return { rows: [] }; }
     if (normalized.startsWith("INSERT INTO weekly_report_metadata")) { this.metadata.set(params[0], JSON.parse(params[1])); return { rows: [] }; }
@@ -768,6 +785,7 @@ test("GitHub Actions workflows expose safe daily and weekly runtime contracts", 
   assert.match(daily, /npm ci/);
   assert.match(daily, /npm run db:migrate/);
   assert.match(daily, /npm run production:daily/);
+  assert.match(daily, /if: github\.event_name != 'schedule' \|\| vars\.PRODUCTION_SCHEDULES_ENABLED == '1'/);
   assert.doesNotMatch(daily, /production:weekly|MAIL_PASSWORD/);
   assert.match(weekly, /workflow_dispatch/);
   assert.match(weekly, /17 1 \* \* 1/);
@@ -775,6 +793,7 @@ test("GitHub Actions workflows expose safe daily and weekly runtime contracts", 
   assert.match(weekly, /secrets\.DATABASE_URL/);
   assert.match(weekly, /secrets\.MAIL_PASSWORD/);
   assert.match(weekly, /npm run production:weekly/);
+  assert.match(weekly, /if: github\.event_name != 'schedule' \|\| vars\.PRODUCTION_SCHEDULES_ENABLED == '1'/);
   assert.doesNotMatch(`${daily}\n${weekly}`, /postgres:\/\/[^$\s]+|BEGIN (RSA|EC|OPENSSH) PRIVATE KEY/);
   assert.equal(commandExitCode({ state: "SEND_WITH_WARNINGS", mail: { state: "FAILED" } }), 2);
 });
@@ -798,6 +817,7 @@ test("manual production bootstrap workflow is dispatch-only and never sends mail
   assert.match(workflow, /name: Market Production Bootstrap/);
   assert.match(workflow, /workflow_dispatch:/);
   assert.doesNotMatch(workflow, /^\s+schedule:/m);
+  assert.doesNotMatch(workflow, /PRODUCTION_SCHEDULES_ENABLED/);
   assert.match(workflow, /ubuntu-latest/);
   assert.match(workflow, /node-version: "20"/);
   assert.match(workflow, /npm ci/);
@@ -805,7 +825,196 @@ test("manual production bootstrap workflow is dispatch-only and never sends mail
   assert.match(workflow, /npm run db:migrate/);
   assert.match(workflow, /npm run production:storage-check/);
   assert.match(workflow, /npm run production:bootstrap -- --period 3y/);
+  assert.match(workflow, /POSTGRES_UPSERT_BATCH_SIZE: "250"/);
+  assert.match(workflow, /BOOTSTRAP_HISTORY_CONCURRENCY: "3"/);
+  assert.match(workflow, /timeout-minutes: 30/);
   assert.match(workflow, /npm run production:status/);
   assert.doesNotMatch(workflow, /MAIL_(USER|PASSWORD|FROM|TO|TEST_TO|ENABLED|HOST|PORT|SECURE)/);
   assert.doesNotMatch(workflow, /production:weekly|weekly:send|smtp/i);
+});
+
+function batchFixtureRecords(count, status = "LIVE", collectedAt = "2026-08-17T01:00:00Z") {
+  return Array.from({ length: count }, (_, index) => ({
+    materialId: `fixture-${index % 25}`,
+    materialName: `公開材料 ${index % 25}`,
+    symbol: `FIX-${index % 25}`,
+    category: "公開測試資料",
+    exchange: "PUBLIC FIXTURE",
+    date: new Date(Date.UTC(2026, 0, index + 1)).toISOString().slice(0, 10),
+    marketPrice: 100 + index,
+    sourceUnit: "USD/unit",
+    currency: "USD",
+    usdTwdRate: 32,
+    twdReferenceValue: (100 + index) * 32,
+    source: "synthetic public fixture",
+    status,
+    collectedAt,
+    lastTradeTimestamp: `2026-01-01T12:00:00Z`,
+    provenance: { provider: "synthetic public fixture", status },
+  }));
+}
+
+test("Postgres batch upsert is query-bounded for 1,000 records and preserves status quality", async () => {
+  assert.equal(DEFAULT_UPSERT_BATCH_SIZE, 250);
+  assert.equal(MAX_UPSERT_BATCH_SIZE, 500);
+  assert.equal(postgres.getUpsertBatchSize(undefined), 250);
+  assert.equal(postgres.getUpsertBatchSize(0), 1);
+  assert.equal(postgres.getUpsertBatchSize(1000), 500);
+  const env = { STORAGE_PROVIDER: "postgres", DATABASE_URL: "postgres://fixture.invalid/market", POSTGRES_UPSERT_BATCH_SIZE: "250" };
+  const pool = new FakePostgresPool();
+  await postgres.migratePostgres({ env, pool });
+  const records = batchFixtureRecords(1000);
+  const result = await postgres.upsertSnapshots({ records, env, pool });
+  assert.equal(result.batchCount, 4);
+  assert.equal(result.queryCount, 4);
+  assert.equal(pool.insertQueryCount, 4);
+  assert.equal(result.inserted, records.length);
+  assert.equal(pool.snapshots.size, records.length);
+  const snapshotInsertQueries = pool.queries.filter((query) => query.startsWith("INSERT INTO market_snapshots"));
+  assert.ok(snapshotInsertQueries.every((query) => query.includes("ON CONFLICT") && query.includes("RETURNING")));
+  assert.equal(pool.queries.some((query) => query.includes("SELECT payload FROM market_snapshots WHERE") && query.includes("FOR UPDATE")), false);
+  for (const count of [1, 250, 251, 3000]) {
+    const boundaryPool = new FakePostgresPool();
+    await postgres.migratePostgres({ env, pool: boundaryPool });
+    const boundary = await postgres.upsertSnapshots({ records: batchFixtureRecords(count), env, pool: boundaryPool });
+    assert.equal(boundary.batchCount, Math.ceil(count / 250));
+    assert.equal(boundary.queryCount, Math.ceil(count / 250));
+    assert.equal(boundaryPool.insertQueryCount, Math.ceil(count / 250));
+    assert.equal(boundaryPool.snapshots.size, count);
+  }
+  const statuses = ["LIVE", "FALLBACK", "STALE", "API_ERROR", "NO_DATA"];
+  for (let index = 0; index < statuses.length; index += 1) {
+    const identity = `quality-${index}|2026-08-01`;
+    pool.snapshots.set(identity, batchFixtureRecords(1, statuses[index])[0]);
+    pool.snapshots.get(identity).materialId = `quality-${index}`;
+    pool.snapshots.get(identity).date = "2026-08-01";
+  }
+  const mixed = statuses.flatMap((existingStatus, index) => statuses.map((incomingStatus) => ({
+    ...batchFixtureRecords(1, incomingStatus, "2026-08-18T01:00:00Z")[0],
+    materialId: `quality-${index}`,
+    date: "2026-08-01",
+    status: incomingStatus,
+  })));
+  const mixedResult = await postgres.upsertSnapshots({ records: mixed, env, pool, batchSize: 25 });
+  assert.equal(mixedResult.batchCount, 1);
+  for (let index = 0; index < statuses.length; index += 1) assert.equal(pool.snapshots.get(`quality-${index}|2026-08-01`).status, "LIVE");
+});
+
+test("Postgres batch boundaries, rollback and resumable rerun retain prior committed batches", async () => {
+  const env = { STORAGE_PROVIDER: "postgres", DATABASE_URL: "postgres://fixture.invalid/market" };
+  const pool = new FakePostgresPool();
+  await postgres.migratePostgres({ env, pool });
+  const records = batchFixtureRecords(501);
+  pool.failOnInsertNumber = 2;
+  await assert.rejects(() => postgres.upsertSnapshots({ records, env, pool }), (error) => error.code === "DATABASE_WRITE_FAILED");
+  assert.equal(pool.insertQueryCount, 2);
+  assert.equal(pool.snapshots.size, 250);
+  assert.ok(pool.queries.includes("ROLLBACK"));
+  pool.failOnInsertNumber = null;
+  pool.insertQueryCount = 0;
+  const rerun = await postgres.upsertSnapshots({ records, env, pool });
+  assert.equal(rerun.batchCount, 3);
+  assert.equal(pool.snapshots.size, 501);
+  assert.equal(rerun.inserted, 251);
+  const idempotent = await postgres.upsertSnapshots({ records, env, pool });
+  assert.equal(idempotent.inserted, 0);
+  assert.equal(idempotent.replaced, 501);
+  assert.equal(idempotent.ignored, 0);
+  assert.equal(pool.snapshots.size, 501);
+});
+
+test("history backfill uses bounded concurrency and keeps per-material failures isolated", async () => {
+  assert.equal(getHistoryConcurrency(undefined), 3);
+  assert.equal(getHistoryConcurrency(99), 4);
+  assert.equal(getHistoryConcurrency(0), 1);
+  let active = 0;
+  let maximum = 0;
+  const ordered = await runWithConcurrency(Array.from({ length: 9 }, (_, index) => index), 3, async (value) => {
+    active += 1;
+    maximum = Math.max(maximum, active);
+    await new Promise((resolve) => setTimeout(resolve, 2));
+    active -= 1;
+    return value * 2;
+  });
+  assert.equal(maximum, 3);
+  assert.deepEqual(ordered, [0, 2, 4, 6, 8, 10, 12, 14, 16]);
+  const directory = await tempDirectory();
+  const filePath = path.join(directory, "snapshots.json");
+  const selected = materials.slice(0, 4);
+  const progress = [];
+  const backfill = await backfillPublicHistory({
+    period: "1y",
+    filePath,
+    materials: selected,
+    fxRows: [{ date: "2026-08-03", close: 32 }],
+    historyConcurrency: 3,
+    onProgress: (event) => { progress.push(event); },
+    fetchHistory: async (symbol) => {
+      if (symbol === selected[2].symbol) throw new Error("synthetic public provider timeout");
+      return { sourceType: "primary", source: "synthetic public history", rows: [{ date: "2026-08-03", close: 100 }] };
+    },
+    collectedAt: "2026-08-17T01:00:00Z",
+  });
+  assert.equal(backfill.materialCount, 4);
+  assert.equal(backfill.failureCount, 1);
+  assert.equal(backfill.fetchedRows, 4);
+  assert.ok(progress.some((event) => event.phase === "material_failed"));
+  assert.ok(progress.some((event) => event.phase === "material_completed"));
+  assert.equal((await readStore(filePath)).records.length, 4);
+});
+
+test("Postgres conflict quality semantics cover every status pair and collected_at boundary", async () => {
+  const env = { STORAGE_PROVIDER: "postgres", DATABASE_URL: "postgres://fixture.invalid/market" };
+  const statuses = ["LIVE", "FALLBACK", "STALE", "API_ERROR", "NO_DATA"];
+  const rank = { LIVE: 4, FALLBACK: 3, STALE: 2, API_ERROR: 1, NO_DATA: 0 };
+  for (const existingStatus of statuses) {
+    for (const incomingStatus of statuses) {
+      const pool = new FakePostgresPool();
+      await postgres.migratePostgres({ env, pool });
+      const existing = { ...batchFixtureRecords(1, existingStatus, "2026-08-17T01:00:00Z")[0], materialId: "pair", date: "2026-08-01" };
+      await postgres.upsertSnapshots({ records: [existing], env, pool });
+      const incoming = { ...existing, status: incomingStatus, marketPrice: 999, collectedAt: "2026-08-18T01:00:00Z" };
+      await postgres.upsertSnapshots({ records: [incoming], env, pool });
+      const stored = pool.snapshots.get("pair|2026-08-01");
+      const expected = rank[incomingStatus] >= rank[existingStatus] ? incomingStatus : existingStatus;
+      assert.equal(stored.status, expected, `${existingStatus} -> ${incomingStatus}`);
+
+      const olderPool = new FakePostgresPool();
+      await postgres.migratePostgres({ env, pool: olderPool });
+      await postgres.upsertSnapshots({ records: [existing], env, pool: olderPool });
+      await postgres.upsertSnapshots({ records: [{ ...incoming, collectedAt: "2026-08-16T01:00:00Z" }], env, pool: olderPool });
+      const olderStored = olderPool.snapshots.get("pair|2026-08-01");
+      const olderExpected = rank[incomingStatus] > rank[existingStatus] ? incomingStatus : existingStatus;
+      assert.equal(olderStored.status, olderExpected, `${existingStatus} -> ${incomingStatus} older`);
+    }
+  }
+});
+
+test("production bootstrap records safe progress and completion summary", async () => {
+  const directory = await tempDirectory();
+  const env = { NODE_ENV: "production", PRODUCTION_STORAGE_ROOT: directory };
+  const config = getStorageConfig(env, { forceProduction: true });
+  const records = fullProductionFixtureRecords();
+  const result = await runProductionBootstrap({
+    env,
+    storageConfig: config,
+    period: "3y",
+    logProgress: false,
+    backfill: async ({ filePath, onProgress }) => {
+      await upsertSnapshots(records, { filePath, env });
+      await onProgress({ phase: "batch_committed", materialIndex: 1, materialCount: materials.length, batchNumber: 1, batchCount: 1, materialId: "copper", symbol: "HG=F", rows: records.length, inserted: records.length, replaced: 0, ignored: 0 });
+      return { period: "3y", materialCount: materials.length, recordCount: records.length, fetchedRows: records.length, inserted: records.length, replaced: 0, ignored: 0, failureCount: 0, results: [] };
+    },
+  });
+  assert.equal(result.state, "BOOTSTRAP_COMPLETE");
+  assert.equal(result.period, "3y");
+  assert.equal(result.materialCount, materials.length);
+  assert.equal(result.fetchedRows, records.length);
+  assert.equal(result.apiErrorMaterials, 0);
+  assert.equal(result.progressEventCount, 1);
+  assert.ok(Number.isFinite(result.elapsedMs));
+  const jobs = await readJobState(config.jobStateFile);
+  assert.equal(jobs.jobs.productionBootstrap.state, "BOOTSTRAP_COMPLETE");
+  assert.equal(jobs.jobs.productionBootstrap.fetchedRows, records.length);
+  assert.equal(jobs.jobs.productionBootstrap.apiErrorMaterials, 0);
 });

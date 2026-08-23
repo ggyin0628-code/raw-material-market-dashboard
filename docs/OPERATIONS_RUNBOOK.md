@@ -27,7 +27,8 @@ curl -i https://<host>/health/weekly
 | Migration failure | `DATABASE_MIGRATION_FAILED`, transaction rollback | Correct permissions/schema access and rerun non-destructive migration | Do not drop, truncate or reset tables |
 | Query timeout／disconnect | bounded database read/write failure | Rerun after transient condition; inspect safe logs | No infinite retry or fabricated data |
 | Invalid public payload | `SNAPSHOT_PAYLOAD_INVALID` or explicit contract error | Preserve failure, investigate provider normalization, rerun | Do not insert malformed rows |
-| Partial Postgres batch failure | transaction rollback; no partial commit | Correct cause and rerun idempotent batch | Do not claim partial batch persisted |
+| Bootstrap timeout／cancel | `production:bootstrap` cancelled or non-zero | Inspect safe step timing and latest `productionBootstrap` progress; fix bottleneck, then rerun 3y bootstrap | Do not lower 3y period or blindly extend timeout |
+| Partial Postgres batch failure | Active batch transaction rolls back; prior batches remain durable | Correct cause and rerun idempotent batch | Do not claim failed batch persisted; do not truncate |
 | Public API timeout／HTTP failure | `API_ERROR`, `NO_DATA` or `STALE` per row | Use bounded retry and next workflow window | Do not invent dates, prices or FX |
 | Partial daily failure | successful rows retained; failed rows visible | Review coverage and rerun daily | Do not delete successful rows |
 | Weekly insufficient data | `SEND_BLOCKED`, non-zero | Obtain provider-supported public history or wait, then dry-run | Do not interpolate or use private data |
@@ -39,6 +40,14 @@ curl -i https://<host>/health/weekly
 | Attachment failure | `FAILED`, no successful send | Regenerate public artifacts and rerun controlled test | Do not mark sent manually |
 | Duplicate week | `DUPLICATE_PREVENTED` | Review ledger; owner-approved resend only | Do not delete ledger row |
 | Public export failure | non-zero | Correct destination／database access and rerun export | Do not claim backup exists without manifest |
+
+## Bootstrap performance and resumability
+
+The observed `Market Production Bootstrap #1` run on main `8390a0234fb5d18e28e100ee1ff40750b6b0d95e` completed checkout, Node setup, `npm ci`, code validation, migration and storage check in approximately 14 seconds, then remained active in `Bootstrap public history` until the 30-minute job ceiling. The dominant observed bottleneck is therefore the bootstrap stage, not checkout or migration. Source inspection shows two contributing paths: sequential per-material public history fetches and per-record Postgres lookup／write round-trips. This remediation addresses both without changing the 3y period or analytics.
+
+The backfill now uses bounded history concurrency of three, capped at four, while retaining the existing provider timeout／retry policy and per-material failure isolation. Postgres snapshot writes use `POSTGRES_UPSERT_BATCH_SIZE=250` by default, clamped to 500. Each chunk uses one transaction and one parameterized multi-row `INSERT ... ON CONFLICT` statement; lower-quality rows cannot overwrite higher-quality rows. A committed chunk remains durable if a later chunk or the workflow is interrupted. Rerunning the same 3y bootstrap is safe and does not require reset or truncate.
+
+Progress output is safe and includes `FX history fetched`, material index／count, records prepared, batch number／count, committed counters, API-error material count and final elapsed time. It excludes database URLs, passwords, Gmail credentials and recipient values. Job state stores the latest safe progress and final `fetchedRows`, `inserted`, `replaced`, `ignored`, `apiErrorMaterials`, `elapsedMs` and persisted record count.
 
 ## Daily incident procedure
 
@@ -64,7 +73,9 @@ The quality gate counts tracked indicators and classifies usable `LIVE`／`FALLB
 
 ## Workflow operations
 
-GitHub Actions schedules are best-effort and may be delayed. Public repositories may have scheduled workflows disabled after extended inactivity. `workflow_dispatch` is the manual recovery path. Do not create artificial commits merely to hide inactivity. Keep `WEEKLY_MAIL_TEST_MODE=1` until the first live test receipt and attachment review pass; only then may the owner set it to `0` and enable approved production-recipient operation.
+GitHub Actions schedules are best-effort and may be delayed. Public repositories may have scheduled workflows disabled after extended inactivity. `workflow_dispatch` is the manual recovery path. The daily／weekly job-level schedule gate runs scheduled jobs only when repository variable `PRODUCTION_SCHEDULES_ENABLED` equals `1`; manual dispatch is always allowed. Keep this variable absent or `0` until the manual bootstrap succeeds and the first live TEST_RECIPIENT receipt／attachment review passes. Keep `WEEKLY_MAIL_TEST_MODE=1` until that review; only then may the owner set it to `0` and enable approved production-recipient operation.
+
+After promotion, the only permitted live verification in this remediation is one manual `Market Production Bootstrap` run on `main`. Do not trigger `Market Weekly Intelligence Report`, do not send email, and do not change the schedule gate variable during the remediation.
 
 ## Owner activation handoff
 

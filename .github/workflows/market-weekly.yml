@@ -38,6 +38,8 @@ env:
 
 jobs:
   report:
+    # Manual dispatch is always allowed; scheduled runs require explicit owner activation.
+    if: github.event_name != 'schedule' || vars.PRODUCTION_SCHEDULES_ENABLED == '1'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
