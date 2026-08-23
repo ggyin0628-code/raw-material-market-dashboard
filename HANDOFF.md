@@ -249,3 +249,25 @@ Phase 4A is complete on feature branch `feat/engineering-estimate-foundation-v1`
 The local calculated example returned 2.355 kg per part, 235.5 kg total material mass, 145 m cut length, 800 pierces, 400 bends, one batch and 100 parts per batch. The cost panel remained a null-cost `NO_RATE` state and did not show synthetic, supplier, company or market prices. The 390×844 review rendered a stacked form/result layout with readable quantities, visible boundary labels and no horizontal overflow.
 
 The next review boundary is Phase 4B. Candidate gaps include non-rectangular geometry, hole/void subtraction, nesting and remnant models, certified material properties, process-time models, machine capability, setup/changeover detail, private rate governance and any ERP or quotation integration. None of these are implemented in Phase 4A. The current branch must remain separate from `main` until explicit review and approval.
+
+## Phase 4A production safety correction — Synthetic rates blocked in production
+
+**FEATURE_BRANCH_READY_FOR_REVIEW — DO NOT PROMOTE MAIN**
+
+A narrow safety correction was applied on `feat/engineering-estimate-foundation-v1` after the Phase 4A foundation commit. The core deterministic estimator still supports `SYNTHETIC_TEST` for unit tests and explicitly non-production local/test execution, but the production HTTP runtime now rejects `rateProfile.mode=SYNTHETIC_TEST` with HTTP 400, `state=VALIDATION_ERROR`, top-level `code=SYNTHETIC_RATE_NOT_ALLOWED_IN_PRODUCTION`, a matching message, and a structured field error at `input.rateProfile.mode`.
+
+| Handoff item | Result |
+| --- | --- |
+| Implementation commit | `dc67b11bfbd87e093ce298ae91f8bd5c4be8a93d` (`fix: block synthetic rates in production runtime`) |
+| Production HTTP synthetic behavior | PASS: `NODE_ENV=production` rejects `SYNTHETIC_TEST`; no synthetic monetary estimate is generated |
+| Production NO_RATE behavior | PASS: explicit `NO_RATE` and omitted `rateProfile` return HTTP 200 with every monetary field `null` |
+| Production schema behavior | PASS: `schema.rateProfile.allowedModes=["NO_RATE"]`; `SYNTHETIC_TEST` appears separately under `testOnlyModes` with an explicit rejection note; runtime allowlist is `NO_RATE` only |
+| Core deterministic behavior | PASS: non-production estimator/service tests still calculate the explicit synthetic fixture cost deterministically |
+| Private rate reservation | PASS: `PRIVATE_CALIBRATED` remains reserved and rejected; no private/company/supplier rate was added |
+| Existing paths | PASS: existing raw-material, machining and sheet-metal APIs, routes and `engineeringEstimate=null` isolation remain covered |
+| Final deterministic suite | PASS: **94 passed / 0 failed** |
+| Final gates | PASS: `npm ci`, `npm run check`, `npm test`, `npm run build`, `npm audit --omit=dev`, `git diff --check`; audit reported 0 vulnerabilities |
+| Local production HTTP smoke | PASS: fresh local `NODE_ENV=production` server accepted NO_RATE with null cost and returned production-aware schema; synthetic rejection was also verified with HTTP 400 and structured code |
+| Production operations | NONE: no main promotion, deployment, migration, workflow, bootstrap, daily/weekly, backfill, mail, Gmail, schedule, secret or Neon operation |
+
+The Phase 4A UI remains NO_RATE-only and continues to show `尚未設定成本參數`, `非供應商報價` and `未載入公司成本參數`; no synthetic-rate input panel was added. The technical specification was updated to distinguish the internal test-only mode from the production HTTP allowlist. The feature branch remains pending explicit review and must not be promoted to `main`.

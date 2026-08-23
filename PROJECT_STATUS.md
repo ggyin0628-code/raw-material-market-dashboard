@@ -245,3 +245,27 @@ Phase 4A is complete on `feat/engineering-estimate-foundation-v1`, based exactly
 The final local example displayed 2.355 kg/part, 235.5 kg total material mass, 145 m total cut length, 800 pierces, 400 bends, one batch and 100 parts per batch. `NO_RATE` remained visibly null-cost rather than zero-cost; no synthetic fixture rate appeared in the UI. The mobile metrics recorded viewport width 390, document width 390, body width 390 and `horizontalOverflow=false`.
 
 Phase 4B remains unimplemented and requires a separate review for richer geometry, nesting/remnant, certified material properties, process-time models, internal/private rate governance, quotation inputs or ERP integration. No main promotion is authorized by this status entry.
+
+## Phase 4A production safety correction — Synthetic rates blocked in production
+
+**FEATURE_BRANCH_READY_FOR_REVIEW — DO NOT PROMOTE MAIN**
+
+A narrow production-safety correction is complete on `feat/engineering-estimate-foundation-v1`. The core estimator retains deterministic `SYNTHETIC_TEST` support for non-production tests, while `NODE_ENV=production` HTTP runtime rejects synthetic rate profiles before any estimate or cost calculation is produced.
+
+| Status item | Result |
+| --- | --- |
+| Implementation SHA | `dc67b11bfbd87e093ce298ae91f8bd5c4be8a93d` |
+| Production synthetic rejection | PASS: HTTP 400, `state=VALIDATION_ERROR`, `code=SYNTHETIC_RATE_NOT_ALLOWED_IN_PRODUCTION`, explicit message and structured `input.rateProfile.mode` error |
+| Production NO_RATE | PASS: explicit and omitted `rateProfile` both return HTTP 200; all monetary fields remain `null` |
+| Production schema | PASS: runtime `allowedRateModes` and `schema.rateProfile.allowedModes` contain only `NO_RATE`; `SYNTHETIC_TEST` is separately identified as `testOnlyModes` and rejected by production HTTP |
+| Internal/test schema | PASS: non-production service/schema retains `SYNTHETIC_TEST` metadata for deterministic tests |
+| Core synthetic formulas | PASS: non-production synthetic fixture still returns deterministic cost totals; underlying estimator support was not removed |
+| PRIVATE_CALIBRATED | PASS: remains reserved/unimplemented and rejected |
+| UI | PASS: `/estimate` remains NO_RATE-only; no synthetic-rate panel; boundary labels unchanged |
+| Existing market behavior | PASS: raw-material, machining and sheet-metal API isolation and `engineeringEstimate=null` regressions remain covered |
+| Full deterministic suite | PASS: **94 passed / 0 failed** |
+| Required gates | PASS: `npm ci`, `npm run check`, `npm test`, `npm run build`, `npm audit --omit=dev`, `git diff --check`; 0 vulnerabilities |
+| Local production HTTP smoke | PASS: fresh local production-mode server accepted NO_RATE with null cost and exposed production-aware schema; synthetic rejection returned HTTP 400 with the required code |
+| Production operations | NONE: no deploy, main promotion, migration, Neon, workflow, bootstrap, daily/weekly, mail, Gmail, schedule or secret operation |
+
+The authoritative production main remains `30192a4d5202675df11a2e00ee97f02d2c49537d`. This correction must be reviewed separately and must not be promoted automatically.
