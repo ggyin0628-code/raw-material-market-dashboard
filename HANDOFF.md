@@ -71,3 +71,25 @@ The next operational certification is for the owner to enable the existing sched
 [2]: https://github.com/ggyin0628-code/raw-material-market-dashboard/actions/runs/32611318090 "Successful promoted-main bootstrap"
 [3]: https://github.com/ggyin0628-code/raw-material-market-dashboard/actions/runs/32611472483 "Bootstrap batch telemetry verification"
 [4]: https://github.com/ggyin0628-code/raw-material-market-dashboard/commit/8a9fd80c30a339b9eeea1a176c174459368a39b9 "Final presentation main commit"
+
+## Phase 2A — CNC／一般加工公開市場參考 V1
+
+**狀態：FEATURE_BRANCH_READY_FOR_REVIEW**
+
+本功能在 `feat/machining-market-reference-v1` 上完成，基於本文件所列的正式生產 checkpoint 建立。它新增獨立的 `machining.html` 頁面與 `GET /api/machining/reference` API，使用台灣優先的外部公開指標觀察加工成本壓力方向；不產生供應商報價、不產生公司目標價格，也不估算加工時薪、循環時間或機台內部成本。
+
+| 交接項目 | Phase 2A 結果 |
+| --- | --- |
+| 公開來源稽核 | DGBAS PPI、DGBAS 製造業薪資、中央銀行 NTD/USD、台電官方費率表候選、既有 Yahoo／Stooq 公開金屬與能源指標 |
+| 資料層 | `OBSERVED_PUBLIC_DATA`、`DERIVED_MARKET_REFERENCE`；`ENGINEERING_ESTIMATE` 在 V1 固定為 `null` |
+| 模型 | 可配置權重、4／12 週窗口、明確壓力等級、最低 3 構面證據門檻、缺失資料不補洞 |
+| UI | 「加工市場參考」頁；顯示整體／構面壓力、4／12 週方向、資料新鮮度、來源沿革與純文字說明 |
+| 安全標示 | 「公開市場參考」「非供應商報價」「非公司目標價格」 |
+| 生產路徑 | 既有原物料、Neon、Gmail、weekly mail、bootstrap、Render、GitHub Actions 及 schedules 未被重跑或重新設計 |
+| 對外操作 | 未部署、未寄信、未重跑 bootstrap、未修改排程、未修改 production secrets |
+
+來源可得性會保留 `LIVE`、`FALLBACK`、`STALE`、`NO_DATA` 及 `API_ERROR`；若最低證據門檻未達成，API 的綜合分數、壓力等級及方向均為 `null`，頁面明確顯示資料不足。DGBAS 大型 XML 與個別公開頁面在執行環境中可能發生傳輸或解析錯誤，這些狀態會直接保留在來源沿革，不會被轉成假價格。完整方法、來源 URL、授權、更新頻率與缺口記載於 `docs/MACHINING_MARKET_REFERENCE.md`。
+
+## Phase 2A 驗證
+
+目前新功能的確定性測試已通過，完整現有回歸套件亦保持通過。正式交接前以 `npm ci`、`npm run check`、`npm test`、`npm run build`、`npm audit --omit=dev` 及 `git diff --check` 重跑並記錄最終結果。功能分支的精確 commit SHA 會在提交與推送後補入本文件與 `PROJECT_STATUS.md`。

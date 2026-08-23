@@ -585,3 +585,5 @@ dd {
     font-size: 29px;
   }
 }
+
+.top-link{color:var(--accent);font-size:13px;font-weight:900;text-decoration:none}.top-link:hover{text-decoration:underline}

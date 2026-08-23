@@ -10,6 +10,7 @@ const { DEBUG } = require("./lib/marketData/logger");
 const { canonicalizeSnapshot } = require("./lib/marketData/dataContract");
 const { getWeeklyPreview, getWeeklyWorkbook, generateWeeklyReport } = require("./lib/weekly/weeklyEngine");
 const { readProductionStatus } = require("./lib/weekly/productionService");
+const { getMachiningReference } = require("./lib/machining/machiningService");
 
 dns.setDefaultResultOrder("ipv4first");
 
@@ -224,6 +225,16 @@ async function handleRequest(req, res) {
       const period = getQueryParam(requestUrl, "period", "3y");
       const result = await createHistoricalWorkbook({ period, all: true });
       sendExcel(res, result.filename, result.buffer);
+    } catch (error) {
+      sendApiError(res, error);
+    }
+    return;
+  }
+
+  if (requestUrl.pathname === "/api/machining/reference") {
+    try {
+      const force = getQueryParam(requestUrl, "force", "") === "true";
+      sendJson(res, 200, await getMachiningReference({ force }));
     } catch (error) {
       sendApiError(res, error);
     }
