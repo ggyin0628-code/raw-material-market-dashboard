@@ -274,12 +274,13 @@ The authoritative production main remains `30192a4d5202675df11a2e00ee97f02d2c495
 
 **PHASE_4A_ENGINEERING_ESTIMATE_FOUNDATION_PRODUCTION_PASS**
 
-The approved Phase 4A head `baaec1ba78c0c475d58ac3320c08e55829610e9b` was promoted from authoritative main `30192a4d5202675df11a2e00ee97f02d2c49537d` by pure fast-forward to main. The existing Render service automatically deployed the promoted main. No new Render service was created, and no database migration was required because Phase 4A is stateless and introduces no schema.
+The approved Phase 4A head `baaec1ba78c0c475d58ac3320c08e55829610e9b` was promoted from authoritative main `30192a4d5202675df11a2e00ee97f02d2c49537d` by pure fast-forward to main. The production runtime code checkpoint is main SHA `83494511adcf52c77cb3af3965e2b35d4598f2e6`, and the existing Render service automatically deployed it; this documentation-only certification checkpoint records the verified deployment. No new Render service was created, and no database migration was required because Phase 4A is stateless and introduces no schema.
 
 | Status item | Result |
 |---|---|
 | Promotion SHA | `baaec1ba78c0c475d58ac3320c08e55829610e9b` |
-| Final main SHA | To be recorded at the final documentation checkpoint commit |
+| Verified production runtime main SHA | `83494511adcf52c77cb3af3965e2b35d4598f2e6` |
+| Final certification checkpoint | Documentation-only checkpoint commit; annotated tag `engineering-estimate-foundation-v1` targets the verified final documentation state |
 | Render deployment | PASS: existing service deployed normally from main and became available for read-only checks |
 | Routing | PASS: `/`, `/machining`, `/sheet-metal`, `/estimate`, `/estimate/`, schema endpoint, `/health` and `/health/weekly` returned HTTP 200; `/estimate.html` returned HTTP 308 to `/estimate` |
 | Production schema | PASS: `runtime.environment=production`; runtime and schema allowed modes are `NO_RATE` only; `SYNTHETIC_TEST` is test-only metadata; `PRIVATE_CALIBRATED` unavailable |
@@ -297,4 +298,4 @@ The approved Phase 4A head `baaec1ba78c0c475d58ac3320c08e55829610e9b` was promot
 
 The production visual and payload evidence is recorded under `docs/visual-review/phase4a-production-verification.md`, `production-estimate-desktop.png`, `production-estimate-mobile.png` and `phase4a-production-capture-metrics.json`. The production page continues to expose engineering quantities only; it does not show supplier quotations, company cost parameters or market-derived prices.
 
-There is no Phase 4A production blocker. The existing owner-controlled `MAIL_CONFIGURATION_REQUIRED` notice remains a non-blocking health status and was not changed or triggered by this certification. Phase 4B remains separate future scope. The final documentation checkpoint SHA and annotated tag `engineering-estimate-foundation-v1` must be created only after this documentation update is verified.
+There is no Phase 4A production blocker. The existing owner-controlled `MAIL_CONFIGURATION_REQUIRED` notice remains a non-blocking health status and was not changed or triggered by this certification. Phase 4B remains separate future scope. The final documentation-only commit and annotated tag are the certification handoff records; they do not alter the verified runtime behavior.

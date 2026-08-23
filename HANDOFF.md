@@ -276,12 +276,13 @@ The Phase 4A UI remains NO_RATE-only and continues to show `尚未設定成本�
 
 **PHASE_4A_ENGINEERING_ESTIMATE_FOUNDATION_PRODUCTION_PASS**
 
-The approved Phase 4A head `baaec1ba78c0c475d58ac3320c08e55829610e9b` was promoted from authoritative main `30192a4d5202675df11a2e00ee97f02d2c49537d` by pure fast-forward. The existing Render service automatically deployed from `main`; no new Render service was created. The final documentation checkpoint SHA will be recorded by the follow-up documentation commit and annotated tag `engineering-estimate-foundation-v1`.
+The approved Phase 4A head `baaec1ba78c0c475d58ac3320c08e55829610e9b` was promoted from authoritative main `30192a4d5202675df11a2e00ee97f02d2c49537d` by pure fast-forward. The production runtime code checkpoint is main SHA `83494511adcf52c77cb3af3965e2b35d4598f2e6`, and the existing Render service automatically deployed it; this documentation-only certification checkpoint records the verified deployment. No new Render service was created. The annotated tag `engineering-estimate-foundation-v1` targets the final verified documentation checkpoint.
 
 | Production certification item | Result |
 | --- | --- |
 | Promotion SHA | `baaec1ba78c0c475d58ac3320c08e55829610e9b` |
-| Final main SHA | To be recorded at the final documentation checkpoint commit |
+| Verified production runtime main SHA | `83494511adcf52c77cb3af3965e2b35d4598f2e6` |
+| Final certification checkpoint | Documentation-only checkpoint commit; annotated tag `engineering-estimate-foundation-v1` targets the verified final documentation state |
 | Render deployment | PASS: existing Render service auto-deployed from main and became available for read-only verification |
 | Routing | PASS: `/`, `/machining`, `/sheet-metal`, `/estimate`, `/estimate/`, `/api/engineering/estimate/schema`, `/health` and `/health/weekly` returned HTTP 200; `/estimate.html` returned HTTP 308 to `/estimate` |
 | Production schema | PASS: `runtime.environment=production`; `runtime.allowedRateModes=["NO_RATE"]`; `schema.rateProfile.allowedModes=["NO_RATE"]`; `SYNTHETIC_TEST` appears only in test-only metadata; `PRIVATE_CALIBRATED` remains unavailable |
@@ -301,4 +302,4 @@ The approved Phase 4A head `baaec1ba78c0c475d58ac3320c08e55829610e9b` was promot
 
 The production verification record and screenshots are preserved in `docs/visual-review/phase4a-production-verification.md`, `production-estimate-desktop.png`, `production-estimate-mobile.png` and `phase4a-production-capture-metrics.json`. Existing public market outputs retain their established states and provenance; this certification does not reinterpret market references as engineering prices.
 
-No production workflow, migration, bootstrap, daily/weekly job, backfill, mail, Gmail, schedule, secret or Neon operation was performed. The only remaining non-blocking operational notice is the existing owner-controlled `MAIL_CONFIGURATION_REQUIRED` health warning. Phase 4B remains a separate future scope for richer geometry, nesting/remnant, certified properties, process-time models, private-rate governance, quotations or ERP integration.
+No production workflow, migration, bootstrap, daily/weekly job, backfill, mail, Gmail, schedule, secret or Neon operation was performed. The only remaining non-blocking operational notice is the existing owner-controlled `MAIL_CONFIGURATION_REQUIRED` health warning. Phase 4B remains a separate future scope for richer geometry, nesting/remnant, certified properties, process-time models, private-rate governance, quotations or ERP integration. The final documentation-only commit and annotated checkpoint tag are the certification handoff records; they do not alter the verified runtime behavior.
