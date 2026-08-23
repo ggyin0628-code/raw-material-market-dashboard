@@ -793,11 +793,13 @@ test("GitHub Actions workflows expose safe daily and weekly runtime contracts", 
   assert.match(weekly, /17 1 \* \* 1/);
   assert.match(weekly, /WEEKLY_MAIL_TEST_MODE/);
   assert.match(weekly, /secrets\.DATABASE_URL/);
-  assert.match(weekly, /MAIL_PROVIDER: outlook_graph/);
-  assert.match(weekly, /secrets\.MICROSOFT_CLIENT_ID/);
-  assert.match(weekly, /secrets\.MICROSOFT_REFRESH_TOKEN/);
-  assert.match(weekly, /MICROSOFT_TENANT: consumers/);
-  assert.doesNotMatch(weekly, /MAIL_HOST|MAIL_PORT|MAIL_SECURE|secrets\.MAIL_USER|secrets\.MAIL_PASSWORD/);
+  assert.match(weekly, /MAIL_PROVIDER: smtp/);
+  assert.match(weekly, /MAIL_HOST: smtp\.gmail\.com/);
+  assert.match(weekly, /MAIL_PORT: "465"/);
+  assert.match(weekly, /MAIL_SECURE: "true"/);
+  assert.match(weekly, /secrets\.MAIL_USER/);
+  assert.match(weekly, /secrets\.MAIL_PASSWORD/);
+  assert.doesNotMatch(weekly, /MICROSOFT_CLIENT_ID|MICROSOFT_REFRESH_TOKEN|MICROSOFT_TENANT|outlook_graph/);
   assert.match(weekly, /npm run production:weekly/);
   assert.match(weekly, /if: github\.event_name != 'schedule' \|\| vars\.PRODUCTION_SCHEDULES_ENABLED == '1'/);
   assert.doesNotMatch(`${daily}\n${weekly}`, /postgres:\/\/[^$\s]+|BEGIN (RSA|EC|OPENSSH) PRIVATE KEY/);
