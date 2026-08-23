@@ -30,9 +30,9 @@ The workflow source contains no real URL, address, password or token. GitHub mas
 
 ## Activation sequence
 
-The owner first creates or selects an approved free PostgreSQL project and adds `DATABASE_URL`, Gmail secrets and `MAIL_TEST_TO` in repository settings. The owner runs `market-bootstrap.yml` manually first; it performs `npm ci`, code validation, migration, storage check, a three-year public-history bootstrap and final status, and contains no mail credentials or scheduled trigger. The owner then runs the daily workflow manually or waits for its schedule, confirms `DATABASE_READY` and `DAILY_DATA_READY`, and runs the weekly workflow manually with the default test mode. The received email must be checked for recipient isolation, public-only content, attachment presence and readable HTML/XLSX. Only after that review may the owner set `WEEKLY_MAIL_TEST_MODE=0` and enable the approved production-recipient workflow behavior.
+The owner-controlled Neon project and `DATABASE_URL` were already used for the certified manual bootstrap on promoted `main`. Run `32611318090` certified the remediation performance, and final-SHA run `32611472483` verified the forwarded batch progress telemetry; both were public-history bootstrap runs without mail. The next owner step is not another bootstrap: run the weekly workflow manually with the default test mode, then check recipient isolation, public-only content, attachment presence and readable HTML/XLSX. Only after that review may the owner set `WEEKLY_MAIL_TEST_MODE=0` and enable approved production-recipient workflow behavior.
 
-The repository does not activate workflows, create a Neon project, request a Gmail App Password or send a real email during this task. Those are explicit external configuration actions. Keep `PRODUCTION_SCHEDULES_ENABLED` absent or set to `0` until the manual bootstrap and TEST_RECIPIENT review pass; setting it to `1` is the final owner-controlled schedule activation gate.
+This remediation did not activate schedules, create or modify a Neon project, request a Gmail App Password or send a real email. Keep `PRODUCTION_SCHEDULES_ENABLED` absent or set to `0` until the owner completes the one manual weekly `WEEKLY_MAIL_TEST_MODE=1` receipt／attachment review; setting it to `1` is the final owner-controlled schedule activation gate.
 
 ## Failure behavior and recovery
 
@@ -54,7 +54,7 @@ The workflow exit is non-zero for database failure, migration failure, quality b
 
 ## Manual checks
 
-Use the Actions UI `workflow_dispatch` trigger after verifying the intended branch and secret configuration. The required first manual trigger is `Market Production Bootstrap`; it must complete before daily／weekly operation. After a successful bootstrap, the owner may use `workflow_dispatch` for daily／weekly recovery. From a checked-out environment, the corresponding safe checks are:
+Use the Actions UI `workflow_dispatch` trigger after verifying the intended branch and secret configuration. The required bootstrap certification has completed on promoted `main`; no further bootstrap is required for this handoff. The owner may use `workflow_dispatch` for the single weekly test-mail verification and later daily／weekly recovery. From a checked-out environment, the corresponding safe checks are:
 
 ```bash
 npm ci

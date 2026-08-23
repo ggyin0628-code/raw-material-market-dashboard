@@ -32,7 +32,7 @@ Postgres mode 不複製 analytics；provider 只負責 canonical record、delive
 
 ## 每日快照
 
-`STORAGE_PROVIDER=filesystem` 時，local default 是 ignored `data/market-snapshots/snapshots.json`，可由 `MARKET_SNAPSHOT_FILE` 指定測試路徑。`STORAGE_PROVIDER=postgres` 時，快照寫入 `market_snapshots`，由 secret-managed `DATABASE_URL` 指向 Neon-compatible PostgreSQL。每筆資料以 `material_id + observation_date` 去重；filesystem 使用 atomic rename，Postgres 使用 transaction／row lock／conflict-safe upsert。
+`STORAGE_PROVIDER=filesystem` 時，local default 是 ignored `data/market-snapshots/snapshots.json`，可由 `MARKET_SNAPSHOT_FILE` 指定測試路徑。`STORAGE_PROVIDER=postgres` 時，快照寫入 `market_snapshots`，由 secret-managed `DATABASE_URL` 指向 Neon-compatible PostgreSQL。每筆資料以 `material_id + observation_date` 去重；filesystem 使用 atomic rename，Postgres 使用 bounded batch transaction／conflict-safe upsert。
 
 | 欄位 | 語意 |
 | --- | --- |
@@ -99,11 +99,11 @@ Public provider availability、rate limit、timeout、資料延遲與來源授�
 
 ## Explicit owner activation
 
-本次不建立 Neon project、不設定 GitHub Actions secrets、不取得 Gmail App Password、不發送 real mail、不啟用 schedule、不部署或啟用 paid resources。Owner 後續需建立 owner-approved Neon Free project，將 `DATABASE_URL` 與 Gmail credentials 僅放在 Actions secrets，執行 manual bootstrap，完成一次 `MAIL_TEST_MODE=1` live send 並驗證收件與 attachment，最後才啟用 daily／weekly schedules。
+本次不建立 Neon project、不設定或修改 GitHub Actions secrets、不取得 Gmail App Password、不發送 real mail、不啟用 schedule、不部署或啟用 paid resources。三年 Neon bootstrap certification 已在 promoted `main` 完成；owner 後續只需執行一次 `Market Weekly Intelligence Report` manual workflow，在 `WEEKLY_MAIL_TEST_MODE=1` 下驗證收件與 HTML／XLSX attachment，最後才將 `PRODUCTION_SCHEDULES_ENABLED` 設為 `1`。
 
 ## References
 
-[1]: https://github.com/ggyin0628-code/raw-material-market-dashboard/tree/feat/zero-cost-runtime-v1 "Zero-Cost Runtime V1 source branch"
+[1]: https://github.com/ggyin0628-code/raw-material-market-dashboard/tree/fix/bootstrap-performance-v1 "Zero-Cost Runtime V1 source branch"
 [2]: https://query1.finance.yahoo.com/ "Yahoo Finance public chart host used by the existing adapter"
 [3]: https://r.jina.ai/ "Fixed public proxy used only for Yahoo history fallback"
 [4]: https://open.er-api.com/ "Public FX fallback endpoint used by the existing adapter"

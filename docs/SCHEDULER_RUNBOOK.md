@@ -15,7 +15,7 @@ All business dates and completed-week calculations use `Asia/Taipei` (UTC+08:00)
 | `market-bootstrap.yml` | Owner-triggered `workflow_dispatch` | Not recurring | Migration, public history backfill, validation and first report | No schedule; not gated |
 | Backup | Owner policy／workflow command | Not prescribed | PostgreSQL public export／manifest; no paid backup service required | Owner-controlled |
 
-GitHub schedule is best-effort and may be delayed. Public repositories may have scheduled workflows disabled after extended repository inactivity. `workflow_dispatch` is the manual recovery path. The daily／weekly job-level condition is `github.event_name != 'schedule' || vars.PRODUCTION_SCHEDULES_ENABLED == '1'`; absent or non-`1` values safely skip scheduled jobs while leaving manual dispatch available. Keep the variable absent or `0` until bootstrap and mail test verification pass. Do not create artificial commits merely to hide inactivity.
+GitHub schedule is best-effort and may be delayed. Public repositories may have scheduled workflows disabled after extended repository inactivity. `workflow_dispatch` is the manual recovery path. The daily／weekly job-level condition is `github.event_name != 'schedule' || vars.PRODUCTION_SCHEDULES_ENABLED == '1'`; absent or non-`1` values safely skip scheduled jobs while leaving manual dispatch available. Keep the variable absent or `0` until the owner completes the manual weekly test-mail receipt／attachment review. The certified bootstrap has already passed on promoted `main`; do not create artificial commits merely to hide inactivity.
 
 ## Required secret gate
 
@@ -61,11 +61,11 @@ For a Neon outage or query timeout, inspect the safe workflow log, correct the s
 | Owner-approved Neon Free project and `DATABASE_URL` secret | Configured outside Git |
 | Gmail personal SMTP secrets and `MAIL_TEST_TO` | Configured outside Git |
 | Manual migration／storage check | `DATABASE_READY` |
-| Manual bootstrap | Completed with public data and job state |
+| Manual bootstrap certification | PASS; promoted-main runs `32611318090` and `32611472483` completed with public data and job state |
 | Manual daily workflow | `DAILY_DATA_READY` |
 | Weekly dry-run | Artifacts valid, `sent: false`, no SMTP socket |
 | First live weekly workflow | `MAIL_TEST_MODE=1`, receipt／attachment manually verified |
 | Approved recipient send | One controlled send after test pass |
 | Scheduled workflows | Enabled only after all preceding checks |
 
-After this remediation PASS, the exact next human action is to run **one** `Market Weekly Intelligence Report` manually while `WEEKLY_MAIL_TEST_MODE=1`, verify the received Gmail HTML report and XLSX attachment, then set `PRODUCTION_SCHEDULES_ENABLED=1`. Do not trigger the weekly workflow during this remediation, and do not send email from the agent.
+After this remediation PASS, the exact next human action is to run **one** `Market Weekly Intelligence Report` manually while `WEEKLY_MAIL_TEST_MODE=1`, verify the received Gmail HTML report and XLSX attachment, then set `PRODUCTION_SCHEDULES_ENABLED=1`. The bootstrap certification has already completed; do not trigger another bootstrap or the weekly workflow from the agent, and do not send email from the agent.

@@ -12,7 +12,7 @@ npm run build
 npm audit --omit=dev
 ```
 
-目前預期的 `npm test` 是 Node 內建 test runner 的 36 個 deterministic tests；`npm run check` 與 `npm run build` 都執行 Node syntax checks，保持 CommonJS 與最小工具鏈。`npm audit --omit=dev` 用來檢查 production dependency tree。
+目前 `npm test` 是 Node 內建 test runner 的 **43 個 deterministic tests**；`npm run check` 與 `npm run build` 都執行 Node syntax checks，保持 CommonJS 與最小工具鏈。`npm audit --omit=dev` 用來檢查 production dependency tree。
 
 ## 已完成的離線／API 測試範圍
 
@@ -137,7 +137,7 @@ The historical filesystem production gate recorded `31 passed／0 failed`; the c
 
 ## Zero-Cost Runtime V1 verification
 
-The current bootstrap-remediation branch is `fix/bootstrap-performance-v1`, based on main `8390a0234fb5d18e28e100ee1ff40750b6b0d95e`. Its deterministic suite is **43 passed／0 failed**. `npm run check`, `npm run build` and `npm audit --omit=dev` pass; the Postgres adapter and performance tests do not require a real Neon account.
+The bootstrap-remediation branch is `fix/bootstrap-performance-v1`, based on main `8390a0234fb5d18e28e100ee1ff40750b6b0d95e`. Final code and the promoted main/feature refs reached `7e85aa3d29f2344a803cbf171e911e077e371831` before the certification-document commit. Its deterministic suite is **43 passed／0 failed**; `npm run check`, `npm run build`, `npm audit --omit=dev` and the clean-tree check pass. The Postgres adapter and performance tests do not require a real Neon account.
 
 | Area | Verification |
 | --- | --- |
@@ -147,7 +147,7 @@ The current bootstrap-remediation branch is `fix/bootstrap-performance-v1`, base
 | History fetch remediation | Bounded concurrency 3, capped at 4; existing timeout／retry and per-material isolation retained |
 | Resumability | Each batch commits independently; prior committed batches survive interruption; rerun is identity／quality-safe |
 | Schedule safety | Daily／weekly scheduled jobs require `PRODUCTION_SCHEDULES_ENABLED=1`; manual dispatch remains allowed; bootstrap is dispatch-only |
-| Live bootstrap | Not yet executed on remediation branch; post-promotion owner-controlled single bootstrap is required before certification |
+| Live bootstrap | PASS; run `32611318090` certified the promoted remediation performance and run `32611472483` on the final code SHA verified batch progress telemetry |
 | Database migration | `db:migrate` creates required tables/indexes idempotently and non-destructively |
 | Postgres semantics | Snapshot uniqueness, quality-preserving upsert, transaction rollback, invalid payload, database failure, query timeout contract and safe redaction |
 | Parity | Same fixture data produces equivalent weekly indicators and quality summary through filesystem／Postgres reads |
@@ -160,4 +160,4 @@ The current bootstrap-remediation branch is `fix/bootstrap-performance-v1`, base
 
 A controlled production simulation uses only a synthetic public-safe fixture and a temporary root／fake pool. It verifies migration contract, storage provider selection, bootstrap／daily／weekly lifecycle, quality gate, dry-run, duplicate guard, health and public export. No real Neon connection, Gmail connection, Actions activation, paid resource or deployment is used.
 
-The final GitHub-only fresh clone must be created from `feat/zero-cost-runtime-v1` after push and before the final tag. It must run `npm ci`, `npm run check`, `npm test`, `npm run build`, `npm audit --omit=dev`, `db:migrate` contract checks, workflow source checks and safe production simulation. Remaining Neon project creation, Actions secrets, first `MAIL_TEST_MODE=1` live send and workflow activation are `EXTERNAL_CONFIGURATION_REQUIRED`, not offline code gaps.
+The final GitHub-only fresh clone was created from the promoted `main` at the final certification SHA and ran `npm ci`, `npm run check`, `npm test`, `npm run build`, `npm audit --omit=dev`, unconfigured Postgres fail-closed checks, workflow source checks and safe production simulation. It remained clean. Remaining owner action is the one manual `Market Weekly Intelligence Report` run with `WEEKLY_MAIL_TEST_MODE=1`, receipt／XLSX review and subsequent schedule gate activation; these are intentionally owner-controlled and are not offline code gaps.

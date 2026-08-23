@@ -98,6 +98,6 @@ The production delivery path is GitHub Actions using owner-approved personal Gma
 
 ## References
 
-[1]: https://github.com/ggyin0628-code/raw-material-market-dashboard/tree/feat/zero-cost-runtime-v1 "Weekly report implementation branch"
-[2]: https://github.com/ggyin0628-code/raw-material-market-dashboard/blob/feat/zero-cost-runtime-v1/lib/weekly/weeklyAnalytics.js "Analytics implementation"
-[3]: https://github.com/ggyin0628-code/raw-material-market-dashboard/blob/feat/zero-cost-runtime-v1/lib/weekly/reportService.js "Report, HTML and XLSX implementation"
+[1]: https://github.com/ggyin0628-code/raw-material-market-dashboard/tree/fix/bootstrap-performance-v1 "Weekly report implementation branch"
+[2]: https://github.com/ggyin0628-code/raw-material-market-dashboard/blob/fix/bootstrap-performance-v1/lib/weekly/weeklyAnalytics.js "Analytics implementation"
+[3]: https://github.com/ggyin0628-code/raw-material-market-dashboard/blob/fix/bootstrap-performance-v1/lib/weekly/reportService.js "Report, HTML and XLSX implementation"

@@ -2,7 +2,7 @@
 
 ## Verdict semantics
 
-`ZERO_COST_RUNTIME_READY` means the provider boundary, Postgres adapter, migration, Actions workflows, quality gate, Gmail safety, observability, recovery documentation and offline validation are complete. It does not mean that an owner-approved Neon project, GitHub Actions secrets, Gmail App Password, personal recipient or workflow activation has been supplied during this task.
+`BOOTSTRAP_PERFORMANCE_CERTIFIED` means the provider boundary, Postgres adapter, migration, Actions workflows, quality gate, Gmail safety, observability, recovery documentation, offline validation and the promoted-main three-year Neon bootstrap performance verification are complete. It does not mean that the owner has completed the weekly test-mail receipt／attachment review or enabled scheduled workflow execution.
 
 | State | Meaning | Runtime behavior |
 | --- | --- | --- |
@@ -26,13 +26,13 @@ Render Free remains optional dashboard hosting only. It does not provide durable
 
 ## Stage 0 — owner configuration review
 
-The owner creates or selects an owner-approved free PostgreSQL project and adds `DATABASE_URL` as a GitHub Actions secret. Add `MAIL_USER`, `MAIL_PASSWORD` as a Gmail App Password, `MAIL_FROM`, `MAIL_TO` and `MAIL_TEST_TO` as Actions secrets. Keep the repository variable `WEEKLY_MAIL_TEST_MODE=1`. No secret belongs in source, issue text, logs or committed configuration.
+The owner-controlled Neon project and required database configuration were used for the certified bootstrap. For the remaining mail stage, keep `MAIL_USER`, `MAIL_PASSWORD` as a Gmail App Password, `MAIL_FROM`, `MAIL_TO` and `MAIL_TEST_TO` only as Actions secrets, and keep the repository variable `WEEKLY_MAIL_TEST_MODE=1`. No secret belongs in source, issue text, logs or committed configuration.
 
 The intended Gmail runtime is `smtp.gmail.com`, port `465`, secure TLS. Do not use a company email system or Microsoft Graph. The product boundary remains external public market intelligence and purchasing reference only.
 
-## Stage 1 — database migration and bootstrap
+## Stage 1 — database migration and bootstrap — certified
 
-Run the manual workflow or an owner-controlled checkout with secret injection:
+The promoted-main three-year bootstrap certification has completed. Runs `32611318090` and `32611472483` reached `DATABASE_READY` and `BOOTSTRAP_COMPLETE` without email. No further bootstrap is required for the remaining activation sequence. For audit/recovery, the owner-controlled commands remain:
 
 ```bash
 STORAGE_PROVIDER=postgres DATABASE_URL="$DATABASE_URL" npm run db:migrate
@@ -79,4 +79,4 @@ Migration uses non-destructive create-if-missing operations. Transactional Postg
 
 ## Required final human action
 
-After this remediation is certified by the single manual bootstrap on promoted `main`, run exactly one `Market Weekly Intelligence Report` manually while `WEEKLY_MAIL_TEST_MODE=1`, verify the received Gmail HTML report and XLSX attachment, then set `PRODUCTION_SCHEDULES_ENABLED=1`. Do not trigger the weekly workflow or send email from the remediation agent.
+After this remediation is certified by the promoted-main bootstrap, run exactly one `Market Weekly Intelligence Report` manually while `WEEKLY_MAIL_TEST_MODE=1`, verify the received Gmail HTML report and XLSX attachment, then set `PRODUCTION_SCHEDULES_ENABLED=1`. Do not trigger the weekly workflow or send email from the remediation agent.

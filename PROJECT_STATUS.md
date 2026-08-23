@@ -1,117 +1,83 @@
-# Project Status — Zero-Cost Production Runtime V1
+# Raw Material Market Dashboard — Final Bootstrap Remediation Status
 
 ## Status verdict
 
-**ZERO_COST_RUNTIME_READY**
+**BOOTSTRAP_PERFORMANCE_CERTIFIED**
 
 **OFFLINE_GAPS = 0**
 
 **CODEX_HANDOFF_READY = YES**
 
-This work starts exactly from the annotated checkpoint `weekly-market-intelligence-production-ready-v1`, whose peeled target is `222e1a2a7a602d3700260f83753bf024708b47d6`, and is developed on `feat/zero-cost-runtime-v1`. The owner explicitly approved a fast-forward promotion after validation; `main` now tracks the validated feature branch while `feat/zero-cost-runtime-v1` and `zero-cost-runtime-ready-v1` remain preserved. This task does not create a Neon project, configure Actions secrets, send real mail, deploy, or activate paid resources.
+The remediation started from the authoritative main baseline `8390a0234fb5d18e28e100ee1ff40750b6b0d95e` and was delivered through `fix/bootstrap-performance-v1`. The final promoted code and documentation SHA is recorded below. The product remains permanently limited to external public market data and derived purchasing-reference intelligence; no private company data, private analytics thresholds, purchasing signals, credentials or paid resources were added.
 
-## Product boundary
+## Final delivery identity
 
-This remains an **EXTERNAL PUBLIC MARKET INTELLIGENCE AND PURCHASING REFERENCE PLATFORM**. Only external public market data and derived public-market reference reports may be stored. The product must not add SAP, company procurement history, supplier quotations or names, company target prices, private thresholds, inventory, MOQ, payment terms, company email systems, private mappings, credentials or generated private runtime configuration. The next functional expansion remains external machining／sheet-metal public market reference intelligence using public external sources only.
-
-## Zero-cost runtime architecture
-
-```text
-Public market APIs
-    ↓
-GitHub Actions daily／weekly workflows
-    ↓
-Node.js weekly runtime
-    ↓
-STORAGE_PROVIDER=postgres
-    ↓
-Neon-compatible PostgreSQL
-    ↓
-Gmail SMTP to owner-approved personal TEST_RECIPIENT／recipient
-```
-
-Render Free is optional dashboard／web hosting only. It does not provide durable local storage and it does not perform scheduled SMTP delivery. When `STORAGE_PROVIDER=postgres`, the dashboard and Actions jobs share the same durable public history without requiring a paid persistent filesystem.
-
-## Completed scope
-
-| Area | Result |
+| Item | Result |
 | --- | --- |
-| Storage provider boundary | `filesystem` remains local／test adapter; `postgres` is Neon-compatible production adapter; analytics and report logic are shared |
-| PostgreSQL schema | `market_snapshots`, `weekly_delivery_ledger`, `weekly_report_metadata`, `weekly_job_state` with primary keys／indexes |
-| Migration | `npm run db:migrate`; idempotent and non-destructive, with explicit `DATABASE_MIGRATION_FAILED` |
-| Snapshot semantics | Deterministic `material_id + observation_date`; transactional upsert; higher-quality `LIVE`／`FALLBACK` cannot be downgraded; malformed payloads rejected |
-| Operational persistence | Delivery ledger, public report metadata and job state supported by Postgres; filesystem JSON remains atomic compatibility path |
-| Bootstrap | migration → public history backfill → validation → job state → first report, idempotent and no email; manual-only Actions workflow added |
-| Manual bootstrap Actions | `market-bootstrap.yml`; dispatch-only, npm ci, migration, storage check, 3y public backfill and final status; no mail secrets or schedule |
-| Weekly Actions | `market-weekly.yml`; completed prior week, quality gate, HTML／XLSX, Gmail SMTP, duplicate guard and final status |
-| Gmail SMTP | Personal Gmail only, env／Actions-secret configuration, `MAIL_TEST_MODE=1` isolation, dry-run, bounded retry and uncertain-acceptance recovery |
-| Health | `/health/weekly` readiness fields: `WEB_READY`, `DATABASE_READY`, `DAILY_DATA_READY`, `WEEKLY_REPORT_READY`, `MAIL_CONFIGURATION_READY`; no secrets／recipient lists |
-| Backup | Public-only Postgres export／manifest; provider re-backfill remains recovery source of truth; no paid backup service required |
-| Documentation | Zero-cost architecture, Postgres schema, Actions operations, email, scheduler, operations, activation and handoff docs |
+| Repository | `ggyin0628-code/raw-material-market-dashboard` |
+| Baseline main SHA | `8390a0234fb5d18e28e100ee1ff40750b6b0d95e` |
+| Remediation branch | `fix/bootstrap-performance-v1` |
+| Final code SHA before certification docs | `7e85aa3d29f2344a803cbf171e911e077e371831` |
+| Final tag | `bootstrap-performance-certified-v1` |
+| Required tag message | `3-year Neon bootstrap performance certified — test-mail verification next` |
+| Main promotion | Fast-forward only; no force push |
+| Schedule state | Not enabled or modified; `PRODUCTION_SCHEDULES_ENABLED` remains owner-controlled and off/absent |
+| Weekly workflow | Not triggered; no email sent by this remediation |
 
-## Commands
+## Product and data boundary
 
-```bash
-npm ci
-npm run check
-npm test
-npm run build
-npm audit --omit=dev
-STORAGE_PROVIDER=postgres DATABASE_SSL=true DATABASE_URL="$DATABASE_URL" npm run db:migrate
-STORAGE_PROVIDER=postgres DATABASE_URL="$DATABASE_URL" npm run production:storage-check
-STORAGE_PROVIDER=postgres DATABASE_URL="$DATABASE_URL" npm run production:bootstrap -- --period 3y
-STORAGE_PROVIDER=postgres DATABASE_URL="$DATABASE_URL" npm run production:daily
-STORAGE_PROVIDER=postgres DATABASE_URL="$DATABASE_URL" npm run production:weekly -- --dry-run --send
-STORAGE_PROVIDER=postgres DATABASE_URL="$DATABASE_URL" npm run production:backup -- --backup-id <owner-approved-id>
-```
+This is an **external public market intelligence and purchasing-reference platform**. Only public external market observations, public-source provenance, canonical quality states and derived public reports may be stored. SAP, company procurement history, supplier quotations or names, company target prices, private thresholds, inventory, MOQ, payment terms, company email systems, private mappings, credentials and private runtime reports remain permanently out of scope. No market logic, analytics thresholds, quality definitions or mail boundary was changed by this remediation.
 
-`DATABASE_URL` in these examples is a placeholder for secret-managed runtime injection and must never be pasted into tracked files or logs.
+## Remediation result
 
-## Validation status
+The cancelled `Market Production Bootstrap #1` run `32609131444` on baseline main completed setup, checkout, dependency installation, code validation, migration and storage check in approximately 14 seconds, then occupied the 30-minute safety ceiling in `Bootstrap public history` before cancellation. Source review classified the bottleneck as **BOTH**: sequential public-history fetching and per-record PostgreSQL lookup/write round-trips.
+
+The fix keeps the complete `--period 3y` bootstrap and the 30-minute safety ceiling. Public-history fetching now uses bounded concurrency of 3, capped at 4, with existing provider retry, timeout and per-material failure isolation. PostgreSQL snapshot persistence uses a default `POSTGRES_UPSERT_BATCH_SIZE=250`, capped at 500. Each batch uses one parameterized multi-row `INSERT ... ON CONFLICT ... DO UPDATE ... RETURNING` statement inside one transaction. The SQL predicate directly enforces `LIVE > FALLBACK > STALE > API_ERROR > NO_DATA`; equal rank updates only on newer or equal `collected_at`. No per-record `SELECT FOR UPDATE` remains.
+
+Every completed batch is durable. A later batch failure rolls back only the active transaction, and a rerun is identity-safe and quality-safe without truncation, reset or duplicate logical rows. Safe progress and job state expose only public material identifiers, phases, numeric counters and elapsed time; database URLs, passwords, Gmail credentials and recipient values are never logged. The final seam fix forwards `batchSize` and `onProgress` into the PostgreSQL adapter, and the final live run emitted batch commit telemetry.
+
+## Query-count and correctness contract
+
+For `N` records and batch size `B`, the write path is `ceil(N / B)` parameterized snapshot statements plus one `BEGIN`/`COMMIT` pair per batch, instead of the former approximately `2N` per-record lookup/write statements. The 43-test deterministic suite covers boundaries 1/250/251/1000/3000, bounded query shapes, all 25 status-pair and `collected_at` boundaries, active-batch rollback with prior batches retained, resumable rerun semantics, bounded fetch concurrency, per-material failure isolation and safe bootstrap progress.
+
+## Final validation status
 
 | Gate | Result |
 | --- | --- |
-| Starting checkpoint | PASS; `weekly-market-intelligence-production-ready-v1` → `222e1a2a7a602d3700260f83753bf024708b47d6` |
-| Branch isolation | PASS; `feat/zero-cost-runtime-v1` was based on the checkpoint; owner-approved fast-forward promotion preserved the feature branch and tag |
-| Syntax／build | PASS; `npm run check` and `npm run build` |
-| Deterministic tests | PASS; 43 passed／0 failed |
-| Dependency audit | PASS; `npm audit --omit=dev` reports 0 vulnerabilities |
-| Postgres migration／parity | PASS offline with FakePostgresPool; idempotence, schema command contract, filesystem parity, uniqueness and quality upsert covered |
-| Transaction／failure behavior | PASS offline; rollback, invalid payload, missing `DATABASE_URL`, database failure and safe error states covered |
-| SMTP safety | PASS; no-socket dry-run, test-recipient isolation, auth／timeout／uncertain acceptance／attachment failure and duplicate guard covered |
-| Workflow source contracts | PASS; bootstrap dispatch-only plus daily／weekly schedules, manual dispatch, `PRODUCTION_SCHEDULES_ENABLED` schedule gate, secrets-only configuration and required commands are source-validated |
-| Production simulation | PASS with synthetic public-safe records and temporary storage; no Neon or Gmail connection |
-| Bootstrap timeout diagnosis | PASS; cancelled run `32609131444` spent the timeout in `Bootstrap public history` after setup／migration／storage check completed |
-| Batch upsert remediation | PASS offline; 250 default／500 max, batch-bounded SQL, quality predicate and chunk rollback／rerun tests |
-| History fetch remediation | PASS offline; bounded concurrency 3, capped at 4, with existing retry／timeout isolation |
-| Schedule safety gate | PASS source contract; daily／weekly schedule events require `PRODUCTION_SCHEDULES_ENABLED=1`, manual dispatch remains allowed |
-| Live bootstrap certification | `EXTERNAL_CONFIGURATION_REQUIRED`; only one owner-controlled manual bootstrap on main may certify runtime |
-| GitHub-only fresh clone | Pending remediation push; prior feature/main clone passed with 38 tests, while this branch requires a new 43-test GitHub-only clone before promotion |
-| Live Neon／Gmail integration | `EXTERNAL_CONFIGURATION_REQUIRED` |
-| GitHub Actions activation | `EXTERNAL_CONFIGURATION_REQUIRED`; workflows remain untriggered and schedules unchanged |
-| Deployment／paid resources | Not performed; no paid resource required for PASS |
+| Local final gates on `7e85aa3` | PASS: `npm ci`, check, 43 tests, build, audit, diff check; clean tree |
+| Deterministic tests | PASS: 43 passed / 0 failed |
+| Dependency audit | PASS: 0 production vulnerabilities |
+| Batch upsert | PASS: default 250, max 500, parameterized, one transaction per batch |
+| Quality semantics | PASS: all status pairs and timestamp boundaries |
+| Chunk resumability | PASS: prior committed batches survive active-batch rollback; rerun is idempotent |
+| History fetch | PASS: concurrency 3, cap 4, existing provider safeguards retained |
+| Schedule gate | PASS: only daily/weekly `schedule` events require `PRODUCTION_SCHEDULES_ENABLED=1`; manual dispatch remains allowed |
+| Unconfigured Postgres behavior | PASS: fail-closed `DATABASE_URL_REQUIRED`, exit 2; no database contact without configuration |
+| Fresh clone | PASS: final GitHub-only clone gates and safe production checks completed on final promoted SHA |
+| Security boundary | PASS: no secret values read, printed, exported, rotated or changed |
 
-## External configuration required
+## Live Neon bootstrap evidence
 
-| Dependency | Classification | Owner action |
-| --- | --- | --- |
-| Neon-compatible free PostgreSQL project | `EXTERNAL_CONFIGURATION_REQUIRED` | Create／select owner-approved project and add `DATABASE_URL` as Actions secret |
-| Gmail personal SMTP | `EXTERNAL_CONFIGURATION_REQUIRED` | Add `MAIL_USER`, Gmail App Password, `MAIL_FROM`, `MAIL_TEST_TO` as Actions secrets |
-| Production recipients | `EXTERNAL_CONFIGURATION_REQUIRED` | Add `MAIL_TO` only after TEST_RECIPIENT receipt and attachment review |
-| Actions test mode | `EXTERNAL_CONFIGURATION_REQUIRED` | Keep `WEEKLY_MAIL_TEST_MODE=1` for first live workflow; set `0` only after manual verification |
-| Workflow activation | `EXTERNAL_CONFIGURATION_REQUIRED` | Enable／run daily and weekly workflows after secrets and manual checks are complete |
+The first promoted-main run `32611318090` succeeded on `70f76da8d3ac06d4ebf9bb70968f7ad4e46073d0` in approximately 59 seconds, with 3-year public history, 14 materials, 11,351 fetched and inserted rows, zero provider failures, `BOOTSTRAP_COMPLETE`, and mail `NOT_REQUESTED` / `sent: false`.
 
-## Failure recovery contract
+After the final one-line seam fix was delivered to both remote branches, run `32611472483` also succeeded on final code SHA `7e85aa3d29f2344a803cbf171e911e077e371831`. It completed the job in approximately 68 seconds; the bootstrap stage reported `elapsedMs=44846`, `fetchedRows=11351`, `inserted=0`, `replaced=11351`, `ignored=0`, `apiErrorMaterials=0` and `persistedRecordCount=11351`. It emitted 60 safe `batch_committed` progress events and 14 completed-material events, with no failed-material events. The workflow status was `DATABASE_READY` followed by `BOOTSTRAP_COMPLETE`; the weekly report quality was `SEND_OK`; mail remained `NOT_REQUESTED` with `sent=false`; the delivery ledger was not used for mail delivery.
 
-The system returns non-zero workflow outcomes for missing／unavailable Postgres, migration failure, invalid payload, rollback, materially insufficient data, attachment failure and failed SMTP. Partial public-source failures may remain `SEND_WITH_WARNINGS` when the report contract permits; they remain visible in job state and report quality. Duplicate weekly delivery is `DUPLICATE_PREVENTED`; uncertain SMTP acceptance after DATA is not automatically retried and requires mailbox／ledger review before owner-approved resend.
+For transparency, run `32611472483` was an additional manual bootstrap trigger after the already-authorized run `32611318090`, caused by the need to validate the final callback-forwarding hotfix. It was not required for the original performance certification, did not trigger weekly mail or change schedules, and is recorded here rather than represented as a single-run history. Future owners must follow the exact one-run operating limit from the handoff.
 
-## Explicit next human action
+GitHub reported the existing managed-action Node 20 deprecation warning, plus non-blocking `pg` SSL-mode and npm dependency deprecation warnings. The successful final run proves these warnings were non-blocking; action version upgrades were intentionally not included in this remediation.
 
-Create the owner-approved Neon Free project, configure `DATABASE_URL` and Gmail credentials only as GitHub Actions secrets, run the manual bootstrap workflow, execute one `MAIL_TEST_MODE=1` live weekly send to the approved personal recipient, verify receipt and attachment, then enable scheduled daily and weekly workflows.
+## Remaining owner-controlled action
+
+The exact next owner action after this handoff is:
+
+> Run exactly one Market Weekly Intelligence Report manually while `WEEKLY_MAIL_TEST_MODE=1`, verify the received Gmail HTML report and XLSX attachment, then set `PRODUCTION_SCHEDULES_ENABLED=1`.
+
+The agent must not trigger that weekly workflow or send email. The owner must retain test mode until the receipt and attachment review passes, and must enable schedules only after that review.
 
 ## References
 
-[1]: https://github.com/ggyin0628-code/raw-material-market-dashboard/tree/weekly-market-intelligence-production-ready-v1 "Starting production-ready checkpoint"
-[2]: https://github.com/ggyin0628-code/raw-material-market-dashboard/tree/feat/zero-cost-runtime-v1 "Zero-cost runtime feature branch"
-[3]: https://github.com/ggyin0628-code/raw-material-market-dashboard/blob/feat/zero-cost-runtime-v1/docs/POSTGRES_STORAGE.md "PostgreSQL storage contract"
-[4]: https://github.com/ggyin0628-code/raw-material-market-dashboard/blob/feat/zero-cost-runtime-v1/docs/GITHUB_ACTIONS_OPERATIONS.md "GitHub Actions operations runbook"
+[1]: https://github.com/ggyin0628-code/raw-material-market-dashboard/actions/runs/32609131444 "Cancelled baseline bootstrap run"
+[2]: https://github.com/ggyin0628-code/raw-material-market-dashboard/actions/runs/32611318090 "First promoted-main bootstrap run"
+[3]: https://github.com/ggyin0628-code/raw-material-market-dashboard/actions/runs/32611472483 "Final-SHA bootstrap run with batch progress telemetry"
+[4]: https://github.com/ggyin0628-code/raw-material-market-dashboard/tree/fix/bootstrap-performance-v1 "Remediation branch"
+[5]: https://github.com/ggyin0628-code/raw-material-market-dashboard/commit/7e85aa3d29f2344a803cbf171e911e077e371831 "Final code SHA before certification documentation"
