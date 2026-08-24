@@ -87,6 +87,29 @@ The artifact itself remains at [`standalone/InternalEngineeringCostCalculator.ht
 
 The remediation is intentionally narrow. It does not redesign the standalone calculator, change its formulas, add authentication, add a public alias, remove the repository artifact, modify Render configuration or run any operator workflow. The current remediation branch must remain separate from `main` until a later explicit promotion approval.
 
+## Phase 4F production boundary certification
+
+**PHASE_4F_STANDALONE_OFFLINE_INTERNAL_COST_CALCULATOR_PRODUCTION_BOUNDARY_PASS**
+
+The approved public-exposure remediation head `324937a10ef6d81dd22508ba8fc45e32bf1d0b0a` was promoted to `main` from authoritative main `479774bb362881928587573ebb577d169fa35e02` by pure fast-forward. This promotion includes the standalone calculator and the public `/standalone` namespace deny rule. The calculator remains a local `file://` artifact; it is not a public Render page.
+
+| Certification item | Result |
+|---|---|
+| Final code promotion | `324937a10ef6d81dd22508ba8fc45e32bf1d0b0a`; pure fast-forward; no force push or history rewrite |
+| Render service | Existing `raw-material-market-dashboard-1.onrender.com` deployed normally from `main`; no new service or configuration change |
+| Public pages | `/`, `/machining`, `/sheet-metal`, `/estimate` all HTTP 200 |
+| Public assets | `/styles.css`, `/app.js`, `/nav.js`, `/machining.js`, `/sheet-metal.js`, `/estimate.js` all HTTP 200 |
+| Production `/standalone` boundary | `/standalone`, `/standalone/`, calculator path, arbitrary child path and URL-encoded equivalent all HTTP 404 with body `Not found`; no redirect |
+| Public navigation | No standalone, offline calculator, `InternalEngineeringCostCalculator` or `/standalone/` link |
+| Production engineering | Schema allows `NO_RATE` only; NO_RATE returns HTTP 200 with monetary fields null; `PRIVATE_CALIBRATED` and `SYNTHETIC_TEST` remain rejected |
+| Market isolation | Machining and sheet-metal public references retain `engineeringEstimate=null` |
+| Health | `/health` and `/health/weekly` HTTP 200 with `status=OK` |
+| Full regression | **137 passed / 0 failed**; all required gates passed; audit reported 0 vulnerabilities |
+| Offline artifact | Direct `file://` behavior, inline resources, no network, no persistence, calculate/clear/formula/print behavior retained |
+| Company/private data | NONE used, entered, imported, loaded, persisted or exposed |
+
+The public boundary was verified with read-only requests only. No form submission, workflow, mail, job, migration, bootstrap, schedule, secret, Neon, Gmail or private-runtime operation was performed. Public website behavior remains unchanged except that the previously reachable generic static-file namespace `/standalone/` now fails closed. The next action is controlled human distribution/use of the offline HTML, not another automatic development phase; no company values are entered by this certification.
+
 ## References
 
 [1]: ../docs/ENGINEERING_ESTIMATE_FOUNDATION.md "Existing engineering estimator foundation"

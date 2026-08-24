@@ -1,0 +1,50 @@
+{
+  "service": "raw-material-market-dashboard-1.onrender.com",
+  "verificationMode": "read-only",
+  "productionRuntime": "npm start -> server.js",
+  "pages": {
+    "/": 200,
+    "/machining": 200,
+    "/sheet-metal": 200,
+    "/estimate": 200
+  },
+  "assets": {
+    "/styles.css": 200,
+    "/app.js": 200,
+    "/nav.js": 200,
+    "/machining.js": 200,
+    "/sheet-metal.js": 200,
+    "/estimate.js": 200
+  },
+  "standaloneNamespace": {
+    "/standalone": { "status": 404, "body": "Not found", "redirect": false, "privateMarkers": false },
+    "/standalone/": { "status": 404, "body": "Not found", "redirect": false, "privateMarkers": false },
+    "/standalone/InternalEngineeringCostCalculator.html": { "status": 404, "body": "Not found", "redirect": false, "privateMarkers": false },
+    "/standalone/test.html": { "status": 404, "body": "Not found", "redirect": false, "privateMarkers": false },
+    "/standalone%2FInternalEngineeringCostCalculator.html": { "status": 404, "body": "Not found", "redirect": false, "privateMarkers": false }
+  },
+  "navigation": {
+    "standaloneLink": false,
+    "calculatorTitle": false,
+    "internalCalculatorName": false
+  },
+  "engineering": {
+    "schemaStatus": 200,
+    "allowedModes": ["NO_RATE"],
+    "noRateStatus": 200,
+    "noRateMonetaryFieldsNull": true,
+    "privateCalibratedStatus": 403,
+    "privateCalibratedCode": "PRIVATE_CALIBRATED_NOT_AVAILABLE_ON_PUBLIC_API",
+    "syntheticTestStatus": 400,
+    "syntheticTestCode": "SYNTHETIC_RATE_NOT_ALLOWED_IN_PRODUCTION"
+  },
+  "marketIsolation": {
+    "/api/machining/reference": { "status": 200, "engineeringEstimate": null },
+    "/api/sheet-metal/reference": { "status": 200, "engineeringEstimate": null }
+  },
+  "health": {
+    "/health": { "status": 200, "value": "OK" },
+    "/health/weekly": { "status": 200, "value": "OK" }
+  },
+  "privateMarkersInPublicResponses": false
+}

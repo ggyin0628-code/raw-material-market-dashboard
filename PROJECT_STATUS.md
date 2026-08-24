@@ -467,3 +467,30 @@ The Phase 4F standalone calculator remains a repository artifact for controlled 
 | Production operations | NONE: no deploy, Render configuration, Neon, Gmail, schedule, secret, migration, workflow, bootstrap, job or mail operation |
 
 The standalone calculator must not be re-exposed through another public route, added to public navigation or served by Render. This remediation is a pre-promotion requirement and does not authorize main promotion or first real pilot execution.
+
+## Phase 4F — Standalone Offline Internal Engineering Cost Calculator V1 production certification
+
+**PHASE_4F_STANDALONE_OFFLINE_INTERNAL_COST_CALCULATOR_PRODUCTION_BOUNDARY_PASS**
+
+The approved public-exposure remediation head `324937a10ef6d81dd22508ba8fc45e32bf1d0b0a` was promoted from authoritative main `479774bb362881928587573ebb577d169fa35e02` by pure fast-forward. The final code promotion includes the self-contained offline calculator and the public `/standalone` namespace deny rule; no force push or history rewrite was used.
+
+| Certification item | Result |
+|---|---|
+| Final code promotion | `324937a10ef6d81dd22508ba8fc45e32bf1d0b0a` |
+| Final main documentation checkpoint | Created after this read-only certification update; pushed to `origin/main` |
+| Annotated tag | `standalone-offline-internal-engineering-cost-calculator-v1` targets the final verified documentation checkpoint |
+| Full regression | PASS: **137 passed / 0 failed** |
+| Dependency audit | PASS: **0 vulnerabilities** |
+| Public pages | PASS: `/`, `/machining`, `/sheet-metal`, `/estimate` HTTP 200 |
+| Public assets | PASS: `/styles.css`, `/app.js`, `/nav.js`, `/machining.js`, `/sheet-metal.js`, `/estimate.js` HTTP 200 |
+| `/standalone` namespace | PASS: `/standalone`, `/standalone/`, calculator path, arbitrary child path and URL-encoded equivalent all HTTP 404 `Not found`; no redirect |
+| Public navigation | PASS: no standalone/offline calculator link or calculator marker |
+| Public engineering | PASS: schema `NO_RATE` only; NO_RATE HTTP 200 with monetary fields null; `PRIVATE_CALIBRATED` rejected; `SYNTHETIC_TEST` rejected |
+| Market isolation | PASS: machining and sheet-metal references retain `engineeringEstimate=null` |
+| Health | PASS: `/health` and `/health/weekly` HTTP 200 with top-level `status=OK` |
+| Standalone artifact | PASS: repository file retained and valid for direct `file://` opening; inline HTML/CSS/JavaScript; no server, Node runtime, CDN, external resources, API, network, analytics, telemetry or persistence dependency |
+| Offline smoke | PASS: synthetic `TEST_ONLY` desktop/mobile calculations, calculate, clear/reset, formula detail and print-safe behavior; no non-file request, no persistent storage, no horizontal overflow |
+| Company/private data | NONE used, entered, imported, loaded, persisted, committed, logged, backed up or exposed |
+| Production operations | NONE beyond the authorized main push and read-only Render verification; no Render configuration, Neon, Gmail, schedule, secret, workflow, migration, bootstrap, daily/weekly, backfill, mail or private-runtime operation |
+
+The existing Render service `raw-material-market-dashboard-1.onrender.com` deployed normally from `main`. The standalone calculator is not a public Render page and is not discoverable from public UI. The public website remains unchanged except for the required fail-closed `/standalone/` namespace block. The next action is controlled human distribution/use of the offline HTML, not another automatic development phase; this certification does not enter company values or execute a real pilot.

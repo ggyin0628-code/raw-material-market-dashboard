@@ -468,3 +468,27 @@ A narrow remediation was applied on `feat/standalone-offline-public-exposure-rem
 | Production | NONE: no deploy, Render change, Neon, Gmail, schedules, secrets, migration, workflow, private runtime or job operation |
 
 The remediation intentionally does not redesign the calculator, change its formulas or UI, add authentication, remove the repository artifact, expose another route or modify Render configuration. It is a required pre-promotion safety fix. A separate explicit approval is required before any main promotion; the first real pilot remains outside this remediation and is not authorized by this pass.
+
+## Phase 4F — Standalone Offline Internal Engineering Cost Calculator V1 production certification
+
+**PHASE_4F_STANDALONE_OFFLINE_INTERNAL_COST_CALCULATOR_PRODUCTION_BOUNDARY_PASS**
+
+The approved remediation head `324937a10ef6d81dd22508ba8fc45e32bf1d0b0a` was promoted from authoritative main `479774bb362881928587573ebb577d169fa35e02` to `main` by pure fast-forward. This promotion includes the standalone offline calculator and the public static-serving remediation. The annotated checkpoint tag `standalone-offline-internal-engineering-cost-calculator-v1` is created after the final verified documentation checkpoint.
+
+| Handoff item | Result |
+|---|---|
+| Final code promotion | `324937a10ef6d81dd22508ba8fc45e32bf1d0b0a`; no force push or history rewrite |
+| Final main | Documentation checkpoint after the read-only certification update; pushed to `origin/main` |
+| Standalone artifact | `standalone/InternalEngineeringCostCalculator.html` remains a single self-contained `file://` artifact |
+| Public namespace deny | `/standalone`, `/standalone/`, calculator path, arbitrary child path and URL-encoded equivalent return HTTP 404 `Not found`; no redirect or alternate alias |
+| Public website | `/`, `/machining`, `/sheet-metal`, `/estimate` remain HTTP 200; existing JS/CSS assets remain HTTP 200 |
+| Public navigation | No standalone/offline calculator link or calculator marker |
+| Public engineering | Production schema remains `NO_RATE` only; NO_RATE monetary fields remain null; `PRIVATE_CALIBRATED` and `SYNTHETIC_TEST` remain rejected |
+| Market isolation | Machining and sheet-metal public references retain `engineeringEstimate=null` |
+| Health | `/health` and `/health/weekly` return HTTP 200 with `status=OK` |
+| Full regression | **137 passed / 0 failed**; audit reported 0 vulnerabilities |
+| Offline behavior | Direct `file://` calculation, clear/reset, formula detail, print-summary and responsive behavior verified with synthetic `TEST_ONLY` inputs; no non-file requests or persistence |
+| Company/private data | NONE: no company value, real rate, private profile, pilot or operator workflow was entered or used |
+| Production operations | No Render configuration, Neon, Gmail, schedule, secret, workflow, migration, bootstrap, daily/weekly, backfill or mail operation was performed |
+
+The existing Render service `raw-material-market-dashboard-1.onrender.com` deployed normally from `main` and passed read-only certification. The standalone artifact is intentionally not a public Render page. The next action is controlled human distribution/use of the offline HTML, not another automatic development phase; this certification does not enter company values or authorize a real pilot.
