@@ -33,11 +33,11 @@
               <div class="estimate-field"><label for="materialFamily">材料家族</label><select id="materialFamily" name="materialFamily"><option value="CARBON_STEEL">碳鋼（CARBON_STEEL）</option><option value="STAINLESS_STEEL">不鏽鋼（STAINLESS_STEEL）</option><option value="ALUMINUM">鋁（ALUMINUM）</option><option value="COPPER">銅（COPPER）</option><option value="OTHER">其他（OTHER）</option></select></div>
               <div class="estimate-field"><label for="grade">牌號（可選）</label><input id="grade" name="grade" type="text" placeholder="不會自動推導"></div>
               <div class="estimate-field"><label for="densityKgM3">密度（kg/m³）</label><input id="densityKgM3" name="densityKgM3" type="number" min="0.000001" step="any" value="7850"><small id="densityHint">工程預設值 7850 kg/m³；可直接覆寫。</small></div>
-              <div class="estimate-field"><label for="thicknessMm">厚度（mm）</label><input id="thicknessMm" name="thicknessMm" type="number" min="0.000001" step="any" value="2"></div>
-              <div class="estimate-field"><label for="lengthMm">毛坯長度（mm）</label><input id="lengthMm" name="lengthMm" type="number" min="0.000001" step="any" value="500"></div>
-              <div class="estimate-field"><label for="widthMm">毛坯寬度（mm）</label><input id="widthMm" name="widthMm" type="number" min="0.000001" step="any" value="300"></div>
-              <div class="estimate-field"><label for="quantity">數量（件）</label><input id="quantity" name="quantity" type="number" min="1" step="1" value="100"></div>
-              <div class="estimate-field"><label for="batchCount">批次數</label><input id="batchCount" name="batchCount" type="number" min="1" step="1" value="1"></div>
+              <div class="estimate-field"><label for="thicknessMm">厚度（mm）</label><input id="thicknessMm" name="thicknessMm" type="number" min="0.000001" step="any"></div>
+              <div class="estimate-field"><label for="lengthMm">毛坯長度（mm）</label><input id="lengthMm" name="lengthMm" type="number" min="0.000001" step="any"></div>
+              <div class="estimate-field"><label for="widthMm">毛坯寬度（mm）</label><input id="widthMm" name="widthMm" type="number" min="0.000001" step="any"></div>
+              <div class="estimate-field"><label for="quantity">數量（件）</label><input id="quantity" name="quantity" type="number" min="1" step="1"></div>
+              <div class="estimate-field"><label for="batchCount">批次數</label><input id="batchCount" name="batchCount" type="number" min="1" step="1"></div>
             </div></fieldset>
 
             <fieldset><legend>材料成本</legend><div class="estimate-fields">
@@ -47,9 +47,9 @@
               <div class="estimate-field full"><small>利用率與損耗率只能填一個；兩者皆空白時，材料重量等於理論毛坯重量，不假設隱藏排版效率。</small></div>
             </div></fieldset>
 
-            <fieldset data-process="cutting"><legend><label class="estimate-check"><input id="cuttingEnabled" type="checkbox" checked>啟用雷射切割／切割</label></legend><div class="estimate-process-fields" data-process-fields="cutting"><div class="estimate-fields">
-              <div class="estimate-field"><label for="cutLengthMmPerPart">切割長度（mm／件）</label><input id="cutLengthMmPerPart" type="number" min="0" step="any" value="1450"></div>
-              <div class="estimate-field"><label for="pierceCountPerPart">穿孔數（次／件）</label><input id="pierceCountPerPart" type="number" min="0" step="1" value="8"></div>
+            <fieldset data-process="cutting"><legend><label class="estimate-check"><input id="cuttingEnabled" type="checkbox">啟用雷射切割／切割</label></legend><div class="estimate-process-fields" data-process-fields="cutting"><div class="estimate-fields">
+              <div class="estimate-field"><label for="cutLengthMmPerPart">切割長度（mm／件）</label><input id="cutLengthMmPerPart" type="number" min="0" step="any"></div>
+              <div class="estimate-field"><label for="pierceCountPerPart">穿孔數（次／件）</label><input id="pierceCountPerPart" type="number" min="0" step="1"></div>
               <div class="estimate-field"><label for="cuttingSpeedMmPerMin">切割速度（mm／min）</label><input id="cuttingSpeedMmPerMin" type="number" min="0.000001" step="any" placeholder="必填"></div>
               <div class="estimate-field"><label for="pierceSecondsEach">每次穿孔秒數</label><input id="pierceSecondsEach" type="number" min="0" step="any" placeholder="必填"></div>
               <div class="estimate-field"><label for="cuttingMachineRatePerMin">切割機成本／min</label><input id="cuttingMachineRatePerMin" type="number" min="0" step="any" placeholder="必填"></div>
@@ -57,8 +57,8 @@
               <div class="estimate-field"><label for="cuttingSetupMinutesPerBatch">切割每批準備時間（min／batch）</label><input id="cuttingSetupMinutesPerBatch" type="number" min="0" step="any" placeholder="必填"></div>
             </div></div></fieldset>
 
-            <fieldset data-process="bending"><legend><label class="estimate-check"><input id="bendingEnabled" type="checkbox" checked>啟用折彎</label></legend><div class="estimate-process-fields" data-process-fields="bending"><div class="estimate-fields">
-              <div class="estimate-field"><label for="bendCountPerPart">折彎數（次／件）</label><input id="bendCountPerPart" type="number" min="0" step="1" value="4"></div>
+            <fieldset data-process="bending"><legend><label class="estimate-check"><input id="bendingEnabled" type="checkbox">啟用折彎</label></legend><div class="estimate-process-fields" data-process-fields="bending"><div class="estimate-fields">
+              <div class="estimate-field"><label for="bendCountPerPart">折彎數（次／件）</label><input id="bendCountPerPart" type="number" min="0" step="1"></div>
               <div class="estimate-field"><label for="secondsPerBend">每折秒數</label><input id="secondsPerBend" type="number" min="0.000001" step="any" placeholder="必填"></div>
               <div class="estimate-field"><label for="bendingMachineRatePerMin">折彎機成本／min</label><input id="bendingMachineRatePerMin" type="number" min="0" step="any" placeholder="必填"></div>
               <div class="estimate-field"><label for="bendingSetupRatePerMin">折彎準備成本／min</label><input id="bendingSetupRatePerMin" type="number" min="0" step="any" placeholder="必填"></div>
@@ -66,7 +66,7 @@
             </div></div></fieldset>
 
             <fieldset data-process="welding"><legend><label class="estimate-check"><input id="weldingEnabled" type="checkbox">啟用焊接</label></legend><div class="estimate-process-fields" data-process-fields="welding"><div class="estimate-fields">
-              <div class="estimate-field"><label for="weldLengthMmPerPart">焊接長度（mm／件）</label><input id="weldLengthMmPerPart" type="number" min="0" step="any" value="0"></div>
+              <div class="estimate-field"><label for="weldLengthMmPerPart">焊接長度（mm／件）</label><input id="weldLengthMmPerPart" type="number" min="0" step="any"></div>
               <div class="estimate-field"><label for="weldingSpeedMmPerMin">焊接速度（mm／min）</label><input id="weldingSpeedMmPerMin" type="number" min="0.000001" step="any" placeholder="必填"></div>
               <div class="estimate-field"><label for="weldingLaborRatePerMin">焊接人工成本／min</label><input id="weldingLaborRatePerMin" type="number" min="0" step="any" placeholder="必填"></div>
               <div class="estimate-field"><label for="weldingEquipmentRatePerMin">焊接設備成本／min</label><input id="weldingEquipmentRatePerMin" type="number" min="0" step="any" placeholder="必填"></div>

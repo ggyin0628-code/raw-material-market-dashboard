@@ -135,3 +135,14 @@ The `/estimate` page contains the same explicit Phase 4F calculation semantics: 
 | Production protection | No deployment, main promotion, real company-data entry, private runtime, Render configuration, database, mail, schedule, secret, workflow or API operation was performed |
 
 This follow-up remains feature-branch-ready only. It does not change the standalone artifact's distribution boundary, does not authorize real company values, and must stop before main promotion until separately approved.
+
+
+## Formal blank `/estimate` operator-page refinement
+
+The public `/estimate` integration now starts as a formal blank operator page. This refinement applies to the public browser-local workspace and does not alter the self-contained standalone artifact or its certified formula behavior.
+
+The basic fields `thicknessMm`, `lengthMm` and `widthMm` require finite positive values. `quantity` and `batchCount` require finite positive integers. Both `null` and blank-string values fail closed with explicit `不可留白。` validation, and zero/non-integer cases remain invalid. The page controller converts blank numeric input to `null`; the pure calculator performs the required validation and never guesses a missing value.
+
+All operational numeric defaults and enabled-process defaults were removed from the public HTML. The only retained input default is the standard carbon-steel density `7850 kg/m³`. The standard density table for carbon steel, stainless steel, aluminum and copper remains an engineering-default lookup; it is not a company rate, process time, utilization, scrap factor or operational assumption. Dimensions, quantity, batch count, process quantities and process switches begin blank/unchecked.
+
+The final blank-form browser smoke showed required-field validation without a result, zero additional network calls, empty cookie/localStorage/sessionStorage, and all five process switches unchecked. Final visual artifacts are `artifacts/phase4f-estimate-browser-local/estimate-blank-desktop-1440x1000.png` and `estimate-blank-mobile-390x844.png`. The complete suite passed **145 tests with 0 failures** and all required gates passed with **0 vulnerabilities**. This remains a feature-branch-only refinement and stops before main promotion and real company-data entry.

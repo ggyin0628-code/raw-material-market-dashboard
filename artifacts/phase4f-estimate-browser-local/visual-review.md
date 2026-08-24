@@ -11,3 +11,15 @@ The capture shows the initial blank-result state only. Interaction behavior was 
 
 
 A final recapture after the terminology refinement removed quote/supplier wording from the public `/estimate` UI. The final screenshots above are the recaptured versions and show only the three boundary tags: `工程估算`, `瀏覽器內計算` and `內部工程成本估算`.
+
+
+## Blank formal operator page recapture
+
+The final blank-page recapture was made after removing all operational input defaults and unchecking all process switches. The only input default visible in both screenshots is the standard `densityKgM3=7850` engineering default for the default carbon-steel material family.
+
+| Viewport | Artifact | Review result |
+|---|---|---|
+| 1440 × 1000 | `estimate-blank-desktop-1440x1000.png` | Thickness, length, width, quantity, batch count and internal cost inputs are blank; the result panel is in the initial empty state; no visible clipping or horizontal overflow. |
+| 390 × 844 | `estimate-blank-mobile-390x844.png` | The blank fields remain readable in the stacked mobile layout; navigation and privacy boundary wrap correctly; no visible horizontal overflow. |
+
+Blank-form Chromium smoke submitted no values and observed `resultVisible=false`, required-field Traditional-Chinese validation for thickness/length/width/quantity/batch/material rate, `networkCalls=[]`, empty cookie/localStorage/sessionStorage, all five process switches unchecked, and only the density default `7850`.

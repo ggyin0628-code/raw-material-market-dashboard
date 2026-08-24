@@ -516,3 +516,24 @@ This follow-up is implemented on `feat/estimate-browser-local-internal-cost-v1`,
 | Production boundary | NONE: no Render deploy, main push, private runtime, real company data, real rate, Neon, Gmail, schedules, secrets, migration, workflow, bootstrap, daily/weekly job, mail or telemetry operation |
 
 The branch remains stopped before main promotion and before real company-data entry. Final gates passed on the completed worktree (`npm ci`, `npm run check`, `npm test`: 143 passed / 0 failed, `npm run build`, `npm audit --omit=dev`: 0 vulnerabilities, `git diff --check`), and feature commit `29fe7df546301b76777b431d4ce72e4502db44bf` was pushed to `origin/feat/estimate-browser-local-internal-cost-v1`. Main and `origin/main` remain `b4666ae5c840e29a23cb747e54eac22d5adb1c76`; no promotion occurred.
+
+
+## Phase 4F follow-up refinement — Formal blank operator page and fail-closed basic inputs
+
+**FEATURE_BRANCH_READY_FOR_REVIEW — DO NOT PROMOTE MAIN — DO NOT ENTER REAL COMPANY DATA**
+
+The `/estimate` browser-local workspace received a narrow validation/default refinement on `feat/estimate-browser-local-internal-cost-v1`. `thicknessMm`, `lengthMm` and `widthMm` are now required positive inputs; `quantity` and `batchCount` are required positive integers. Null and blank-string inputs fail closed with explicit Traditional-Chinese `不可留白。` errors, while zero and non-integer values remain invalid.
+
+The formal blank operator page removes all operational synthetic defaults. An HTML input scan finds only the standard carbon-steel density default `densityKgM3=7850`; dimensions, quantity, batch count, process quantities and all process switches start blank/unchecked. The standard density table remains the only engineering default family and does not represent company data.
+
+| Status item | Result |
+|---|---|
+| Validation | PASS: five basic required fields enforce required + positive, with quantity/batch also integer |
+| Null/blank tests | PASS: all five fields covered for both `null` and `""`; zero and fractional integer cases covered |
+| Formal blank page | PASS: no operational numeric defaults or checked process switches; only density `7850` remains |
+| Blank browser smoke | PASS: blank submit produced no result, required-field validation, `networkCalls=[]`, empty cookie/storage and all process switches unchecked |
+| Visual artifacts | PASS: blank formal desktop `1440×1000` and mobile `390×844` screenshots under `artifacts/phase4f-estimate-browser-local/` |
+| Final gates | PASS: `npm ci`, `npm run check`, `npm test` (**145 passed / 0 failed**), `npm run build`, `npm audit --omit=dev` (**0 vulnerabilities**), `git diff --check` |
+| Production boundary | NONE: no deployment, main promotion, Render/Neon/Gmail/schedule/secret/workflow/private-runtime operation or real company-data entry |
+
+The certified standalone artifact, public API `NO_RATE` behavior, market `engineeringEstimate=null` isolation and `/standalone` 404 protection remain unchanged. This branch stops before main promotion.

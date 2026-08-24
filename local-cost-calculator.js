@@ -52,11 +52,11 @@
         const invalidFields = data.invalidFields || {};
         Object.keys(invalidFields).forEach((label) => addError(errors, label, "必須是有限數字。"));
         if (!MATERIAL_LABELS[data.materialFamily]) addError(errors, "材質", "請選擇支援的材質。");
-        checkNumber(errors, data, "thicknessMm", "厚度", { positive: true });
-        checkNumber(errors, data, "lengthMm", "毛坯長度", { positive: true });
-        checkNumber(errors, data, "widthMm", "毛坯寬度", { positive: true });
-        checkNumber(errors, data, "quantity", "數量", { positive: true, integer: true });
-        checkNumber(errors, data, "batchCount", "批次數", { positive: true, integer: true });
+        checkNumber(errors, data, "thicknessMm", "厚度", { required: true, positive: true });
+        checkNumber(errors, data, "lengthMm", "毛坯長度", { required: true, positive: true });
+        checkNumber(errors, data, "widthMm", "毛坯寬度", { required: true, positive: true });
+        checkNumber(errors, data, "quantity", "數量", { required: true, positive: true, integer: true });
+        checkNumber(errors, data, "batchCount", "批次數", { required: true, positive: true, integer: true });
         if (isFiniteNumber(data.quantity) && isFiniteNumber(data.batchCount) && data.batchCount > data.quantity) addError(errors, "批次數", "不可大於數量。");
         if (data.materialFamily === "OTHER") checkNumber(errors, data, "densityKgM3", "其他材質密度", { required: true, positive: true });
         else if (data.densityKgM3 !== null && data.densityKgM3 !== undefined) checkNumber(errors, data, "densityKgM3", "密度", { positive: true });

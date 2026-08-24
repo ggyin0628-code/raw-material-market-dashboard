@@ -524,3 +524,24 @@ This follow-up stops before main promotion and before any real company-data entr
 The completed feature head is `29fe7df546301b76777b431d4ce72e4502db44bf` and was pushed to `origin/feat/estimate-browser-local-internal-cost-v1`. Final gates passed on the completed worktree: `npm ci`, `npm run check`, `npm test` (**143 passed / 0 failed**), `npm run build`, `npm audit --omit=dev` (**0 vulnerabilities**) and `git diff --check`. The visual artifacts and review note are committed under `artifacts/phase4f-estimate-browser-local/`.
 
 `main` and `origin/main` both remain `b4666ae5c840e29a23cb747e54eac22d5adb1c76`; this follow-up was not promoted. No Render deployment, real company-data entry, private runtime execution, API submission, database, mail, schedule, secret, workflow or telemetry operation was performed.
+
+
+## Phase 4F follow-up refinement — Formal blank operator page and fail-closed basic inputs
+
+**Status: FEATURE_BRANCH_READY_FOR_REVIEW — DO NOT PROMOTE MAIN — DO NOT ENTER REAL COMPANY DATA**
+
+A narrow refinement was applied on `feat/estimate-browser-local-internal-cost-v1` after the browser-local workspace handoff. The pure local calculator now validates `thicknessMm`, `lengthMm` and `widthMm` as required positive numbers, and `quantity` and `batchCount` as required positive integers. Null and blank-string values fail closed with field-specific `不可留白。` errors; zero and non-integer values remain rejected.
+
+The public `/estimate` formal operator page no longer carries operational numeric defaults or enabled process defaults. The only retained input default is the standard carbon-steel density `7850 kg/m³`; dimensions, quantity, batch count, process quantities and all process switches are blank/unchecked. Standard material density constants remain documented engineering defaults, not company data.
+
+| Refinement item | Result |
+|---|---|
+| Basic validation | PASS: thickness/length/width required + positive; quantity/batch required + positive + integer |
+| Null/blank coverage | PASS: deterministic tests cover `null` and `""` for all five basic required fields |
+| Operational defaults | PASS: HTML input scan finds only `densityKgM3=7850`; all process checkboxes are unchecked |
+| Blank formal smoke | PASS: blank submit shows required-field validation, no result, zero additional network calls, empty cookie/storage |
+| Visual recapture | PASS: `artifacts/phase4f-estimate-browser-local/estimate-blank-desktop-1440x1000.png` and `estimate-blank-mobile-390x844.png` |
+| Full gates | PASS: `npm ci`, `npm run check`, `npm test` (**145 passed / 0 failed**), `npm run build`, `npm audit --omit=dev` (**0 vulnerabilities**), `git diff --check` |
+| Main boundary | Main promotion intentionally not performed; no Render, Neon, Gmail, schedules, secrets, workflows, private runtime or real company-data operation |
+
+The refinement keeps the certified standalone artifact, public API `NO_RATE` boundary, market isolation and `/standalone` 404 protection unchanged. It remains stopped before main promotion.

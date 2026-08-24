@@ -81,6 +81,39 @@ test("/estimate contains the complete planned browser-local workspace", () => {
   assert.match(estimateHtml, /計算內部工程成本/);
 });
 
+test("formal estimate page keeps only the standard density engineering default", () => {
+  const inputDefaults = [...estimateHtml.matchAll(/<input\b[^>]*>/g)].filter(([tag]) => /\bvalue=/.test(tag) || /\bchecked(?:\s|>)/.test(tag)).map(([tag]) => tag);
+  assert.deepEqual(inputDefaults, ['<input id="densityKgM3" name="densityKgM3" type="number" min="0.000001" step="any" value="7850">']);
+  assert.doesNotMatch(estimateHtml, /type="checkbox"[^>]*checked/);
+  assert.match(estimateHtml, /工程預設值 7850 kg\/m³/);
+  assert.deepEqual(LocalCalculator.DENSITIES_KG_M3, { CARBON_STEEL: 7850, STAINLESS_STEEL: 8000, ALUMINUM: 2700, COPPER: 8960 });
+});
+
+test("required basic fields fail closed for null and blank-string values", () => {
+  const requiredFields = [
+    ["thicknessMm", "厚度"],
+    ["lengthMm", "毛坯長度"],
+    ["widthMm", "毛坯寬度"],
+    ["quantity", "數量"],
+    ["batchCount", "批次數"],
+  ];
+  for (const [field, label] of requiredFields) {
+    for (const value of [null, ""]) {
+      assert.throws(() => LocalCalculator.calculate(fixture({ [field]: value })), (error) => {
+        assert.equal(error.name, "CalculatorValidationError");
+        assert.ok(error.errors.some((item) => item.label === label && item.message === "不可留白。"));
+        return true;
+      }, `${field}=${String(value)} must fail closed`);
+    }
+  }
+  for (const field of ["thicknessMm", "lengthMm", "widthMm", "quantity", "batchCount"]) {
+    assert.throws(() => LocalCalculator.calculate(fixture({ [field]: 0 })), /工程輸入驗證失敗/);
+  }
+  for (const field of ["quantity", "batchCount"]) {
+    assert.throws(() => LocalCalculator.calculate(fixture({ [field]: 1.5 })), /工程輸入驗證失敗/);
+  }
+});
+
 test("company-entered cost values have no server submission, network or telemetry path", () => {
   for (const source of [estimateHtml, estimateJs, coreSource]) {
     assert.doesNotMatch(source, /fetch\s*\(|XMLHttpRequest|WebSocket|sendBeacon|navigator\.sendBeacon|\.submit\s*\(/i);
