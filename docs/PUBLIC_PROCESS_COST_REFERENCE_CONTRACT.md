@@ -16,11 +16,12 @@ machining 與 sheet-metal API response 都保留原有 `state`、`generatedAt`�
 | `machineType` | 必要 | 明確製程／機台類型，例如 `CNC_3_AXIS_MILL`、`LASER_CUTTING`、`BENDING` |
 | `material` / `thickness` | 可為 null | 雷射 direct table 時保留材料與板厚；CNC machine-hour reference 不虛構材料條件 |
 | `priceMin` / `priceMax` / `priceOpenEnded` | 可為 null／boolean | 只有 accepted monetary source 才可有數值；`priceOpenEnded=true` 時保留 `priceMin` 且 `priceMax=null`，表示來源為「起」而非封頂；不代表最終 job quote |
-| `currency` / `unit` | 必要 | 保留原始單位，例如 `TWD/hr`、`TWD/min`、`TWD/m`；不跨單位平均 |
+| `currency` / `unit` | 必要／可為 null | 保留來源幣別與原始單位；`NO_PUBLIC_PRICE_DATA` 的 currency 可為 null；不跨單位平均 |
 | `pricingBasis` | 必要 | 明確說明是 machine-hour、marketplace customer quote、per-meter listed fee 等 |
 | `sourceName` / `sourceUrl` | 必要／依角色 | accepted monetary record 必須有公開 URL；`NO_PUBLIC_PRICE_DATA` 可沒有 URL |
 | `checkedAt` / `geographicScope` | 必要 | 讓使用者知道來源查核時間與適用地域 |
 | `includes` / `excludes` | 必要 | 明示包含與不包含項目，避免把材料、setup、margin 或 supplier contract price 誤讀進來 |
+| `currencyEvidence` / `currencyEvidenceNote` | 必要 | `EXPLICIT` 表示來源頁明示幣別；`LOCALE_INFERRED` 表示台灣網站語境推定但頁面未明示；`UNKNOWN` 表示不適用或未確認。推定幣別不得以 `NT$` 顯示，且必須保留詢價提醒。 |
 | `confidence` / `sourceRole` | 必要 | confidence 不是準確度承諾；source role 控制 UI 與審計語意 |
 | `smallHoleFee*` | 可為 null | 只有來源明列時才填入；未明列不得推估 |
 
@@ -30,7 +31,7 @@ machining 與 sheet-metal API response 都保留原有 `state`、`generatedAt`�
 
 machining 目前保留四個台灣導向 machine-hour reference：3-axis mill `TWD 1,000–1,600/hr`、2-axis lathe `TWD 900–1,500/hr`、5-axis simultaneous mill `TWD 2,000+/hr`、turn-mill `TWD 1,800+/hr`。5-axis 與 turn-mill 的 record 使用 `priceOpenEnded=true`、`priceMax=null`，不把來源的 `3,500+`／`3,000+` 誤讀成封頂。另保留 PRO360 customer quote statistic `TWD 80–120/min`，明確標示為 marketplace quote statistic，不可與 machine-hour record 平均。[1][2]
 
-sheet-metal 目前先展示可查證的 laser direct listed price。MINCA 的公開表列出黑鐵、不鏽鋼／鍍鋅與鋁的 per-meter price，並另列直徑 30 mm 以下圓孔費；仲凱公開服務頁列出 SS41、SUS304 與 AL6061 的 per-meter price，且明示少量／打樣與厚板另議。[3][4] 折彎、TIG、MIG／CO2 與點焊沒有被接受的現行台灣公開 monetary range，因此各自保留 `NO_PUBLIC_PRICE_DATA`，而不是用 pressure score 代替金額。
+sheet-metal 目前先展示可查證的 laser direct listed price。MINCA 的公開表列出黑鐵、不鏽鋼／鍍鋅與鋁的 per-meter price，並另列直徑 30 mm 以下圓孔費；仲凱公開服務頁列出 SS41、SUS304 與 AL6061 的 per-meter price，且明示少量／打樣與厚板另議。[3][4] 兩個 checked page 都沒有以 `TWD` 或 `NT$` 明示幣別，因此 records 保留數值但標記 `currencyEvidence=LOCALE_INFERRED`；UI 顯示「網站列示：20 / m」與「幣別：來源頁未明示（台灣網站語境推定，需詢價確認）」，不做 FX conversion。折彎、TIG、MIG／CO2 與點焊沒有被接受的現行台灣公開 monetary range，因此各自保留 `NO_PUBLIC_PRICE_DATA`，而不是用 pressure score 代替金額。
 
 ## Accepted and rejected source roles
 
@@ -47,9 +48,9 @@ sheet-metal 目前先展示可查證的 laser direct listed price。MINCA 的公
 
 ## Source records and calculation prohibition
 
-前端以 `NT$ 2,000+ / hr`、`NT$ 1,800+ / hr` 顯示 open-ended record；API 仍保留原始 `TWD/hr` unit 與 machine-hour basis，方便程式驗證與來源追溯。
+前端對 `currencyEvidence=EXPLICIT` 的 CNC open-ended record 顯示 `NT$ 2,000+ / hr`、`NT$ 1,800+ / hr`；對 `currencyEvidence=LOCALE_INFERRED` 的雷射 record 顯示 `網站列示：20 / m`，不把 `$` 或台灣 locale 推定包裝成 source-explicit NT$。API 仍保留原始 `currency`、evidence note、`TWD/hr`／`TWD/m` unit 與 machine-hour／per-meter basis，方便程式驗證與來源追溯。`priceOpenEnded=true` 且 `priceMin` finite、`priceMax=null` 是有效 monetary card，不得進入 no-data state。
 
-本契約禁止以下行為：用 pressure score 直接當加工單價；將不同單位轉換後做未公開的平均；把 public machine-hour reference 加上材料、setup、人工或 margin 而產生「估算報價」；以舊頁面或搜尋摘要填補沒有公開價格的焊接／折彎 record；將台灣 vendor listed table 標示成公司或供應商對特定工件的 quote。公開 reference 也不會改變 market pressure component weights、minimum evidence 或 existing `engineeringEstimate=null` boundary。
+本契約禁止以下行為：用 pressure score 直接當加工單價；將不同單位轉換後做未公開的平均；把 public machine-hour reference 加上材料、setup、人工或 margin 而產生「估算報價」；以舊頁面或搜尋摘要填補沒有公開價格的焊接／折彎 record；將台灣 vendor listed table 標示成公司或供應商對特定工件的 quote。公開 reference 也不會改變 market pressure component weights、minimum evidence 或 existing `engineeringEstimate=null` boundary。Daily execution success 亦不等同 data readiness：daily job 必須保存 freshness counts、`dataAsOf` 與 explicit readiness state，all-expired/all-NO_DATA 不得回報 `DAILY_DATA_READY`。
 
 ## Verification references
 

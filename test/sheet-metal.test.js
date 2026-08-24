@@ -324,7 +324,8 @@ test("sheet-metal page and API contract contain required public-only labels and 
   assert.match(html, /前往工程估算/);
   assert.ok(html.indexOf('class="sheet-metal-panel public-price-panel"') < html.indexOf('class="sheet-metal-summary"'));
   assert.ok(html.indexOf('class="sheet-metal-summary"') < html.indexOf('aria-label="成本趨勢輔助"'));
-  assert.match(client, /NO_PUBLIC_PRICE_DATA/);
+  assert.match(html, /NO_PUBLIC_PRICE_DATA/);
+  assert.match(html, /public-process-price-ui\.js/);
   assert.match(client, /smallHoleFee/);
   const reference = buildSheetMetalReference({ components: completeComponents() });
   const payload = buildPayload(reference, reference.sourceProvenance, "2026-08-23T00:00:00.000Z");

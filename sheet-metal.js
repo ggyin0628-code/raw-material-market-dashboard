@@ -34,14 +34,8 @@ function change(value) { return typeof value === "number" && Number.isFinite(val
 function date(value) { return value || "--"; }
 function machineLabel(value) { return ({ LASER_CUTTING: "雷射切割", BENDING: "折彎", WELDING_TIG: "TIG 焊", WELDING_MIG_CO2: "MIG／CO2 焊", WELDING_SPOT: "點焊" }[value] || value || "公開製程參考"); }
 function materialLabel(value) { return ({ BLACK_STEEL: "黑鐵／碳鋼", STAINLESS_STEEL: "不鏽鋼", STAINLESS_OR_GALVANIZED: "不鏽鋼／鍍鋅（來源合併）", ALUMINUM: "鋁" }[value] || value || "一般材料"); }
-function moneyNumber(value) { return typeof value === "number" && Number.isFinite(value) ? value.toLocaleString("en-US", { maximumFractionDigits: 2 }) : "--"; }
-function priceText(item) {
-  if (item.sourceRole === "NO_PUBLIC_PRICE_DATA" || item.priceMin == null || (!item.priceOpenEnded && item.priceMax == null)) return "公開金額資料不足";
-  const currency = item.currency === "TWD" ? "NT$" : item.currency || "";
-  const unit = String(item.unit || "").replace(/^[A-Z]+\//, "");
-  const range = item.priceOpenEnded ? `${moneyNumber(item.priceMin)}+` : item.priceMin === item.priceMax ? moneyNumber(item.priceMin) : `${moneyNumber(item.priceMin)}–${moneyNumber(item.priceMax)}`;
-  return `${currency} ${range} / ${unit}`.trim();
-}
+const priceUi = window.publicProcessPriceUi;
+function priceText(item) { return priceUi.priceText(item); }
 function groupPriceReferences(items) {
   const groups = new Map();
   for (const item of items) {
@@ -60,12 +54,13 @@ function groupPriceReferences(items) {
   return [...groups.values()];
 }
 function renderPublicPriceCard(item) {
-  const noData = item.sourceRole === "NO_PUBLIC_PRICE_DATA" || item.priceMin == null || item.priceMax == null;
+  const noData = !priceUi.hasMonetaryData(item);
   const title = `${machineLabel(item.machineType)}${item.material ? `｜${materialLabel(item.material)}` : ""}${item.thickness ? `｜${item.thickness}` : ""}`;
   const sourceNames = (item.sources || [item]).map((source) => source.sourceName).join("、");
   const sourceLinks = (item.sources || [item]).filter((source) => source.sourceUrl).map((source) => `<a href="${escapeHtml(source.sourceUrl)}" target="_blank" rel="noopener noreferrer">來源</a>`).join(" ");
-  const hole = item.smallHoleFeeMin == null ? "" : `<small>小圓孔：${item.currency || "TWD"} ${item.smallHoleFeeMin === item.smallHoleFeeMax ? number(item.smallHoleFeeMin, 2) : `${number(item.smallHoleFeeMin, 2)}–${number(item.smallHoleFeeMax, 2)}`} / ${escapeHtml(item.smallHoleUnit || "hole")}；${escapeHtml(item.smallHoleBasis || "來源明列")}</small>`;
-  return `<article class="public-price-card ${noData ? "no-data" : ""}"><h3>${escapeHtml(title)}</h3><strong class="price-value">${escapeHtml(priceText(item))}</strong><small>pricing basis：${escapeHtml(item.pricingBasis)}</small>${hole}<div class="public-price-meta"><div><span>來源數</span><strong>${escapeHtml(item.sourceCount || 1)} 筆</strong></div><div><span>confidence</span><strong>${escapeHtml(item.confidence || "--")}</strong></div></div><small>checked ${escapeHtml(item.checkedAt || "--")}｜${escapeHtml(item.geographicScope || "--")}</small><small>${escapeHtml(sourceNames)} ${sourceLinks}</small><small>${escapeHtml(item.notes || "")}</small></article>`;
+  const hole = item.smallHoleFeeMin == null ? "" : `<small>${escapeHtml(priceUi.smallHoleText(item))}</small>`;
+  const currencyEvidence = `<small>${escapeHtml(priceUi.currencyEvidenceText(item))}</small>`;
+  return `<article class="public-price-card ${noData ? "no-data" : ""}"><h3>${escapeHtml(title)}</h3><strong class="price-value">${escapeHtml(priceText(item))}</strong><small>pricing basis：${escapeHtml(item.pricingBasis)}</small>${currencyEvidence}${hole}<div class="public-price-meta"><div><span>來源數</span><strong>${escapeHtml(item.sourceCount || 1)} 筆</strong></div><div><span>confidence</span><strong>${escapeHtml(item.confidence || "--")}</strong></div></div><small>checked ${escapeHtml(item.checkedAt || "--")}｜${escapeHtml(item.geographicScope || "--")}</small><small>${escapeHtml(sourceNames)} ${sourceLinks}</small><small>${escapeHtml(item.notes || "")}</small></article>`;
 }
 function renderPublicPrices(items = []) { const grouped = groupPriceReferences(items); return grouped.length ? grouped.map(renderPublicPriceCard).join("") : `<div class="sheet-metal-loading">目前沒有可列示的公開金額參考。</div>`; }
 function renderComparisonWindows(component) {

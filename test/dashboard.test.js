@@ -34,13 +34,14 @@ const {
   clearMemoryCache,
   getStaleCache,
   hasEnoughFreshRows,
+  saveSuccessful,
   hasEnoughUsableRows,
 } = require("../lib/marketData/cacheManager");
 const { markSnapshotExpired, markSnapshotStale } = require("../lib/marketData/staleManager");
 const { allowSeedFallback, getSnapshotDataAsOf, observationAgeDays } = require("../lib/marketData/freshness");
 const { buildSnapshot } = require("../lib/marketData/marketService");
 const { handleRequest } = require("../server");
-const { snapshotToRecords } = require("../lib/weekly/dailySnapshotService");
+const { dailyFreshnessSummary, dailyReadinessState, snapshotToRecords } = require("../lib/weekly/dailySnapshotService");
 const { readStore, upsertSnapshots, clearWriteQueue } = require("../lib/weekly/snapshotStore");
 const { buildWeeklyReport, renderWeeklyHtml, createWeeklyWorkbook, buildCategoryMomentum, getSignalDistribution } = require("../lib/weekly/reportService");
 const { buildSignal } = require("../lib/weekly/weeklyAnalytics");
@@ -250,6 +251,37 @@ function mockPublicWithOldCopper() {
   };
 }
 
+function cacheSnapshot(date, status = "OK") {
+  const observedAt = `${date}T00:00:00.000Z`;
+  return {
+    state: status,
+    generatedAt: observedAt,
+    servedAt: observedAt,
+    dataAsOf: observedAt,
+    fx: { rate: 32, status, source: "fixture FX", lastTradeAt: observedAt },
+    rows: Array.from({ length: 14 }, (_, index) => ({ id: `fixture-${index}`, name: `公開材料 ${index}`, price: 100 + index, status, lastTradeAt: observedAt, currency: "USD", unit: "USD/unit", twdEstimate: (100 + index) * 32 })),
+    summary: { totalRows: 14 },
+  };
+}
+
+async function writeLocalCache(snapshot) {
+  await fs.mkdir(cacheDir, { recursive: true });
+  await fs.writeFile(path.join(cacheDir, "market-cache.json"), JSON.stringify({ cachedAt: snapshot.generatedAt, snapshot: { ...snapshot, cachedAt: snapshot.generatedAt } }), "utf8");
+}
+
+function dailySnapshotFixture(status, date) {
+  const observedAt = `${date}T00:00:00.000Z`;
+  return {
+    state: status,
+    generatedAt: observedAt,
+    servedAt: "2026-08-24T00:00:00.000Z",
+    dataAsOf: observedAt,
+    acquisitionPath: "DIRECT_ACQUISITION",
+    fx: { rate: 32, status, source: "fixture FX", lastTradeAt: status === "NO_DATA" ? null : observedAt },
+    rows: Array.from({ length: 14 }, (_, index) => ({ id: `fixture-${index}`, name: `公開材料 ${index}`, symbol: `FIX-${index}`, category: "公開測試資料", exchange: "PUBLIC FIXTURE", price: status === "NO_DATA" ? null : 100 + index, status, lastTradeAt: status === "NO_DATA" ? null : observedAt, currency: "USD", unit: "USD/unit", twdEstimate: status === "NO_DATA" ? null : (100 + index) * 32 })),
+  };
+}
+
 function responseRecorder() {
   const chunks = [];
   return {
@@ -306,6 +338,54 @@ test("/api/market cannot present an old direct observation as OK", async () => {
   assert.match(copper.error, /exceeded freshness policy/i);
   assert.equal(payload.rows.find((row) => row.id === "aluminum").status, MARKET_STATES.OK);
   assert.ok(payload.summary.expiredRows >= 1);
+});
+
+test("getStaleCache selects newest freshness-eligible candidate before expired candidates", async () => {
+  const env = { NODE_ENV: "test", ALLOW_MARKET_SEED_FALLBACK: "0", MARKET_STALE_MAX_AGE_DAYS: "7" };
+  const now = new Date("2026-08-24T00:00:00.000Z");
+
+  await saveSuccessful(cacheSnapshot("2026-05-01"));
+  await writeLocalCache(cacheSnapshot("2026-08-20"));
+  let selected = await getStaleCache("fixture newer local", { env, now });
+  assert.equal(selected.state, MARKET_STATES.STALE);
+  assert.equal(selected.dataAsOf, "2026-08-20T00:00:00.000Z");
+
+  clearMemoryCache();
+  await saveSuccessful(cacheSnapshot("2026-08-22"));
+  await writeLocalCache(cacheSnapshot("2026-08-10"));
+  selected = await getStaleCache("fixture newer memory", { env, now });
+  assert.equal(selected.state, MARKET_STATES.STALE);
+  assert.equal(selected.dataAsOf, "2026-08-22T00:00:00.000Z");
+
+  clearMemoryCache();
+  await saveSuccessful(cacheSnapshot("2026-05-01"));
+  await writeLocalCache(cacheSnapshot("2026-06-01"));
+  selected = await getStaleCache("fixture newest expired", { env, now });
+  assert.equal(selected.state, MARKET_STATES.EXPIRED);
+  assert.equal(selected.dataAsOf, "2026-06-01T00:00:00.000Z");
+});
+
+test("daily freshness separates execution success from data readiness", () => {
+  const expiredSnapshot = dailySnapshotFixture("EXPIRED", "2026-05-01");
+  const expiredFreshness = dailyFreshnessSummary(expiredSnapshot, snapshotToRecords(expiredSnapshot, "2026-08-24T00:00:00.000Z"), new Date("2026-08-24T00:00:00.000Z"), { WEEKLY_MAX_OBSERVATION_AGE_DAYS: "10" });
+  assert.equal(expiredFreshness.dataReady, false);
+  assert.equal(expiredFreshness.dataReadinessState, "DAILY_DATA_STALE");
+  assert.equal(dailyReadinessState({ state: "SUCCEEDED", freshness: expiredFreshness }), "DAILY_DATA_STALE");
+
+  const noDataSnapshot = dailySnapshotFixture("NO_DATA", "2026-08-24");
+  const noDataFreshness = dailyFreshnessSummary(noDataSnapshot, snapshotToRecords(noDataSnapshot, "2026-08-24T00:00:00.000Z"), new Date("2026-08-24T00:00:00.000Z"), { WEEKLY_MAX_OBSERVATION_AGE_DAYS: "10" });
+  assert.equal(noDataFreshness.dataReady, false);
+  assert.equal(noDataFreshness.dataReadinessState, "DAILY_DATA_NOT_READY");
+  assert.equal(dailyReadinessState({ state: "SUCCEEDED", freshness: noDataFreshness }), "DAILY_DATA_NOT_READY");
+
+  const freshSnapshot = dailySnapshotFixture("OK", "2026-08-23");
+  freshSnapshot.rows[0].status = "FALLBACK";
+  const fresh = dailyFreshnessSummary(freshSnapshot, snapshotToRecords(freshSnapshot, "2026-08-24T00:00:00.000Z"), new Date("2026-08-24T00:00:00.000Z"), { WEEKLY_MAX_OBSERVATION_AGE_DAYS: "10" });
+  assert.equal(fresh.dataReady, true);
+  assert.equal(fresh.dataReadinessState, "DAILY_DATA_READY");
+  assert.ok(fresh.freshCount > 0);
+  assert.ok(fresh.fallbackCount > 0);
+  assert.equal(dailyReadinessState({ state: "SUCCEEDED", freshness: fresh }), "DAILY_DATA_READY");
 });
 
 test("/api/market exposes FALLBACK when Yahoo fails but configured public fallbacks work", async () => {
@@ -822,7 +902,7 @@ test("Postgres health reports database readiness without exposing credentials", 
   const env = { STORAGE_PROVIDER: "postgres", DATABASE_URL: "postgres://fixture.invalid/market", MAIL_ENABLED: "0" };
   const pool = new FakePostgresPool();
   await postgres.migratePostgres({ env, pool });
-  await postgres.writeJobState("dailySnapshot", { state: "SUCCEEDED" }, { env, pool });
+  await postgres.writeJobState("dailySnapshot", { state: "SUCCEEDED", executionState: "SUCCEEDED", dataReadinessState: "DAILY_DATA_READY", freshness: { dataReady: true, freshnessEligible: true, freshCount: 2, fallbackCount: 0, staleCount: 0, expiredCount: 0, noDataCount: 0, apiErrorCount: 0, freshnessEligibleCount: 2, dataAsOf: "2026-08-23T00:00:00.000Z" } }, { env, pool });
   const status = await readProductionStatus({ env, forceProduction: true, pool });
   assert.equal(status.storage.ready, true);
   assert.equal(status.storage.database.state, "DATABASE_READY");
@@ -832,6 +912,22 @@ test("Postgres health reports database readiness without exposing credentials", 
   assert.equal(status.readiness.mailConfiguration, "MAIL_CONFIGURATION_REQUIRED");
   assert.equal(JSON.stringify(status).includes("fixture.invalid"), false);
   assert.equal(JSON.stringify(status).includes("DATABASE_URL"), false);
+});
+
+test("readProductionStatus requires explicit daily freshness readiness after successful execution", async () => {
+  const env = { STORAGE_PROVIDER: "postgres", DATABASE_URL: "postgres://fixture.invalid/market", MAIL_ENABLED: "0" };
+  const cases = [
+    { freshness: { dataReady: false, freshnessEligible: false, freshCount: 0, fallbackCount: 0, staleCount: 0, expiredCount: 15, noDataCount: 0, apiErrorCount: 0, freshnessEligibleCount: 0 }, expected: "DAILY_DATA_STALE" },
+    { freshness: { dataReady: false, freshnessEligible: false, freshCount: 0, fallbackCount: 0, staleCount: 0, expiredCount: 0, noDataCount: 15, apiErrorCount: 0, freshnessEligibleCount: 0 }, expected: "DAILY_DATA_NOT_READY" },
+    { freshness: { dataReady: true, freshnessEligible: true, freshCount: 14, fallbackCount: 1, staleCount: 0, expiredCount: 0, noDataCount: 0, apiErrorCount: 0, freshnessEligibleCount: 15 }, expected: "DAILY_DATA_READY" },
+  ];
+  for (const { freshness, expected } of cases) {
+    const pool = new FakePostgresPool();
+    await postgres.migratePostgres({ env, pool });
+    await postgres.writeJobState("dailySnapshot", { state: "SUCCEEDED", executionState: "SUCCEEDED", freshness }, { env, pool });
+    const status = await readProductionStatus({ env, forceProduction: true, pool });
+    assert.equal(status.readiness.dailyData, expected);
+  }
 });
 
 test("Postgres production configuration fails closed without DATABASE_URL", async () => {

@@ -337,7 +337,7 @@ test("engineering page keeps browser-local internal costs separate from public m
   assert.match(html, /不會把市場壓力轉成價格/);
   assert.match(html, /不會與公開市場分數相乘/);
   assert.doesNotMatch(js, /fetch\s*\(|XMLHttpRequest|WebSocket|sendBeacon|localStorage|indexedDB|document\.cookie/i);
-  assert.match(marketHtml, /工程估算層在 Phase 3A 保持關閉/);
+  assert.match(marketHtml, /本頁的金額僅來自可追溯公開價目/);
   assert.match(marketHtml, /非供應商報價/);
   assert.equal(/api\/engineering\/estimate/.test(marketHtml), false);
   const nav = fs.readFileSync("nav.js", "utf8");

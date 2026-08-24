@@ -12,7 +12,7 @@ test("public price references satisfy traceable schema without private/company f
   assert.ok(references.length >= 50);
   assert.equal(validatePublicPriceReferences(references).length, 0);
   for (const item of references) {
-    for (const key of ["process", "machineType", "unit", "pricingBasis", "sourceName", "checkedAt", "geographicScope", "includes", "excludes", "confidence", "sourceRole", "notes", "priceOpenEnded"]) assert.ok(Object.prototype.hasOwnProperty.call(item, key), `${key} missing`);
+    for (const key of ["process", "machineType", "unit", "pricingBasis", "sourceName", "checkedAt", "geographicScope", "includes", "excludes", "confidence", "sourceRole", "notes", "priceOpenEnded", "currencyEvidence", "currencyEvidenceNote"]) assert.ok(Object.prototype.hasOwnProperty.call(item, key), `${key} missing`);
     assert.equal(Object.hasOwn(item, "companyRate"), false);
     assert.equal(Object.hasOwn(item, "privateRate"), false);
     assert.equal(item.checkedAt, CHECKED_AT);
@@ -36,6 +36,23 @@ test("CNC machine-hour and marketplace references remain separate pricing bases"
   assert.equal(marketplace.length, 1);
   assert.equal(marketplace[0].machineType, "CNC_MILL_OR_LATHE");
   assert.match(marketplace[0].notes, /不轉成或平均為 machine-hour cost/);
+});
+
+test("currency evidence distinguishes explicit source currency from locale inference", () => {
+  const references = getPublicPriceReferences();
+  const cnc = references.find((item) => item.machineType === "CNC_3_AXIS_MILL");
+  const marketplace = references.find((item) => item.unit === "TWD/min");
+  const minca = references.find((item) => item.sourceName.startsWith("MINCA"));
+  const zhongkai = references.find((item) => item.sourceName.startsWith("仲凱"));
+  const noData = references.find((item) => item.machineType === "BENDING");
+  assert.equal(cnc.currencyEvidence, "EXPLICIT");
+  assert.equal(marketplace.currencyEvidence, "EXPLICIT");
+  assert.equal(minca.currencyEvidence, "LOCALE_INFERRED");
+  assert.equal(zhongkai.currencyEvidence, "LOCALE_INFERRED");
+  assert.match(minca.currencyEvidenceNote, /未明示幣別/);
+  assert.match(zhongkai.currencyEvidenceNote, /未明示幣別/);
+  assert.equal(noData.currency, null);
+  assert.equal(noData.currencyEvidence, "UNKNOWN");
 });
 
 test("laser references preserve material, thickness, per-meter basis and explicit hole fee", () => {
