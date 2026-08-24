@@ -537,3 +537,27 @@ The formal blank operator page removes all operational synthetic defaults. An HT
 | Production boundary | NONE: no deployment, main promotion, Render/Neon/Gmail/schedule/secret/workflow/private-runtime operation or real company-data entry |
 
 The certified standalone artifact, public API `NO_RATE` behavior, market `engineeringEstimate=null` isolation and `/standalone` 404 protection remain unchanged. This branch stops before main promotion.
+
+
+## PHASE_4F_ESTIMATE_BROWSER_LOCAL_PRODUCTION_PASS
+
+**PRODUCTION CERTIFIED — FINAL — STOP**
+
+The approved Phase 4F browser-local Internal Engineering Cost workspace is now live in the existing public application. `/estimate` is the primary operator workspace for `內部工程成本估算`. Manual internal cost values are calculated only in the current browser document; no entered value is sent to the server/API, Render logs, Neon, Gmail, analytics/telemetry or browser persistence. The production formal page starts blank except for the documented standard carbon-steel density engineering default `7850 kg/m³`; all operational numeric inputs are blank and all five process switches are unchecked.
+
+The approved head `2b38c6830a56eb53ec7e369fd107715aa4e78a05` was promoted to `main` by pure fast-forward. A read-only production probe then found an encoded leading-slash `/standalone` namespace bypass before final certification. The narrow safety hotfix `fca2755e35852b37dbcb04335ed6676d27aa3000` canonicalizes leading decoded slashes before the namespace guard and adds deterministic coverage. It was pushed to main by fast-forward only. Final `main` and `origin/main` both equal `fca2755e35852b37dbcb04335ed6676d27aa3000`.
+
+| Production certification | Result |
+|---|---|
+| Lineage and gates | PASS: approved head was 3 ahead / 0 behind; final post-hotfix suite **145 passed / 0 failed**; `npm ci`, check, build, audit and diff check passed; audit **0 vulnerabilities** |
+| Existing Render service | PASS: `raw-material-market-dashboard-1.onrender.com` deployed normally from main; no new service or configuration change |
+| `/estimate` routes | PASS: `/estimate` and `/estimate/` HTTP 200; all required sections present; formal blank state verified |
+| Browser smoke | PASS: blank submit fail-closed with no result; `TEST_ONLY` fixture total `3,964.75`, per-part `39.6475`; pageshow cleared values/results |
+| Browser-local isolation | PASS: no fetch/XHR/sendBeacon calls or resource delta during calculation; cookie/localStorage/sessionStorage remained empty |
+| Public engineering API | PASS: schema and production behavior remain `NO_RATE` only; NO_RATE HTTP 200 with monetary fields null; PRIVATE_CALIBRATED HTTP 403; SYNTHETIC_TEST HTTP 400 |
+| Market isolation | PASS: machining and sheet-metal production references returned `engineeringEstimate: null`; market references remained informational |
+| `/standalone` | PASS: ordinary, double-slash and encoded equivalents all returned HTTP 404 `Not found`, without redirect or calculator/HTML content |
+| Visual certification | PASS: actual deployed blank page reviewed at `1440×1000` and `390×844`; density default identified, process switches unchecked, result empty, mobile stacked, navigation usable and no visible horizontal overflow |
+| Real-data boundary | PASS: no real company data, real rate, private runtime, database, mail, schedule, secret, workflow, migration, bootstrap, backfill or telemetry operation |
+
+This is the final production certification checkpoint. No real-data pilot is authorized by this record, and no additional development phase should be started automatically.

@@ -545,3 +545,27 @@ The public `/estimate` formal operator page no longer carries operational numeri
 | Main boundary | Main promotion intentionally not performed; no Render, Neon, Gmail, schedules, secrets, workflows, private runtime or real company-data operation |
 
 The refinement keeps the certified standalone artifact, public API `NO_RATE` boundary, market isolation and `/standalone` 404 protection unchanged. It remains stopped before main promotion.
+
+
+## PHASE_4F_ESTIMATE_BROWSER_LOCAL_PRODUCTION_PASS
+
+**Status: PRODUCTION CERTIFIED — FINAL — STOP**
+
+The approved Phase 4F browser-local Internal Engineering Cost workspace is now integrated into the existing public application. `/estimate` is the primary operator workspace for `內部工程成本估算`; internal cost entries are calculated only inside the current browser document and no entered internal value is sent to the server/API, Render logs, Neon, Gmail, analytics/telemetry, or browser persistence. The formal production page starts blank except for the documented standard carbon-steel density engineering default `7850 kg/m³`; all operational numeric inputs are blank and all five process switches are unchecked.
+
+The approved head `2b38c6830a56eb53ec7e369fd107715aa4e78a05` was promoted to `main` by pure fast-forward and pushed. During read-only production certification, an encoded leading-slash `/standalone` bypass was detected before final certification. The narrow safety fix `fca2755e35852b37dbcb04335ed6676d27aa3000` canonicalizes leading decoded slashes before the existing namespace guard and adds deterministic regression coverage. This hotfix was also pushed to `main` by fast-forward only. Final `main` and `origin/main` are both `fca2755e35852b37dbcb04335ed6676d27aa3000`.
+
+| Certification item | Result |
+|---|---|
+| Pre-promotion lineage/gates | PASS: approved head was 3 commits ahead, 0 behind, merge-base was current main; `npm ci`, `npm run check`, `npm test` (**145 passed / 0 failed**), `npm run build`, `npm audit --omit=dev` (**0 vulnerabilities**) and `git diff --check` passed |
+| Existing Render service | PASS: `raw-material-market-dashboard-1.onrender.com` deployed normally from main; no new service or environment/config change |
+| Production `/estimate` | PASS: `/estimate` and `/estimate/` HTTP 200; all required operator sections present; formal blank state verified |
+| Production browser smoke | PASS: blank submit showed required validation with no result and no additional request; `TEST_ONLY` fixture produced total `3,964.75` and per-part `39.6475`; pageshow cleared entered values/results |
+| Browser privacy | PASS: production browser smoke observed no fetch/XHR/sendBeacon calls, no resource delta from calculation, empty cookie/localStorage/sessionStorage |
+| Public engineering API | PASS: schema advertises `NO_RATE` only; production `NO_RATE` POST returned HTTP 200 with monetary and market-adjustment fields null; `PRIVATE_CALIBRATED` returned 403 and `SYNTHETIC_TEST` returned 400 |
+| Market isolation | PASS: production machining and sheet-metal references returned `engineeringEstimate: null`; public market references remained informational |
+| Standalone namespace | PASS: `/standalone`, `/standalone/`, artifact/test descendants, double-slash and encoded equivalents all returned HTTP 404 `Not found` with no calculator/HTML content and no redirect |
+| Production visual certification | PASS: actual deployed blank page reviewed at `1440×1000` and `390×844`; density default clearly identified, process switches unchecked, result panel empty, mobile layout stacked, navigation usable, no visible horizontal overflow |
+| Real data boundary | PASS: no real company data, real rate, private runtime, database, mail, schedule, secret, workflow, migration, bootstrap, backfill or telemetry operation |
+
+The final production checkpoint is complete. No real-data pilot is authorized by this record, and no further phase should be started automatically.
