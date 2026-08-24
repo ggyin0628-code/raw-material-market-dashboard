@@ -4,7 +4,7 @@ const els = {
   sourceMode: $("#sourceMode"), lastUpdated: $("#lastUpdated"), fxRate: $("#fxRate"), searchInput: $("#searchInput"), categoryFilter: $("#categoryFilter"), signalFilter: $("#signalFilter"), sortSelect: $("#sortSelect"), refreshSelect: $("#refreshSelect"), refreshButton: $("#refreshButton"),
   exportMaterialSelect: $("#exportMaterialSelect"), exportPeriodSelect: $("#exportPeriodSelect"), exportExcelButton: $("#exportExcelButton"), exportAllExcelButton: $("#exportAllExcelButton"), exportStatus: $("#exportStatus"),
   historyMaterialSelect: $("#historyMaterialSelect"), historyPeriodSelect: $("#historyPeriodSelect"), historyLoadButton: $("#historyLoadButton"), historyState: $("#historyState"), historySource: $("#historySource"), historyPosition: $("#historyPosition"), historyRange: $("#historyRange"), historySignal: $("#historySignal"), historyAction: $("#historyAction"), historyUpdated: $("#historyUpdated"), trendChart: $("#trendChart"),
-  liveCount: $("#liveCount"), errorCount: $("#errorCount"), topGainer: $("#topGainer"), topLoser: $("#topLoser"), rowCount: $("#rowCount"), disclaimer: $("#disclaimer"), materialRows: $("#materialRows"),
+  liveCount: $("#liveCount"), staleCount: $("#staleCount"), expiredCount: $("#expiredCount"), errorCount: $("#errorCount"), topGainer: $("#topGainer"), topLoser: $("#topLoser"), marketFreshness: $("#marketFreshness"), rowCount: $("#rowCount"), disclaimer: $("#disclaimer"), materialRows: $("#materialRows"),
   weeklyRefreshButton: $("#weeklyRefreshButton"), weeklyPreviewLink: $("#weeklyPreviewLink"), weeklyExcelLink: $("#weeklyExcelLink"), weeklyStatus: $("#weeklyStatus"), weeklyRisers: $("#weeklyRisers"), weeklyRisersDetail: $("#weeklyRisersDetail"), weeklyDecliners: $("#weeklyDecliners"), weeklyDeclinersDetail: $("#weeklyDeclinersDetail"), weeklyVolatility: $("#weeklyVolatility"), weeklyVolatilityDetail: $("#weeklyVolatilityDetail"), weeklyWarningCount: $("#weeklyWarningCount"), weeklyWarnings: $("#weeklyWarnings"),
   detailCategory: $("#detailCategory"), detailName: $("#detailName"), detailSignal: $("#detailSignal"), detailSymbol: $("#detailSymbol"), detailSource: $("#detailSource"), detailStatus: $("#detailStatus"), detailUsage: $("#detailUsage"), detailHistory: $("#detailHistory"),
 };
@@ -15,9 +15,10 @@ function escapeHtml(value) {
 function n(v, d = 2) { return typeof v === "number" && Number.isFinite(v) ? new Intl.NumberFormat("zh-TW", { maximumFractionDigits: d, minimumFractionDigits: v < 10 ? Math.min(2, d) : 0 }).format(v) : "--"; }
 function p(v) { return typeof v === "number" && Number.isFinite(v) ? `${v > 0 ? "+" : ""}${n(v, 2)}%` : "--"; }
 function dt(v) { return v ? new Intl.DateTimeFormat("zh-TW", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }).format(new Date(v)) : "--"; }
-function dataLabel(s) { if (s === "OK") return "【公開主來源】"; if (s === "FALLBACK") return "【公開備援來源】"; if (s === "STALE") return "【真實舊快取】"; if (s === "NO_DATA") return "【無資料】"; return s || "API_ERROR"; }
+function dataLabel(s) { if (s === "OK") return "【公開主來源】"; if (s === "FALLBACK") return "【公開備援來源】"; if (s === "STALE") return "【真實舊快取】"; if (s === "EXPIRED") return "【已過期；不列入目前行情】"; if (s === "NO_DATA") return "【無資料】"; return s || "API_ERROR"; }
 function signal(row) {
-  if (row.status === "STALE") return { label: "舊快取", tone: "stale", note: "最近一次成功的真實資料，非即時資料" };
+  if (row.status === "STALE") return { label: "舊快取", tone: "stale", note: "最近一次成功的真實資料，非即時資料；不列入 headline" };
+  if (row.status === "EXPIRED") return { label: "已過期", tone: "error", note: "觀測超出 freshness window，不視為目前行情" };
   if (row.status === "FALLBACK") return { label: "備援來源", tone: "fallback", note: "主來源失敗，使用公開備援行情" };
   if (row.status !== "OK") return { label: "資料異常", tone: "error", note: row.error || "資料源無回應" };
   if (typeof row.changePercent !== "number") return { label: "待觀察", tone: "neutral", note: "缺少漲跌資料" };
@@ -27,9 +28,9 @@ function signal(row) {
 }
 function setBadge(status) {
   els.sourceMode.className = "badge";
-  const tone = status === "OK" ? "live" : status === "FALLBACK" ? "fallback" : status === "STALE" ? "stale" : status === "API_ERROR" || status === "NO_DATA" ? "error" : "neutral";
+  const tone = status === "OK" ? "live" : status === "FALLBACK" ? "fallback" : status === "STALE" ? "stale" : status === "EXPIRED" || status === "API_ERROR" || status === "NO_DATA" ? "error" : "neutral";
   els.sourceMode.classList.add(tone);
-  els.sourceMode.textContent = status === "OK" ? "OK" : status === "API_ERROR" ? "API ERROR" : status || "NO_DATA";
+  els.sourceMode.textContent = status === "OK" ? "OK" : status === "API_ERROR" ? "API ERROR" : status === "EXPIRED" ? "EXPIRED" : status || "NO_DATA";
 }
 function populateSelectors() {
   const cats = [...new Set(state.rows.map((r) => r.category))].sort((a, b) => a.localeCompare(b, "zh-Hant"));
@@ -53,15 +54,14 @@ function rows() {
   return out.sort((a, b) => els.sortSelect.value === "signal" ? (rank[signal(a).tone] ?? 9) - (rank[signal(b).tone] ?? 9) : els.sortSelect.value === "changeDesc" ? (b.changePercent ?? -Infinity) - (a.changePercent ?? -Infinity) : els.sortSelect.value === "changeAsc" ? (a.changePercent ?? Infinity) - (b.changePercent ?? Infinity) : els.sortSelect.value === "name" ? a.name.localeCompare(b.name, "zh-Hant") : `${a.category}${a.name}`.localeCompare(`${b.category}${b.name}`, "zh-Hant"));
 }
 function renderSummary() {
-  const live = state.rows.filter((r) => ["OK", "FALLBACK"].includes(r.status));
-  const err = state.rows.filter((r) => ["API_ERROR", "NO_DATA"].includes(r.status));
-  const ranked = state.rows.filter((r) => typeof r.changePercent === "number");
-  const up = [...ranked].sort((a, b) => b.changePercent - a.changePercent)[0];
-  const down = [...ranked].sort((a, b) => a.changePercent - b.changePercent)[0];
-  els.liveCount.textContent = live.length;
-  els.errorCount.textContent = err.length;
-  els.topGainer.textContent = up ? `${up.name} ${p(up.changePercent)}` : "--";
-  els.topLoser.textContent = down ? `${down.name} ${p(down.changePercent)}` : "--";
+  const summary = window.dashboardSummary.summarizeRows(state.rows);
+  els.liveCount.textContent = summary.usableCount;
+  els.staleCount.textContent = summary.staleCount;
+  els.expiredCount.textContent = summary.expiredCount;
+  els.errorCount.textContent = summary.errorCount;
+  els.topGainer.textContent = summary.topGainer ? `${summary.topGainer.name} ${p(summary.topGainer.changePercent)}` : "--";
+  els.topLoser.textContent = summary.topLoser ? `${summary.topLoser.name} ${p(summary.topLoser.changePercent)}` : "--";
+  if (summary.headlineWarning) els.marketFreshness.textContent = `${els.marketFreshness.textContent}｜${summary.headlineWarning}`;
 }
 function renderTable() {
   const list = rows();
@@ -69,7 +69,7 @@ function renderTable() {
   els.materialRows.innerHTML = list.length ? list.map((r) => {
     const s = signal(r);
     const changeClass = r.changePercent > 0 ? "up" : r.changePercent < 0 ? "down" : "muted";
-    return `<tr class="${state.selectedId === r.id ? "selected" : ""}" data-id="${escapeHtml(r.id)}"><td class="name-cell"><strong>${escapeHtml(r.name)}</strong><small>${escapeHtml(r.symbol)} · ${escapeHtml(r.source)}</small></td><td>${escapeHtml(r.category)}</td><td class="numeric"><span class="price">${n(r.price, 4)}</span><small class="unit">${escapeHtml(r.unit)} · ${escapeHtml(r.currency || "USD")}</small></td><td class="numeric ${changeClass}"><span class="change-pill">${p(r.changePercent)}</span></td><td class="numeric twd-cell">TWD ${n(r.twdEstimate, 2)}<small class="unit">市場參考值</small></td><td><span class="signal ${s.tone}">${escapeHtml(s.label)}</span><small class="signal-note">${escapeHtml(s.note)}</small></td><td><span class="time-text">${["OK", "FALLBACK", "STALE"].includes(r.status) ? dt(r.lastTradeAt) : "API ERROR"}</span><small class="muted">${escapeHtml(dataLabel(r.status))}</small></td></tr>`;
+    return `<tr class="${state.selectedId === r.id ? "selected" : ""}" data-id="${escapeHtml(r.id)}"><td class="name-cell"><strong>${escapeHtml(r.name)}</strong><small>${escapeHtml(r.symbol)} · ${escapeHtml(r.source)}</small></td><td>${escapeHtml(r.category)}</td><td class="numeric"><span class="price">${n(r.price, 4)}</span><small class="unit">${escapeHtml(r.unit)} · ${escapeHtml(r.currency || "USD")}</small></td><td class="numeric ${changeClass}"><span class="change-pill">${p(r.changePercent)}</span></td><td class="numeric twd-cell">TWD ${n(r.twdEstimate, 2)}<small class="unit">市場參考值</small></td><td><span class="signal ${s.tone}">${escapeHtml(s.label)}</span><small class="signal-note">${escapeHtml(s.note)}</small></td><td><span class="time-text">${["OK", "FALLBACK", "STALE", "EXPIRED"].includes(r.status) ? dt(r.lastTradeAt) : "API ERROR"}</span><small class="muted">${escapeHtml(dataLabel(r.status))}</small></td></tr>`;
   }).join("") : `<tr><td colspan="7" class="empty">沒有符合條件的原物料</td></tr>`;
 }
 function renderDetail() {
@@ -84,7 +84,7 @@ function renderDetail() {
   els.detailSymbol.textContent = r.symbol;
   els.detailSource.textContent = r.source;
   els.detailStatus.textContent = `${dataLabel(r.status)} ${dt(r.lastTradeAt)}`;
-  els.detailStatus.className = `badge ${r.status === "STALE" ? "stale" : r.status === "API_ERROR" || r.status === "NO_DATA" ? "error" : r.status === "FALLBACK" ? "fallback" : "live"}`;
+  els.detailStatus.className = `badge ${r.status === "STALE" ? "stale" : r.status === "API_ERROR" || r.status === "NO_DATA" || r.status === "EXPIRED" ? "error" : r.status === "FALLBACK" ? "fallback" : "live"}`;
   els.detailUsage.textContent = r.usage;
   els.detailHistory.textContent = r.history?.length ? r.history.map((x) => `${x.date}: ${n(x.close, 4)}`).join(" / ") : "--";
 }
@@ -135,7 +135,8 @@ async function loadMarketData() {
     const data = await res.json();
     state.rows = data.rows || [];
     els.disclaimer.textContent = data.disclaimer || "";
-    els.lastUpdated.textContent = `更新：${dt(data.generatedAt)}`;
+    els.lastUpdated.textContent = `頁面服務：${dt(data.servedAt || data.generatedAt)}`;
+    els.marketFreshness.textContent = `行情資料截至：${dt(data.dataAsOf || data.latestMarketObservationAt)}；頁面服務時間：${dt(data.servedAt || data.generatedAt)}；可用 ${data.marketHealth?.freshCount ?? data.summary?.okRows ?? "--"}、STALE ${data.marketHealth?.staleCount ?? data.summary?.staleRows ?? "--"}、EXPIRED ${data.marketHealth?.expiredCount ?? data.summary?.expiredRows ?? "--"}`;
     els.fxRate.textContent = data.fx?.rate ? `USD/TWD: ${n(data.fx.rate, 4)} (${data.fx.status})` : `USD/TWD: ${data.fx?.status || "API_ERROR"}`;
     setBadge(data.state || "NO_DATA");
     renderAll();

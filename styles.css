@@ -199,7 +199,7 @@ button:disabled {
 
 .summary-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 10px;
   margin-bottom: 12px;
 }
@@ -222,6 +222,28 @@ button:disabled {
   margin-top: 8px;
   font-size: 24px;
   line-height: 1.15;
+}
+
+.summary-card small,
+.market-freshness {
+  display: block;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.stale-card {
+  border-top-color: var(--warn);
+}
+
+.expired-card {
+  border-top-color: var(--error);
+  background: #fff8f8;
+}
+
+.market-freshness {
+  margin: -4px 2px 12px;
 }
 
 .live-card {
@@ -561,7 +583,7 @@ dd {
   }
 
   .summary-grid {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .notice {

@@ -272,13 +272,22 @@ test("machining dashboard HTML contract contains public-only labels and API entr
   assert.match(html, /非公司目標價格/);
   assert.match(html, /machining\.js/);
   assert.match(html, /machiningRefreshButton/);
+  assert.match(html, /公開加工金額參考/);
+  assert.match(html, /成本趨勢輔助/);
+  assert.match(html, /前往工程估算/);
+  assert.ok(html.indexOf('class="machining-panel public-price-panel"') < html.indexOf('class="machining-summary"'));
+  assert.ok(html.indexOf('class="machining-summary"') < html.indexOf('aria-label="成本趨勢輔助"'));
 });
 
 test("machining API response contract wraps the reference without exposing private fields", () => {
   const reference = buildMachiningReference({ components: completeComponents(), minimumEvidence: 3 });
   const payload = buildPayload(reference, reference.sourceProvenance, "2026-03-28T00:00:00.000Z");
-  assert.deepEqual(Object.keys(payload).sort(), ["disclaimer", "generatedAt", "reference", "sourceCoverage", "state"].sort());
+  assert.deepEqual(Object.keys(payload).sort(), ["disclaimer", "generatedAt", "publicPriceReferences", "reference", "sourceCoverage", "state"].sort());
   assert.equal(payload.reference, reference);
+  assert.ok(payload.publicPriceReferences.some((item) => item.machineType === "CNC_3_AXIS_MILL" && item.unit === "TWD/hr"));
+  assert.ok(payload.publicPriceReferences.some((item) => item.machineType === "CNC_5_AXIS_MILL" && item.priceMin === 2000 && item.priceMax === null && item.priceOpenEnded === true));
+  assert.ok(payload.publicPriceReferences.some((item) => item.machineType === "CNC_TURN_MILL" && item.priceMin === 1800 && item.priceMax === null && item.priceOpenEnded === true));
+  assert.ok(payload.publicPriceReferences.some((item) => item.machineType === "CNC_MILL_OR_LATHE" && item.unit === "TWD/min"));
   assert.equal(payload.state, "LIVE");
   assert.equal(payload.generatedAt, "2026-03-28T00:00:00.000Z");
 });

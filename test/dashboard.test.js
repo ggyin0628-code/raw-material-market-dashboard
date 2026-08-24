@@ -32,10 +32,13 @@ const {
 } = require("../lib/marketData/exportService");
 const {
   clearMemoryCache,
+  getStaleCache,
   hasEnoughFreshRows,
   hasEnoughUsableRows,
 } = require("../lib/marketData/cacheManager");
-const { markSnapshotStale } = require("../lib/marketData/staleManager");
+const { markSnapshotExpired, markSnapshotStale } = require("../lib/marketData/staleManager");
+const { allowSeedFallback, getSnapshotDataAsOf, observationAgeDays } = require("../lib/marketData/freshness");
+const { buildSnapshot } = require("../lib/marketData/marketService");
 const { handleRequest } = require("../server");
 const { snapshotToRecords } = require("../lib/weekly/dailySnapshotService");
 const { readStore, upsertSnapshots, clearWriteQueue } = require("../lib/weekly/snapshotStore");
@@ -191,14 +194,17 @@ test("cache policy distinguishes fresh data from stale data and canonicalizes le
   assert.equal(canonical.state, "OK");
   assert.equal(canonical.fx.status, "OK");
   assert.equal(canonical.rows[0].status, "OK");
-  const stale = markSnapshotStale({ state: "OK", fx: { status: "OK" }, rows: [{ status: "OK", price: 1 }], disclaimer: PUBLIC_MARKET_DISCLAIMER }, "來源失敗");
+  const stale = markSnapshotStale({ state: "OK", generatedAt: "2026-08-22T00:00:00.000Z", dataAsOf: "2026-08-22T00:00:00.000Z", fx: { status: "OK", lastTradeAt: "2026-08-22T00:00:00.000Z" }, rows: [{ status: "OK", price: 1, lastTradeAt: "2026-08-22T00:00:00.000Z" }], disclaimer: PUBLIC_MARKET_DISCLAIMER }, "來源失敗", new Date("2026-08-24T00:00:00.000Z"), { MARKET_STALE_MAX_AGE_DAYS: "7" });
   assert.equal(stale.state, MARKET_STATES.STALE);
   assert.equal(stale.rows[0].status, MARKET_STATES.STALE);
+  assert.equal(stale.generatedAt, "2026-08-22T00:00:00.000Z");
+  assert.equal(stale.servedAt, "2026-08-24T00:00:00.000Z");
+  assert.equal(stale.dataAsOf, "2026-08-22T00:00:00.000Z");
   assert.match(stale.disclaimer, /STALE/);
 });
 
-function yahooResponse(symbol, count = 365) {
-  const start = Date.UTC(2025, 0, 1) / 1000;
+function yahooResponse(symbol, count = 365, startOverride) {
+  const start = startOverride ?? Date.UTC(2025, 0, 1) / 1000;
   const timestamps = Array.from({ length: count }, (_, index) => start + index * 86400);
   const base = symbol === "TWD=X" ? 32 : symbol === "HG=F" ? 100 : 20;
   const close = timestamps.map((_, index) => base + index * 0.01);
@@ -223,10 +229,24 @@ function textResponse(text, status = 200) {
 }
 
 function mockPublicSuccess() {
+  const recentStart = Math.floor((Date.now() - 86400000) / 1000);
   return async (url) => {
     const decoded = decodeURIComponent(url);
     const symbol = decoded.match(/chart\/([^?]+)/)?.[1] || "";
-    return jsonResponse(yahooResponse(symbol, decoded.includes("range=1y") ? 365 : 2));
+    const isHistory = decoded.includes("range=1y");
+    return jsonResponse(yahooResponse(symbol, isHistory ? 365 : 2, isHistory ? undefined : recentStart));
+  };
+}
+
+function mockPublicWithOldCopper() {
+  const recentStart = Math.floor((Date.now() - 86400000) / 1000);
+  const oldStart = Math.floor((Date.now() - 30 * 86400000) / 1000);
+  return async (url) => {
+    const decoded = decodeURIComponent(url);
+    const symbol = decoded.match(/chart\/([^?]+)/)?.[1] || "";
+    const isHistory = decoded.includes("range=1y");
+    const start = isHistory ? undefined : symbol === "HG=F" ? oldStart : recentStart;
+    return jsonResponse(yahooResponse(symbol, isHistory ? 365 : 2, start));
   };
 }
 
@@ -275,6 +295,19 @@ test("/api/market returns primary public data with canonical statuses", async ()
   assert.match(payload.disclaimer, /不等於/);
 });
 
+test("/api/market cannot present an old direct observation as OK", async () => {
+  global.fetch = mockPublicWithOldCopper();
+  const res = await request("/api/market");
+  assert.equal(res.statusCode, 200);
+  const payload = JSON.parse(res.body);
+  const copper = payload.rows.find((row) => row.id === "copper");
+  assert.equal(copper.status, MARKET_STATES.EXPIRED);
+  assert.equal(copper.sourceReliability, "EXPIRED");
+  assert.match(copper.error, /exceeded freshness policy/i);
+  assert.equal(payload.rows.find((row) => row.id === "aluminum").status, MARKET_STATES.OK);
+  assert.ok(payload.summary.expiredRows >= 1);
+});
+
 test("/api/market exposes FALLBACK when Yahoo fails but configured public fallbacks work", async () => {
   const csv = "Symbol,Date,Time,Open,High,Low,Close,Volume\nHG.F,2026-08-21,17:00:00,620.00,630.00,615.00,625.00,123";
   global.fetch = async (url) => {
@@ -289,18 +322,18 @@ test("/api/market exposes FALLBACK when Yahoo fails but configured public fallba
   assert.equal(payload.state, "FALLBACK");
   assert.equal(payload.fx.status, "FALLBACK");
   assert.ok(payload.rows.some((row) => row.status === "FALLBACK"));
-  assert.ok(payload.rows.some((row) => row.status === "STALE"));
+  assert.ok(payload.rows.some((row) => row.status === "EXPIRED"));
 });
 
-test("/api/market returns truthful STALE from the bundled public seed after total source failure", async () => {
+test("/api/market never presents the May bundled public seed as current STALE data after total source failure", async () => {
   global.fetch = async () => { throw new Error("network timeout"); };
   const res = await request("/api/market");
   assert.equal(res.statusCode, 200);
   const payload = JSON.parse(res.body);
-  assert.equal(payload.state, "STALE");
-  assert.ok(payload.rows.every((row) => row.status === "STALE"));
-  assert.equal(payload.fx.status, "STALE");
-  assert.match(payload.disclaimer, /STALE/);
+  assert.equal(payload.state, "EXPIRED");
+  assert.ok(payload.rows.every((row) => row.status === "EXPIRED"));
+  assert.equal(payload.fx.status, "EXPIRED");
+  assert.match(payload.disclaimer, /EXPIRED|超出允許/);
 });
 
 test("/api/history and /api/export/excel return reproducible public-data contracts", async () => {
@@ -356,8 +389,10 @@ test("daily snapshots persist provenance and canonical public statuses", async (
   };
   const records = snapshotToRecords(snapshot, "2026-08-17T01:00:00.000Z");
   assert.equal(records.length, 3);
-  assert.equal(records[0].date, "2026-08-17");
+  assert.equal(records[0].date, "2026-08-16");
   assert.equal(records[1].status, "LIVE");
+  assert.equal(records[1].observationDate, "2026-08-15");
+  assert.equal(records[1].collectedAt, "2026-08-17T01:00:00.000Z");
   assert.equal(records[2].status, "API_ERROR");
   await upsertSnapshots(records, { filePath });
   const stored = await readStore(filePath);
@@ -1325,4 +1360,159 @@ test("device-code OAuth helper uses consumers scopes and never prints or stores 
 
 test("device-code OAuth helper rejects output inside repository", async () => {
   await assert.rejects(() => runDeviceFlow({ clientId: "client-id-fixture", output: path.join(ROOT, "microsoft-refresh-token.json"), fetchImpl: async () => { throw new Error("must not call network"); } }), (error) => error.code === "OAUTH_OUTPUT_MUST_BE_OUTSIDE_REPOSITORY");
+});
+
+test("production seed policy disables bundled seed fallback and marks May data expired outside the test path", async () => {
+  assert.equal(allowSeedFallback({ NODE_ENV: "production" }), false);
+  assert.equal(allowSeedFallback({ NODE_ENV: "test" }), true);
+  const expired = markSnapshotExpired({
+    state: "OK",
+    generatedAt: "2026-05-19T08:29:58.805Z",
+    dataAsOf: "2026-05-19T08:29:58.805Z",
+    fx: { status: "OK", rate: 31.66, lastTradeAt: "2026-05-19T08:29:56.000Z" },
+    rows: [{ id: "copper", status: "OK", price: 6.26, lastTradeAt: "2026-05-19T08:19:48.000Z" }],
+  }, "seed older than documented freshness window", new Date("2026-08-24T00:00:00.000Z"));
+  assert.equal(expired.state, "EXPIRED");
+  assert.equal(expired.rows[0].status, "EXPIRED");
+  assert.equal(expired.generatedAt, "2026-05-19T08:29:58.805Z");
+  assert.equal(expired.dataAsOf, "2026-05-19T08:29:58.805Z");
+  assert.equal(observationAgeDays(expired.dataAsOf, new Date("2026-08-24T00:00:00.000Z")) > 90, true);
+});
+
+test("stale snapshot collected in August retains the original May observation identity", () => {
+  const snapshot = {
+    state: "STALE",
+    generatedAt: "2026-05-19T08:29:58.805Z",
+    servedAt: "2026-08-24T01:00:00.000Z",
+    dataAsOf: "2026-05-19T08:29:58.805Z",
+    acquisitionPath: "READ_FALLBACK",
+    fx: { status: "STALE", rate: 31.66, lastTradeAt: "2026-05-19T08:29:56.000Z" },
+    rows: [{ id: "copper", name: "銅", status: "STALE", price: 6.26, lastTradeAt: "2026-05-19T08:19:48.000Z", source: "fixture" }],
+  };
+  const records = snapshotToRecords(snapshot, "2026-08-24T01:00:00.000Z");
+  assert.equal(records[0].date, "2026-05-19");
+  assert.equal(records[1].date, "2026-05-19");
+  assert.equal(records[1].observationDate, "2026-05-19");
+  assert.equal(records[1].collectedAt, "2026-08-24T01:00:00.000Z");
+  assert.equal(records[1].collectionPath, "READ_FALLBACK");
+  assert.equal(records[1].provenance.dataAsOf, "2026-05-19T08:29:58.805Z");
+});
+
+test("direct acquisition and read fallback remain distinct in snapshot metadata", () => {
+  const direct = buildSnapshot({ status: "OK", rate: 32, lastTradeAt: "2026-08-24T00:00:00.000Z" }, [{ id: "copper", name: "銅", status: "OK", price: 6.2, lastTradeAt: "2026-08-24T00:00:00.000Z" }], new Date("2026-08-24T00:00:00.000Z"));
+  assert.equal(direct.acquisitionPath, "DIRECT_ACQUISITION");
+  assert.equal(direct.dataAsOf, "2026-08-24T00:00:00.000Z");
+  assert.equal(getSnapshotDataAsOf(direct), "2026-08-24T00:00:00.000Z");
+});
+
+test("weekly report blocks materially expired May observations during an August reporting week", () => {
+  const records = materials.map((material) => ({
+    materialId: material.id,
+    materialName: material.name,
+    symbol: material.symbol,
+    category: material.category,
+    exchange: material.exchange,
+    date: "2026-05-19",
+    marketPrice: 100,
+    sourceUnit: material.unit,
+    currency: material.currency,
+    source: "fixture-seed",
+    status: "STALE",
+    collectedAt: "2026-08-24T01:00:00Z",
+    lastTradeTimestamp: "2026-05-19T08:00:00Z",
+  })).concat([{
+    materialId: "__fx_usd_twd__",
+    materialName: "USD/TWD",
+    symbol: "TWD=X",
+    category: "匯率",
+    exchange: "PUBLIC FX",
+    date: "2026-05-19",
+    marketPrice: 32,
+    sourceUnit: "TWD/USD",
+    currency: "TWD",
+    source: "fixture-seed",
+    status: "STALE",
+    collectedAt: "2026-08-24T01:00:00Z",
+    lastTradeTimestamp: "2026-05-19T08:00:00Z",
+  }]);
+  const report = buildWeeklyReport({ records, reportingWeek: "2026-W34", generatedAt: "2026-08-24T01:00:00Z" });
+  assert.equal(report.qualityGate.state, "SEND_BLOCKED");
+  assert.ok(report.qualityGate.integrityReasons.includes("OBSERVATION_FRESHNESS_INSUFFICIENT"));
+  assert.equal(report.marketSummary.biggestRisers.length, 0);
+  assert.equal(report.marketSummary.biggestDecliners.length, 0);
+});
+
+test("production durable public fallback is classified READ_FALLBACK and expires by observation date", async () => {
+  const directory = await tempDirectory();
+  const filePath = path.join(directory, "snapshots.json");
+  const recentRecords = [
+    { materialId: "__fx_usd_twd__", materialName: "USD/TWD", symbol: "TWD=X", date: "2026-08-22", marketPrice: 32, sourceUnit: "TWD/USD", currency: "TWD", source: "public-fixture", status: "LIVE", lastTradeTimestamp: "2026-08-22T08:00:00Z", collectedAt: "2026-08-22T08:05:00Z" },
+    { materialId: "copper", materialName: "銅", symbol: "HG=F", date: "2026-08-22", marketPrice: 6.2, sourceUnit: "USD/lb", currency: "USD", source: "public-fixture", status: "LIVE", twdReferenceValue: 198.4, lastTradeTimestamp: "2026-08-22T08:00:00Z", collectedAt: "2026-08-22T08:05:00Z" },
+  ];
+  await upsertSnapshots(recentRecords, { filePath });
+  const env = { NODE_ENV: "production", STORAGE_PROVIDER: "postgres", DATABASE_SSL: "true", DATABASE_URL: "postgres://test-only" };
+  const recent = await require("../lib/marketData/marketService").readDurablePublicFallback({ env, filePath, storageConfig: { provider: "postgres", snapshotFile: filePath }, now: new Date("2026-08-24T00:00:00Z") });
+  assert.equal(recent.acquisitionPath, "READ_FALLBACK");
+  assert.equal(recent.rows.find((row) => row.id === "copper").status, "FALLBACK");
+  assert.equal(recent.rows.find((row) => row.id === "copper").sourceReliability, "READ_FALLBACK");
+  assert.equal(recent.generatedAt, "2026-08-22T08:05:00Z");
+  assert.equal(recent.servedAt, "2026-08-24T00:00:00.000Z");
+
+  const oldFilePath = path.join(directory, "old-snapshots.json");
+  await upsertSnapshots(recentRecords.map((record) => ({ ...record, date: "2026-05-19", lastTradeTimestamp: "2026-05-19T08:00:00Z", collectedAt: "2026-08-24T00:00:00Z" })), { filePath: oldFilePath });
+  const old = await require("../lib/marketData/marketService").readDurablePublicFallback({ env, filePath: oldFilePath, storageConfig: { provider: "postgres", snapshotFile: oldFilePath }, now: new Date("2026-08-24T00:00:00Z") });
+  assert.equal(old.rows.find((row) => row.id === "copper").status, "EXPIRED");
+  assert.equal(old.rows.find((row) => row.id === "copper").sourceReliability, "READ_FALLBACK");
+});
+
+test("/api/market exposes safe market-health metadata without credentials", async () => {
+  global.fetch = mockPublicSuccess();
+  const res = await request("/api/market");
+  assert.equal(res.statusCode, 200);
+  const payload = JSON.parse(res.body);
+  assert.equal(typeof payload.latestMarketObservationAt, "string");
+  assert.equal(typeof payload.servedAt, "string");
+  assert.equal(payload.marketHealth.freshCount, 14);
+  assert.equal(payload.marketHealth.fallbackCount, 0);
+  assert.equal(payload.marketHealth.staleCount, 0);
+  assert.equal(payload.marketHealth.expiredCount, 0);
+  assert.equal(payload.marketHealth.apiErrorCount, 0);
+  assert.equal(JSON.stringify(payload).includes("DATABASE_URL"), false);
+  assert.equal(JSON.stringify(payload).includes("postgres://"), false);
+});
+
+test("weekly gate distinguishes defensible within-window STALE from materially expired observations", () => {
+  const records = materials.map((material) => ({
+    materialId: material.id,
+    materialName: material.name,
+    symbol: material.symbol,
+    category: material.category,
+    exchange: material.exchange,
+    date: "2026-08-10",
+    marketPrice: 100,
+    sourceUnit: material.unit,
+    currency: material.currency,
+    source: "public-fallback-fixture",
+    status: "STALE",
+    collectedAt: "2026-08-16T01:00:00Z",
+    lastTradeTimestamp: "2026-08-10T08:00:00Z",
+  })).concat([{
+    materialId: "__fx_usd_twd__",
+    materialName: "USD/TWD",
+    symbol: "TWD=X",
+    category: "匯率",
+    exchange: "PUBLIC FX",
+    date: "2026-08-10",
+    marketPrice: 32,
+    sourceUnit: "TWD/USD",
+    currency: "TWD",
+    source: "public-fallback-fixture",
+    status: "STALE",
+    collectedAt: "2026-08-16T01:00:00Z",
+    lastTradeTimestamp: "2026-08-10T08:00:00Z",
+  }]);
+  const report = buildWeeklyReport({ records, reportingWeek: "2026-W33", generatedAt: "2026-08-17T01:00:00Z" });
+  assert.equal(report.qualityGate.state, "SEND_WITH_WARNINGS");
+  assert.ok(report.qualityGate.warningReasons.includes("STALE_PRESENT"));
+  assert.equal(report.qualityGate.freshnessInsufficient, false);
 });
