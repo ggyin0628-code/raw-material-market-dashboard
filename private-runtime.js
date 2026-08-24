@@ -6,6 +6,10 @@ const { URL } = require("node:url");
 const { estimateEngineeringInput } = require("./lib/engineering/engineeringEstimator");
 const { PRIVATE_SCOPE } = require("./lib/engineering/privateRateProfileContract");
 const { createProtectedPrivateCostResponse } = require("./lib/engineering/privateCostService");
+const { loadPrivateCalibrationPilot } = require("./lib/engineering/privateCalibrationPilotLoader");
+const { createPrivateCalibrationPilotResponse } = require("./lib/engineering/privateCalibrationService");
+const { createCalibrationHistoryLogger } = require("./lib/engineering/privateCalibrationHistory");
+const { PILOT_ENV, HISTORY_ENV, QUALITY_THRESHOLDS_ENV, DEFAULT_SYNTHETIC_QUALITY_THRESHOLDS, getCalibrationPilotSchema } = require("./lib/engineering/privateCalibrationPilotContract");
 const {
   PROFILE_ENV,
   REPOSITORY_ROOT,
@@ -19,6 +23,7 @@ const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_PORT = 4174;
 const DEFAULT_IDENTITY = "local-private-session";
 const DEFAULT_AUDIT_PATH = path.join(require("node:os").tmpdir(), "raw-material-private-audit.jsonl");
+const DEFAULT_HISTORY_PATH = path.join(require("node:os").tmpdir(), "raw-material-private-calibration-history.jsonl");
 const MAX_JSON_BODY_LENGTH = 256 * 1024;
 const PRIVATE_UI_PATH = path.join(REPOSITORY_ROOT, "private-estimate.html");
 const PRIVATE_JS_PATH = path.join(REPOSITORY_ROOT, "private-estimate.js");
@@ -137,6 +142,24 @@ function assertPrivateArtifactPath(artifactPath) {
 
 function resolveAuditPath(environment = process.env) {
   return assertPrivateArtifactPath(environment.PRIVATE_AUDIT_LOG_PATH || DEFAULT_AUDIT_PATH);
+}
+
+function resolveHistoryPath(environment = process.env) {
+  return assertPrivateArtifactPath(environment[HISTORY_ENV] || DEFAULT_HISTORY_PATH);
+}
+
+function resolveQualityThresholds(environment = process.env) {
+  const raw = environment[QUALITY_THRESHOLDS_ENV];
+  if (!raw) return DEFAULT_SYNTHETIC_QUALITY_THRESHOLDS;
+  try {
+    const value = JSON.parse(raw);
+    return { ...value, source: value.source || "CONFIGURED_LOCAL_ONLY" };
+  } catch {
+    const error = new Error("quality thresholds JSON invalid");
+    error.code = "PRIVATE_CALIBRATION_QUALITY_THRESHOLDS_INVALID";
+    error.statusCode = 500;
+    throw error;
+  }
 }
 
 function ensureAuditFile(auditPath) {
@@ -297,6 +320,48 @@ async function handlePrivateRequest(req, res, context) {
     return;
   }
 
+  if (req.method === "POST" && pathname === "/api/private/calibration-pilot") {
+    try {
+      const session = authorizeSession(req, context.sessions);
+      const contentType = String(req.headers["content-type"] || "").toLowerCase();
+      if (contentType && !contentType.startsWith("application/json")) throw privateInputError("PRIVATE_CONTENT_TYPE_REQUIRED", "Content-Type 必須為 application/json。", "headers.content-type");
+      const requestBody = await readJsonBody(req);
+      if (requestBody !== null && (!requestBody || typeof requestBody !== "object" || Array.isArray(requestBody) || Object.keys(requestBody).length > 0)) {
+        throw privateInputError("PRIVATE_PILOT_NOT_ACCEPTED_IN_REQUEST", "pilot input 由 local runtime 從 repository 外部載入；request 不接受 pilot data。", "input");
+      }
+      if (!context.pilot) {
+        const error = new Error("尚未設定 repository-external private pilot input；Phase 4D 停止於 operator local intake 前。");
+        error.statusCode = 503;
+        error.code = "PRIVATE_PILOT_NOT_CONFIGURED";
+        throw error;
+      }
+      const estimateId = crypto.randomUUID();
+      const result = createPrivateCalibrationPilotResponse({
+        pilot: context.pilot,
+        profile: context.profile,
+        authorization: { authenticated: true, subject: session.identity, scopes: [PRIVATE_SCOPE] },
+        auditLogger: context.auditLogger,
+        historyLogger: context.historyLogger,
+        estimateId,
+        qualityThresholds: context.qualityThresholds,
+      });
+      sendJson(res, 200, { state: "OK", generatedAt: new Date().toISOString(), ...result });
+    } catch (error) {
+      sendJson(res, Number(error.statusCode) || 500, safeErrorResponse(error));
+    }
+    return;
+  }
+
+  if (req.method === "GET" && pathname === "/api/private/calibration-pilot/schema") {
+    try {
+      authorizeSession(req, context.sessions);
+      sendJson(res, 200, getCalibrationPilotSchema());
+    } catch (error) {
+      sendJson(res, Number(error.statusCode) || 500, safeErrorResponse(error));
+    }
+    return;
+  }
+
   if (req.method === "POST" && pathname === "/api/private/estimate") {
     try {
       const session = authorizeSession(req, context.sessions);
@@ -323,7 +388,7 @@ async function handlePrivateRequest(req, res, context) {
   }
 
   if (req.method === "GET" && pathname === "/health") {
-    sendJson(res, 200, { status: "OK", runtime: "LOCAL_PRIVATE", binding: DEFAULT_HOST, profile: { rateProfileId: context.profile.rateProfileId, version: context.profile.version } });
+    sendJson(res, 200, { status: "OK", runtime: "LOCAL_PRIVATE", binding: DEFAULT_HOST, profile: { rateProfileId: context.profile.rateProfileId, version: context.profile.version }, calibrationPilot: { configured: Boolean(context.pilot), historyEnabled: Boolean(context.historyLogger) } });
     return;
   }
 
@@ -337,6 +402,10 @@ function startPrivateRuntime({ environment = process.env, now = new Date() } = {
   const port = resolvePrivatePort(environment);
   const auditPath = resolveAuditPath(environment);
   const loaded = loadPrivateRateProfile({ profilePath: environment[PROFILE_ENV], repositoryRoot: REPOSITORY_ROOT, now });
+  const pilotPath = environment[PILOT_ENV];
+  const loadedPilot = pilotPath && String(pilotPath).trim() ? loadPrivateCalibrationPilot({ pilotPath, repositoryRoot: REPOSITORY_ROOT }) : null;
+  const historyPath = resolveHistoryPath(environment);
+  const qualityThresholds = resolveQualityThresholds(environment);
   const identity = typeof environment.PRIVATE_LOCAL_IDENTITY === "string" && environment.PRIVATE_LOCAL_IDENTITY.trim()
     ? environment.PRIVATE_LOCAL_IDENTITY.trim()
     : DEFAULT_IDENTITY;
@@ -344,15 +413,20 @@ function startPrivateRuntime({ environment = process.env, now = new Date() } = {
     profile: loaded.profile,
     profilePath: loaded.profilePath,
     auditPath,
+    pilot: loadedPilot?.pilot || null,
+    pilotPath: loadedPilot?.pilotPath || null,
+    historyPath,
+    qualityThresholds,
     identity,
     auditLogger: createRedactedAuditLogger(auditPath),
+    historyLogger: loadedPilot ? createCalibrationHistoryLogger(historyPath, { repositoryRoot: REPOSITORY_ROOT }) : null,
     sessions: new Map(),
   };
   const server = http.createServer((req, res) => {
     handlePrivateRequest(req, res, context).catch((error) => sendJson(res, Number(error.statusCode) || 500, safeErrorResponse(error)));
   });
   server.listen(port, host);
-  return { server, host, port, profilePath: loaded.profilePath, auditPath, profile: loaded.profile, context };
+  return { server, host, port, profilePath: loaded.profilePath, pilotPath: loadedPilot?.pilotPath || null, historyPath, auditPath, profile: loaded.profile, context };
 }
 
 if (require.main === module) {
@@ -379,6 +453,8 @@ module.exports = {
   resolvePrivatePort,
   assertPrivateArtifactPath,
   resolveAuditPath,
+  resolveHistoryPath,
+  resolveQualityThresholds,
   createRedactedAuditLogger,
   parseCookies,
   isLoopbackAddress,

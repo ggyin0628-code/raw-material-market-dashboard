@@ -25,4 +25,8 @@ private-cost*.json
 **/private-cost*.json
 private-audit*.jsonl
 **/private-audit*.jsonl
+private-calibration-pilot*.json
+**/private-calibration-pilot*.json
+private-calibration-history*.jsonl
+**/private-calibration-history*.jsonl
 !private-rate-profile.example.json

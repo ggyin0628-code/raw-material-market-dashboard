@@ -1,0 +1,35 @@
+{
+  "generatedFrom": "SYNTHETIC / DEMO / TEST ONLY",
+  "results": [
+    {
+      "name": "desktop",
+      "width": 1440,
+      "height": 1000,
+      "viewportWidth": 1440,
+      "documentWidth": 1440,
+      "bodyWidth": 1440,
+      "horizontalOverflow": false,
+      "privateResult": true,
+      "pilotComparison": true,
+      "proposedOnly": true,
+      "redactedTrace": true,
+      "rawRateInput": false,
+      "sentinel": false
+    },
+    {
+      "name": "mobile",
+      "width": 390,
+      "height": 844,
+      "viewportWidth": 390,
+      "documentWidth": 390,
+      "bodyWidth": 390,
+      "horizontalOverflow": false,
+      "privateResult": true,
+      "pilotComparison": true,
+      "proposedOnly": true,
+      "redactedTrace": true,
+      "rawRateInput": false,
+      "sentinel": false
+    }
+  ]
+}

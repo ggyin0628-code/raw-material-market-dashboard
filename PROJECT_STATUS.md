@@ -355,3 +355,30 @@ Phase 4C is complete on `feat/local-private-calibration-runtime-v1`, created fro
 The synthetic local smoke produced 2.355 kg/part, 235.5 kg total material, 313 process minutes, 3,566 `TEST_UNITS` total internal cost and 35.66 `TEST_UNITS`/part. These figures are synthetic test outputs only and are not company calibration, supplier pricing, market data or quotation data. The local runtime and all repo-external synthetic profile/audit/temp artifacts were stopped and cleaned after visual review.
 
 The next permitted boundary is a separate real-data onboarding review. It must first establish a controlled internal deployment, authenticated identity, least-privilege authorization, encryption/key management, private backup/restore, profile lifecycle and revocation, redacted audit, leakage scans and independent certification. This Phase 4C status does not authorize real-data import or main promotion. Existing Phase 4A production certification remains unchanged.
+
+## Phase 4D — Internal Engineering Cost Calibration Pilot V1
+
+**FEATURE_BRANCH_READY_FOR_REVIEW — DO NOT PROMOTE MAIN — DO NOT IMPORT REAL PRIVATE DATA**
+
+Phase 4D is implemented on `feat/internal-engineering-cost-calibration-pilot-v1`, based on Phase 4C approved SHA `2d1afa0836688c443202933a7913e52b7e589fab`. The certified public main checkpoint remains `73f1c5ef14266ed162ff8f2127859b877e69a385`. This phase builds the first controlled, local-only workflow for **內部工程成本估算** and stops before any real pilot import.
+
+| Status item | Result |
+|---|---|
+| Runtime | Existing `npm run private:estimate`; `PRIVATE_RUNTIME_ENABLED=1` required; bind and request boundary remain `127.0.0.1` loopback-only |
+| External pilot | `PRIVATE_CALIBRATION_PILOT_PATH` loads one strict `SINGLE_CONTROLLED_PILOT` JSON from outside repository; no request-body pilot import |
+| Input contract | Explicit part, material, cutting, piercing, bending, welding, surface-treatment, setup and historical-reference fields; missing modelable values remain null; no guessing |
+| Historical contract | `KNOWN_COMPONENT_REFERENCE`, `TOTAL_ONLY_REFERENCE`, `NO_HISTORICAL_REFERENCE`; total/per-part derivation is explicit; zero or missing denominator yields `variancePct=null` |
+| Observation modes | `RATE_BASED` and `OBSERVED_TIME`; conflicting speed/run inputs require explicit `authoritativeObservation`, otherwise rejected |
+| Quality | Configurable thresholds with synthetic defaults only; statuses are `NOT_EVALUATED`, `CLOSE_MATCH`, `MODERATE_VARIANCE`, `LARGE_VARIANCE`; no undocumented business acceptance limit |
+| Diagnostics | Material, cutting, piercing, bending, welding, setup, missing-calibration and insufficient-reference review categories; no automatic rate tuning |
+| Profile update | `PROPOSED_ONLY` candidates show current version, proposed field, reason and evidence count; proposed values are `PROFILE_VALUE_NOT_RETURNED`; no automatic write-back |
+| History | Optional external append-only `0600` JSONL with exactly pilotId, estimateId, profileId, profileVersion, runTimestamp, variancePct and resultStatus; no raw rates or historical actual cost duplication |
+| UI | Local private page now shows pilot comparison, component variance, observation mode/formula, internal engineering cost components, historical actual internal cost, diagnostics, profile version and redacted trace; public Render UI unchanged |
+| Security/leakage | Pilot/historical synthetic sentinel and raw-rate values absent from public API/schema/assets/docs/status/logs; public private routes remain absent; request pilot data rejected |
+| Public/market isolation | Public `/estimate` remains `NO_RATE`; anonymous `PRIVATE_CALIBRATED` remains denied; market references continue `engineeringEstimate=null` and no market multiplier |
+| Deterministic suite | PASS: **118 passed / 0 failed** including Phase 4A/4B/4C and machining/sheet-metal market regression |
+| Visual review | PASS: synthetic desktop `1440×1000` and mobile `390×844`; no horizontal overflow, pilot comparison/proposed-only/redacted trace present, raw-rate input absent, sentinel absent |
+| Documentation | `docs/INTERNAL_ENGINEERING_COST_CALIBRATION_PILOT.md`; intake governance remains in `docs/PRIVATE_CALIBRATION_INTAKE_WORKSHEET.md` |
+| Production state | NONE: no real company/supplier data, Render deployment, main promotion, Neon migration, Gmail, schedule, secret, workflow, bootstrap, daily/weekly, backfill, mail or production configuration operation |
+
+The synthetic visual fixture produced 2.355 kg/part, 235.5 kg total material, 313 process minutes, 3,566 `TEST_UNITS` total internal cost, a 250 `TEST_UNITS` historical reference and a 1,326.4% synthetic variance. These values are test-only and are not company or supplier data. Before a real pilot is considered, the project still requires a separately approved authenticated operator boundary, least privilege, encryption/key management, private backup/restore, lifecycle/revocation, access audit, leakage scanning, reconciliation and independent certification. Phase 4D is not approved for real-data intake or main promotion.
