@@ -606,3 +606,33 @@ Detailed audit and public monetary contract documentation are `docs/FULL_PRODUCT
 | Main | **UNCHANGED** at `096005640b08fc31c340a38d41c0f2c41655757d` |
 
 Detailed records remain in `docs/FULL_PRODUCTION_DATA_INTEGRITY_AUDIT.md` and `docs/PUBLIC_PROCESS_COST_REFERENCE_CONTRACT.md`; visual artifacts are under `artifacts/phase4f-pasted13-public-process-reference/`. The branch requires separate review and must stop before main promotion.
+
+
+## Production certification — public data integrity and process monetary references
+
+**PRODUCTION_DATA_INTEGRITY_PUBLIC_PROCESS_MONETARY_REFERENCE_PASS**
+
+Approved feature head `909cb2bf64fc060358b55730319017ed154b5dfb` was promoted to `main` from authoritative main `096005640b08fc31c340a38d41c0f2c41655757d` by pure fast-forward and pushed. The existing Render service was allowed to deploy normally. No force push, rebase, history rewrite, second Render service, configuration change, workflow dispatch, mail resend, migration, bootstrap, schedule update, secret change, Neon change or Gmail change was performed.
+
+| Status item | Result |
+|---|---|
+| Final code main SHA | `909cb2bf64fc060358b55730319017ed154b5dfb` before this documentation-only checkpoint |
+| Lineage | PASS: feature was 4 ahead / 0 behind; merge-base was authoritative main |
+| Gates | PASS: `npm ci`, `npm run check`, `npm test`, `npm run build`, `npm audit --omit=dev`, `git diff --check` |
+| Tests / vulnerabilities | **168 passed / 0 failed**; **0 vulnerabilities** |
+| Render | PASS: existing `raw-material-market-dashboard-1.onrender.com` responded normally after main deployment |
+| `/api/market` | PASS: HTTP 200; `FALLBACK` / `READ_FALLBACK`; 14 rows; counts fresh 0, fallback 14, stale 0, expired 0, API error 0, no-data 0 |
+| Market timestamps | PASS: `generatedAt=2026-08-23T01:54:08.760Z`; `servedAt=2026-08-24T08:33:56.398Z`; `dataAsOf` and `latestMarketObservationAt` = `2026-08-21T00:00:00.000Z` |
+| May seed | PASS: no May 2026 bundled-seed row served as current production data; public fallback retained August 21 observation identity |
+| Dashboard | PASS: fallback/usable, stale, expired and API/no-data states remained distinguishable; maximum gain/loss stayed unavailable because no finite rankable change data existed; stale/expired rows cannot headline |
+| `/health` | PASS: HTTP 200, `status=OK` |
+| `/health/weekly` | PASS: HTTP 200, `status=OK`, `WEB_READY`, `DATABASE_READY`, `storage.ready=true`, `WEEKLY_REPORT_READY`; legacy `DAILY_DATA_NOT_READY` is accepted until the next normal scheduled daily collection; `MAIL_CONFIGURATION_REQUIRED` remains owner-controlled |
+| Weekly gate | PASS by deployed contract/regression: severely old STALE/EXPIRED → `SEND_BLOCKED`; defensible STALE may warn; adequate current coverage remains eligible |
+| Machining production | PASS: `/machining` and `/api/machining/reference` HTTP 200; monetary panel first; 5-axis `NT$ 2,000+ / hr`, turn-mill `NT$ 1,800+ / hr`, separate PRO360 `NT$ 80–120 / min`; `engineeringEstimate=null` |
+| Sheet-metal production | PASS: `/sheet-metal` and `/api/sheet-metal/reference` HTTP 200; 56 laser monetary rows and 4 `NO_PUBLIC_PRICE_DATA`; MINCA/Zhongkai show locale-inferred wording without source-explicit `NT$` or FX conversion |
+| Boundaries | PASS: `/estimate` browser-local; public engineering schema `NO_RATE` only; no public amount auto-fills internal rates; `/standalone` namespace and encoded equivalents HTTP 404 |
+| Routes | PASS: `/machining/`, `/sheet-metal/` HTTP 200; `.html` legacy routes HTTP 308 to canonical routes |
+| Visual | PASS: production `/`, `/machining`, `/sheet-metal` reviewed at `1440×1000` and `390×844`; cards stack correctly, navigation usable, currency evidence readable, pressure secondary, no visible horizontal overflow |
+| Data safety | PASS: no real company/private data used; no schedule/secret/Neon/Gmail configuration changed |
+
+The final documentation-only checkpoint and annotated tag are created after this production read-only certification update. The certification stops after the main/tag push and does not begin another development phase.

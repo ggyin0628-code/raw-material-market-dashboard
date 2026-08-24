@@ -617,3 +617,39 @@ Public source acceptance and limitations are documented in `docs/FULL_PRODUCTION
 | Main | **UNCHANGED** at `096005640b08fc31c340a38d41c0f2c41655757d` |
 
 Visual artifacts are under `artifacts/phase4f-pasted13-public-process-reference/`, including `machining-phase4g-desktop-1440x1000.png`, `machining-phase4g-mobile-390x844.png`, `sheet-metal-phase4g-desktop-1440x1000.png`, `sheet-metal-phase4g-mobile-390x844.png` and `phase4g-currency-visual-review.md`. The external currency evidence audit is recorded in the public contract/audit documents and the source pages remain linked there. This checkpoint stops before main promotion.
+
+
+## Production certification — public data integrity and process monetary references
+
+**PRODUCTION_DATA_INTEGRITY_PUBLIC_PROCESS_MONETARY_REFERENCE_PASS**
+
+The approved feature head `909cb2bf64fc060358b55730319017ed154b5dfb` was promoted from authoritative main `096005640b08fc31c340a38d41c0f2c41655757d` to `main` by pure fast-forward and pushed without force push, rebase or history rewrite. The existing Render service `https://raw-material-market-dashboard-1.onrender.com` was allowed to deploy normally. No second Render service was created and no Render environment, secret, schedule, Neon or Gmail configuration was changed.
+
+| Certification item | Result |
+|---|---|
+| Final main code SHA before documentation checkpoint | `909cb2bf64fc060358b55730319017ed154b5dfb` |
+| Pre-promotion lineage | PASS: feature was 4 ahead / 0 behind; merge-base was authoritative main |
+| Final gates | PASS: `npm ci`, `npm run check`, `npm test`, `npm run build`, `npm audit --omit=dev`, `git diff --check` |
+| Regression count | PASS: **168 passed / 0 failed** |
+| Dependency audit | PASS: **0 vulnerabilities** |
+| Render deployment | PASS: existing service responded normally from main; no new service or configuration change |
+| `/` and navigation | PASS: HTTP 200; shared navigation remained usable and weekly public summary loaded |
+| `/api/market` | PASS: HTTP 200; `state=FALLBACK`, `acquisitionPath=READ_FALLBACK`, 14 rows |
+| Market timestamps | PASS: `generatedAt=2026-08-23T01:54:08.760Z`; `servedAt=2026-08-24T08:33:56.398Z`; `dataAsOf=2026-08-21T00:00:00.000Z`; `latestMarketObservationAt=2026-08-21T00:00:00.000Z` |
+| Market counts | PASS: `fresh=0`, `fallback=14`, `stale=0`, `expired=0`, `apiError=0`, `noData=0`; no May 2026 row was present |
+| May bundled seed | PASS: the May 2026 bundled seed did not serve as current production market data; production rows retained August 21 observation identity and `READ_FALLBACK` provenance |
+| Dashboard headlines | PASS: maximum gain/loss both remained `--` because fallback rows had no finite rankable change data; no stale/expired/old seed row became a headline |
+| `/health` | PASS: HTTP 200, top-level `status=OK` |
+| `/health/weekly` | PASS: HTTP 200, top-level `status=OK`, `WEB_READY`, `DATABASE_READY`, `storage.ready=true`, `WEEKLY_REPORT_READY`; legacy `DAILY_DATA_NOT_READY` is accepted until the next normal scheduled daily collection establishes the new freshness contract; `MAIL_CONFIGURATION_REQUIRED` remains owner-controlled |
+| Weekly quality boundary | PASS by deployed code contract and 168-test regression: severely old STALE/EXPIRED blocks with `SEND_BLOCKED`, defensible STALE may use `SEND_WITH_WARNINGS`, adequate current coverage remains eligible; no weekly mail was resent |
+| `/machining` | PASS: HTTP 200; public monetary references precede `成本趨勢輔助`; CNC 3-axis, 2-axis lathe, 5-axis `NT$ 2,000+ / hr`, turn-mill `NT$ 1,800+ / hr` and PRO360 `NT$ 80–120 / min` remain distinct pricing bases |
+| `/api/machining/reference` | PASS: HTTP 200; 5 references, `engineeringEstimate=null`, no hidden hourly/minute average |
+| `/sheet-metal` | PASS: HTTP 200; laser public price cards precede pressure; locale-inferred rows display `網站列示：… / m` and source-not-explicit currency wording without source-explicit `NT$` or FX conversion |
+| `/api/sheet-metal/reference` | PASS: HTTP 200; 60 public price records, including 56 direct laser records and 4 `NO_PUBLIC_PRICE_DATA` records for bending/TIG/MIG-CO2/spot welding |
+| Existing boundaries | PASS: `/estimate` remains browser-local; production engineering schema is `NO_RATE` only; both process references retain `engineeringEstimate=null`; no public price auto-fills internal rates |
+| `/standalone` | PASS: ordinary, trailing-slash, calculator path and encoded equivalents all returned HTTP 404 `Not found` |
+| Canonical routes | PASS: `/machining/` and `/sheet-metal/` HTTP 200; `/machining.html` and `/sheet-metal.html` HTTP 308 to canonical routes |
+| Production visual review | PASS: `/`, `/machining` and `/sheet-metal` reviewed at desktop `1440×1000` and mobile `390×844`; monetary panels are primary, pressure is secondary, currency evidence is readable, navigation remains usable and no visible horizontal overflow appeared |
+| Data safety | PASS: no real company/private data, supplier/customer quote, private rate, production secret, schedule mutation, Neon/Gmail change or workflow dispatch was used |
+
+The certification visual evidence is retained in the session under `/tmp/phase5-prod-cert/visual/`, with findings in `/tmp/phase5-prod-cert/homepage-browser-findings.md`, `/tmp/phase5-prod-cert/machining-browser-findings.md`, `/tmp/phase5-prod-cert/sheet-metal-browser-findings.md`, `/tmp/phase5-prod-cert/homepage-visual-findings.md`, `/tmp/phase5-prod-cert/machining-visual-findings.md` and `/tmp/phase5-prod-cert/sheet-metal-visual-findings.md`. This certification records the final verified production state and stops after the final main/tag push; it does not authorize manual workflow dispatch, mail resend, bootstrap, migration or schedule changes.

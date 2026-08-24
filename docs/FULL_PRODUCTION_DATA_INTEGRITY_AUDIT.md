@@ -83,7 +83,34 @@ The public source layer still has real limitations. Direct Taiwan current moneta
 
 ## Final boundary
 
-This audit is a feature-branch delivery checkpoint. It does not authorize final main promotion. Before any later promotion, the repository must rerun the complete final gates, verify branch lineage and worktree scope, perform a read-only deployment review if separately authorized, and independently confirm that no private/company data entered the public data path.
+This audit was completed on the approved feature branch and then certified in production after the required pure fast-forward promotion. The promotion and certification record is appended below. The production certification did not authorize any schedule, secret, Neon, Gmail, workflow, migration, bootstrap or mail mutation; it used read-only public endpoint and visual checks only. An existing legacy daily job state may remain `DAILY_DATA_NOT_READY` until the next normal scheduled daily collection establishes the new freshness contract, and this is not treated as a deployment failure.
+
+## Production certification checkpoint
+
+**PRODUCTION_DATA_INTEGRITY_PUBLIC_PROCESS_MONETARY_REFERENCE_PASS**
+
+The approved feature head `909cb2bf64fc060358b55730319017ed154b5dfb` was promoted to `main` from authoritative main `096005640b08fc31c340a38d41c0f2c41655757d` by pure fast-forward. The required pre-promotion gates passed with **168 tests passed / 0 failed** and **0 vulnerabilities**. The existing Render service was allowed to deploy normally; no second service was created and no Render configuration was changed.
+
+| Production check | Result |
+|---|---|
+| Render deployment and `/` | PASS: HTTP 200; shared navigation, weekly public summary and dashboard loaded |
+| `/api/market` | PASS: HTTP 200; `state=FALLBACK`, `acquisitionPath=READ_FALLBACK`, 14 rows |
+| Market freshness counts | `fresh=0`, `fallback=14`, `stale=0`, `expired=0`, `apiError=0`, `noData=0`; dashboard shows fallback/usable rows separately from stale, expired and API/no-data categories |
+| Market timestamps | `generatedAt=2026-08-23T01:54:08.760Z`, `servedAt=2026-08-24T08:33:56.398Z`, `dataAsOf=2026-08-21T00:00:00.000Z`, `latestMarketObservationAt=2026-08-21T00:00:00.000Z` |
+| May bundled seed | PASS: no May 2026 row was present in the production market response; the returned rows retained August 21 observation identity and `READ_FALLBACK` provenance |
+| Dashboard headlines | PASS: maximum gain/loss both display `--` because no rows had rankable finite change data; stale/expired rows are excluded by the summary contract and no old seed became a headline |
+| `/health` | PASS: HTTP 200, top-level `status=OK` |
+| `/health/weekly` | PASS: HTTP 200, top-level `status=OK`, `WEB_READY`, `DATABASE_READY`, `storage.ready=true`, `weeklyReport=WEEKLY_REPORT_READY`; legacy `dailyData=DAILY_DATA_NOT_READY` is accepted until the next normal scheduled daily collection; `MAIL_CONFIGURATION_REQUIRED` remains owner-controlled and was not changed |
+| Weekly quality boundary | PASS by code contract and regression suite: severely old STALE/EXPIRED data blocks with `SEND_BLOCKED`, defensible within-window STALE may warn, and adequate current coverage remains eligible; no weekly mail was resent |
+| `/machining` and API | PASS: HTTP 200; public monetary panel precedes `成本趨勢輔助`; cards include `NT$ 1,000–1,600 / hr`, `NT$ 900–1,500 / hr`, `NT$ 2,000+ / hr`, `NT$ 1,800+ / hr` and separate `NT$ 80–120 / min` PRO360 statistic; no hourly/minute averaging |
+| `/sheet-metal` and API | PASS: HTTP 200; 60 public price records including 56 direct vendor-listed laser rows and 4 `NO_PUBLIC_PRICE_DATA` rows; locale-inferred MINCA/Zhongkai values render `網站列示：… / m` and source-not-explicit currency wording without source-explicit `NT$` or FX conversion |
+| Engineering boundary | PASS: production engineering schema allows `NO_RATE` only; `/estimate` remains browser-local; machining and sheet-metal `engineeringEstimate` are `null` |
+| `/standalone` namespace | PASS: ordinary, trailing-slash, calculator-path and URL-encoded equivalents returned HTTP 404 `Not found` |
+| Legacy routes | PASS: `/machining.html` returned HTTP 308 to `/machining`; `/sheet-metal.html` returned HTTP 308 to `/sheet-metal`; `/machining/` and `/sheet-metal/` returned HTTP 200 |
+| Production visual review | PASS: production `/`, `/machining` and `/sheet-metal` reviewed at desktop `1440×1000` and mobile `390×844`; navigation remained usable, process monetary panels were primary, pressure was secondary, currency evidence was readable and no visible horizontal overflow appeared |
+| Private/company boundary | PASS: no real company/private data, supplier/customer quote, private rate, production secret, schedule mutation, Neon/Gmail change or workflow dispatch was used |
+
+The public fallback observation was August 21 rather than the May seed and was surfaced with `FALLBACK`/`READ_FALLBACK` identity. The production homepage therefore correctly avoids presenting old rows as live; because fallback rows had no finite current change value, maximum gain/loss remained unavailable rather than being fabricated. The detailed read-only evidence and screenshots were retained in the certification session under `/tmp/phase5-prod-cert/`.
 
 ## References
 
