@@ -412,3 +412,36 @@ The existing Render health payload continues to report its owner-controlled oper
 The code foundation is now promoted, but **no real calibration has occurred**. The private runtime remains disabled by default and is not exposed through public Render. The first real pilot remains a separate local/private operation requiring authenticated operator identity, least privilege, encryption/key management, private backup/restore, lifecycle and revocation, access audit, leakage scanning, reconciliation, retention/deletion controls and independent certification. This certification does not authorize real private-data import or customer/supplier quotation behavior.
 
 Production visual artifacts are under `docs/visual-review/phase4abcd-production-*.png`, with metrics in `docs/visual-review/phase4abcd-production-visual-metrics.json` and read-only deployment observations in `docs/visual-review/phase4abcd-render-deployment-observations.md`.
+
+## Phase 4E — First Real Calibration Operator Readiness V1 production certification
+
+**PHASE_4E_FIRST_REAL_CALIBRATION_OPERATOR_READINESS_PRODUCTION_PASS**
+
+The approved Phase 4E feature head `7eb416dbf85685231f2eecda6574405f4817fc05` was promoted from authoritative main `c846c2837f0666334d26e464a0e0552dcf91c8ff` by pure fast-forward. No force push or history rewrite was used. This promotion covers code, runbook and operator tooling only. No real company/private data was requested, created, imported, filled, loaded, persisted, committed, logged, backed up or exposed; no real private directory, real profile, real pilot or first real pilot execution occurred.
+
+| Certification item | Result |
+|---|---|
+| Promotion SHA | `7eb416dbf85685231f2eecda6574405f4817fc05` |
+| Feature lineage | Phase 4C approved `2d1afa0836688c443202933a7913e52b7e589fab` → Phase 4D `03ca44e2a22dbcb7177e258fc1e2a67e0958a70f` → Phase 4E `7eb416dbf85685231f2eecda6574405f4817fc05` |
+| Full deterministic suite | PASS: **126 passed / 0 failed** |
+| Final gates | PASS: `npm ci`, `npm run check`, `npm test`, `npm run build`, `npm audit --omit=dev`, `git diff --check`; audit reported 0 vulnerabilities |
+| Operator commands | `private:init`, `private:validate`, `private:estimate`, `private:leak-check` present and syntax-covered |
+| Directory safety | `private:init` refuses relative, repository-contained and symlink-contained destinations; external directories use `0700`, files use `0600`, and existing regular templates are not overwritten |
+| Empty templates | Profile and pilot skeletons contain field names only; all real-value fields start `null`; no synthetic rates are inserted |
+| Safe validation | `private:validate` checks enable flag, external paths, profile lifecycle/approval/effective dates, pilot schema, local identity, loopback boundary and public leakage; output is status-only and excludes paths, rates, historical cost and payloads |
+| Post-run leak check | PASS in deterministic suite and synthetic smoke: no tracked private payload, no sensitive untracked repository file, public assets/documents safe, public API unchanged; output contains safe status only |
+| Localhost boundary | `private:estimate` remains disabled by default and bind-only `127.0.0.1`; no private runtime is registered by public `server.js` |
+| Existing private runtime/pilot regression | PASS: Phase 4C/4D behavior remains covered by the 126-test suite; no automatic profile write-back exists |
+| Existing Render service | PASS: normal deployment from main and read-only public regression completed; no new Render service created |
+| Public pages | PASS: `/`, `/machining`, `/sheet-metal`, `/estimate` HTTP 200 |
+| Public health | PASS: `/health` and `/health/weekly` HTTP 200 with top-level `status=OK`; existing owner-controlled operational notices were not modified or triggered |
+| Private public routes | PASS: `/private-estimate`, `/api/private/estimate` and `/api/private/calibration-pilot` do not expose private runtime content |
+| Public engineering | PASS: production schema/runtime allow `NO_RATE` only; `NO_RATE` returns monetary fields `null`; `PRIVATE_CALIBRATED` is rejected; `SYNTHETIC_TEST` is rejected |
+| Market isolation | PASS: machining and sheet-metal public references retain `engineeringEstimate=null` |
+| Production configuration | PASS: Render continues `npm start → server.js`; no private environment variables or private paths were added to Render |
+
+The existing Render service `https://raw-material-market-dashboard-1.onrender.com` served the promoted public pages. Read-only verification confirmed canonical legacy redirects where applicable, public-only navigation and wording, public `/estimate` NO_RATE behavior, no private operator content, and no private marker/raw-rate leakage. The public market pages may truthfully show existing `API_ERROR`, `NO_DATA` or readiness states; these are not private calibration failures and no fabricated value was inserted.
+
+The next action is **manual local operator execution of the first real pilot**, not another coding phase. That future operation requires the operator to choose a repository-external private directory, complete the value-empty templates locally, validate with `npm run private:validate`, run exactly one controlled pilot only after all statuses pass, stop the runtime, preserve only protected external audit/history and run `npm run private:leak-check`. This certification does not itself authorize or execute that real pilot.
+
+No Render/private cloud upload, Neon change, Gmail change, schedule change, secret change, workflow dispatch, migration, bootstrap, daily/weekly job, backfill or mail send was performed. Public Render remains outside the private trust boundary. Read-only browser observations are recorded in `docs/visual-review/phase4e-promotion-browser-observations.md`.
