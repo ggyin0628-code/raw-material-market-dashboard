@@ -584,3 +584,25 @@ This is the final production certification checkpoint. No real-data pilot is aut
 | Main | **UNCHANGED** at `096005640b08fc31c340a38d41c0f2c41655757d`; promotion remains explicitly out of scope |
 
 Detailed audit and public monetary contract documentation are `docs/FULL_PRODUCTION_DATA_INTEGRITY_AUDIT.md` and `docs/PUBLIC_PROCESS_COST_REFERENCE_CONTRACT.md`. Local visual evidence is under `artifacts/phase4f-pasted13-public-process-reference/`. The current feature head is ready for separate review only and must stop before final main promotion.
+
+
+## Phase 4G — Narrow pre-promotion remediation
+
+**FEATURE_BRANCH_READY_FOR_REVIEW — DO NOT PROMOTE MAIN**
+
+第二次獨立 review 指出的五項 blocker 已在既有 `feat/production-data-integrity-public-process-reference-v1` 完成窄幅修正；承接 head `7a28ca1176f72137ddf5afcadcaa24eec91891d3`，implementation commit 為 `fff1a4ccb55fb4452ee2f1fd5957eac0049026e1`。未重新設計已完成的資料完整性與 money-first architecture。
+
+| Status item | Result |
+|---|---|
+| Stale candidate | PASS: 全部 memory/local/seed candidates 依原始 `dataAsOf` 排序；最新 eligible candidate優先為 STALE，無 eligible 才選最新 EXPIRED |
+| Daily readiness | PASS: execution `SUCCEEDED` 與 data readiness 分離；fresh/fallback/stale/expired/no-data/API-error/freshness-eligible counts與`dataAsOf`持久化；read status不再只看 command success |
+| Currency provenance | PASS: TaiwanCNC/PRO360 `EXPLICIT`；MINCA/Zhongkai `LOCALE_INFERRED`；numeric table保留但 UI顯示網站列示與詢價確認，不做 FX conversion |
+| Copy consistency | PASS: machining與sheet-metal footer改為準確 public price/reference boundary，不再否認頁面實際列示的公開金額 |
+| Open-ended card | PASS: `priceOpenEnded=true`, finite `priceMin`, null `priceMax` rendered as valid `NT$ 2,000+ / hr`／`NT$ 1,800+ / hr` cards |
+| Visual | PASS: phase4g desktop/mobile captures for both pages; public monetary panels remain primary, inferred-currency notes readable, no visible horizontal overflow |
+| Tests | PASS: **168 passed / 0 failed**; blocker-targeted suite **103 passed / 0 failed** |
+| Gates | PASS: `npm ci`, `npm run check`, `npm test`, `npm run build`, `npm audit --omit=dev` (**0 vulnerabilities**), `git diff --check` |
+| Production operations | NONE: no deploy, main promotion, workflow/schedule/mail/Neon/Gmail/secret change, migration, bootstrap or real company/private data |
+| Main | **UNCHANGED** at `096005640b08fc31c340a38d41c0f2c41655757d` |
+
+Detailed records remain in `docs/FULL_PRODUCTION_DATA_INTEGRITY_AUDIT.md` and `docs/PUBLIC_PROCESS_COST_REFERENCE_CONTRACT.md`; visual artifacts are under `artifacts/phase4f-pasted13-public-process-reference/`. The branch requires separate review and must stop before main promotion.

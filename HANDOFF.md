@@ -594,3 +594,26 @@ The final production checkpoint is complete. No real-data pilot is authorized by
 | Main | **UNCHANGED** at `096005640b08fc31c340a38d41c0f2c41655757d`; no promotion authorized by this checkpoint |
 
 Public source acceptance and limitations are documented in `docs/FULL_PRODUCTION_DATA_INTEGRITY_AUDIT.md` and `docs/PUBLIC_PROCESS_COST_REFERENCE_CONTRACT.md`. Visual evidence is committed under `artifacts/phase4f-pasted13-public-process-reference/`. A later promotion, if separately approved, must independently rerun the complete gates and verify branch lineage; this handoff intentionally stops before main promotion.
+
+
+## Phase 4G — Narrow pre-promotion remediation after independent review
+
+**FEATURE_BRANCH_READY_FOR_REVIEW — STOP BEFORE MAIN PROMOTION**
+
+本次只針對第二次獨立 review 指出的五項 blocker 修正，未重新設計已完成的 public data-integrity／money-first architecture。修正位於既有 `feat/production-data-integrity-public-process-reference-v1`，承接前一 checkpoint `7a28ca1176f72137ddf5afcadcaa24eec91891d3`；implementation commit 為 `fff1a4ccb55fb4452ee2f1fd5957eac0049026e1`。
+
+| Handoff item | Result |
+|---|---|
+| Stale candidate selection | PASS: `getStaleCache()` inspects memory/local/seed candidates, ranks original `dataAsOf`, chooses newest eligible STALE, and only falls back to newest EXPIRED when no eligible candidate exists |
+| Daily execution vs readiness | PASS: daily job records `executionState=SUCCEEDED` separately from explicit freshness counts/readiness; all expired becomes `DAILY_DATA_STALE`, all NO_DATA becomes `DAILY_DATA_NOT_READY`, adequate fresh/fallback coverage becomes `DAILY_DATA_READY` |
+| Currency provenance | PASS: `currencyEvidence=EXPLICIT` for TaiwanCNC/PRO360; `LOCALE_INFERRED` for MINCA/Zhongkai because checked pages do not explicitly state currency; no FX conversion or source-explicit `NT$` claim is made for inferred rows |
+| Machining wording | PASS: footer now states that the page lists traceable public market/public price references and excludes internal machine rates, formal supplier quotes and company target prices |
+| Sheet-metal wording | PASS: footer now states amounts come from traceable public price tables and do not represent supplier quotes, internal cost or target price |
+| Open-ended cards | PASS: 5-axis and turn-mill render as valid monetary cards `NT$ 2,000+ / hr` and `NT$ 1,800+ / hr`, not no-data cards |
+| UI review | PASS: recaptured desktop/mobile screenshots for both pages; money-first hierarchy, inferred-currency wording and no visible horizontal overflow reviewed |
+| Deterministic regression | PASS: **168 passed / 0 failed**; targeted blocker suite passed **103 / 103** before final full suite |
+| Required gates | PASS: `npm ci`, `npm run check`, `npm test`, `npm run build`, `npm audit --omit=dev` with **0 vulnerabilities**, `git diff --check` |
+| Production boundary | NONE: no deploy, main promotion, schedule/secret/Neon/Gmail change, workflow dispatch, migration, bootstrap, mail or real company/private data |
+| Main | **UNCHANGED** at `096005640b08fc31c340a38d41c0f2c41655757d` |
+
+Visual artifacts are under `artifacts/phase4f-pasted13-public-process-reference/`, including `machining-phase4g-desktop-1440x1000.png`, `machining-phase4g-mobile-390x844.png`, `sheet-metal-phase4g-desktop-1440x1000.png`, `sheet-metal-phase4g-mobile-390x844.png` and `phase4g-currency-visual-review.md`. The external currency evidence audit is recorded in the public contract/audit documents and the source pages remain linked there. This checkpoint stops before main promotion.
