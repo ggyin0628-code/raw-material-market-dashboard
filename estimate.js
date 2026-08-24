@@ -1,155 +1,195 @@
+const calculator = window.InternalEngineeringCostCalculator;
 const form = document.getElementById("estimateForm");
-const resultRoot = document.getElementById("estimateResult");
-const statusRoot = document.getElementById("estimateStatus");
-const errorRoot = document.getElementById("estimateError");
+const resultRoot = document.getElementById("resultContent");
+const emptyResult = document.getElementById("emptyResult");
+const validationSummary = document.getElementById("validationSummary");
+const statusMessage = document.getElementById("statusMessage");
+const densityHint = document.getElementById("densityHint");
+
+const NUMERIC_IDS = [
+  "densityKgM3", "thicknessMm", "lengthMm", "widthMm", "quantity", "batchCount", "materialRatePerKg", "materialUtilizationPct", "scrapPct",
+  "cutLengthMmPerPart", "pierceCountPerPart", "cuttingSpeedMmPerMin", "pierceSecondsEach", "cuttingMachineRatePerMin", "cuttingSetupRatePerMin", "cuttingSetupMinutesPerBatch",
+  "bendCountPerPart", "secondsPerBend", "bendingMachineRatePerMin", "bendingSetupRatePerMin", "bendingSetupMinutesPerBatch",
+  "weldLengthMmPerPart", "weldingSpeedMmPerMin", "weldingLaborRatePerMin", "weldingEquipmentRatePerMin", "weldingSetupMinutesPerBatch",
+  "treatedAreaMm2PerPart", "surfaceTreatmentRatePerM2", "engineeringSetupMinutesPerBatch", "engineeringRatePerMin", "otherFixedCost",
+];
+const PROCESS_NAMES = ["cutting", "bending", "welding", "surfaceTreatment", "engineeringSetup"];
 
 function byId(id) { return document.getElementById(id); }
-function numberValue(id) {
+function textValue(id) { const value = byId(id).value.trim(); return value === "" ? null : value; }
+function numberValue(id, invalidFields) {
   const raw = byId(id).value.trim();
-  return raw === "" ? undefined : Number(raw);
+  if (raw === "") return null;
+  const value = Number(raw);
+  if (!Number.isFinite(value)) invalidFields[id] = true;
+  return Number.isFinite(value) ? value : null;
 }
-function textValue(id) {
-  const raw = byId(id).value.trim();
-  return raw === "" ? null : raw;
-}
-function formatNumber(value, digits = 6) {
-  if (value === null || value === undefined || !Number.isFinite(Number(value))) return "—";
-  return Number(value).toLocaleString("zh-TW", { maximumFractionDigits: digits });
-}
-function escapeHtml(value) {
-  return String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
-}
-function valueOrNull(id) {
-  const value = numberValue(id);
-  return value === undefined || Number.isNaN(value) ? undefined : value;
-}
-function buildInput() {
+function readInput() {
+  const invalidFields = {};
+  const values = {};
+  NUMERIC_IDS.forEach((id) => { values[id] = numberValue(id, invalidFields); });
   return {
-    processFamily: "SHEET_METAL",
-    material: {
-      materialFamily: byId("materialFamily").value,
-      grade: textValue("grade"),
-      thicknessMm: valueOrNull("thicknessMm"),
-      densityKgM3: valueOrNull("densityKgM3"),
-    },
-    blank: {
-      lengthMm: valueOrNull("lengthMm"),
-      widthMm: valueOrNull("widthMm"),
-      quantity: valueOrNull("quantity"),
-    },
-    cutting: {
-      enabled: byId("cuttingEnabled").checked,
-      cutLengthMmPerPart: valueOrNull("cutLengthMmPerPart"),
-      pierceCountPerPart: valueOrNull("pierceCountPerPart"),
-    },
-    bending: {
-      enabled: byId("bendingEnabled").checked,
-      bendCountPerPart: valueOrNull("bendCountPerPart"),
-    },
-    welding: {
-      enabled: byId("weldingEnabled").checked,
-      weldLengthMmPerPart: valueOrNull("weldLengthMmPerPart"),
-    },
-    surfaceTreatment: {
-      enabled: byId("surfaceTreatmentEnabled").checked,
-      treatmentType: textValue("treatmentType"),
-      treatedAreaMm2PerPart: valueOrNull("treatedAreaMm2PerPart"),
-    },
-    setup: { batchCount: valueOrNull("batchCount") },
-    materialUtilizationPct: valueOrNull("materialUtilizationPct"),
-    scrapPct: valueOrNull("scrapPct"),
+    ...values,
+    materialFamily: byId("materialFamily").value,
+    grade: textValue("grade"),
+    cuttingEnabled: byId("cuttingEnabled").checked,
+    bendingEnabled: byId("bendingEnabled").checked,
+    weldingEnabled: byId("weldingEnabled").checked,
+    surfaceTreatmentEnabled: byId("surfaceTreatmentEnabled").checked,
+    engineeringSetupEnabled: byId("engineeringSetupEnabled").checked,
+    invalidFields,
   };
 }
-function renderMetric(label, value, unit, note = "") {
-  return `<div class="estimate-metric"><span>${escapeHtml(label)}</span><strong>${escapeHtml(formatNumber(value))}</strong><small>${escapeHtml(unit)}${note ? `｜${escapeHtml(note)}` : ""}</small></div>`;
+function formatValue(value) {
+  if (value === null || value === undefined || !Number.isFinite(Number(value))) return "資料不足";
+  return new Intl.NumberFormat("zh-Hant", { maximumFractionDigits: 6 }).format(Number(value));
 }
-function renderCost(cost, rateProfile) {
-  if (rateProfile.mode === "NO_RATE") return `<div class="estimate-cost"><strong>尚未設定成本參數</strong>目前為 NO_RATE；所有貨幣欄位保持 null，不呈現任何假價格或公司成本。</div>`;
-  return `<div class="estimate-cost"><strong>SYNTHETIC / DEMO / TEST ONLY</strong>此模式只供 deterministic tests；成本不是市場價格、公司成本或供應商報價。總額：${escapeHtml(formatNumber(cost.totalEstimatedCost))}</div>`;
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" })[character]);
 }
-function renderProcessTime(processTime) {
-  if (!processTime || processTime.state !== "CALCULATED") return `<div class="estimate-cost"><strong>尚未載入製程時間校正參數</strong>目前不猜測切割速度、每折秒數、焊接速度、setup 或操作效率；製程時間欄位保持 null。</div>`;
-  return `<div class="estimate-metric-grid">
-    ${renderMetric("總 setup 時間", processTime.overall.totalSetupMinutes, "min")}
-    ${renderMetric("總 run 時間", processTime.overall.totalRunMinutes, "min")}
-    ${renderMetric("總製程時間", processTime.overall.totalProcessMinutes, "min")}
-  </div>`;
+function setOutput(key, value, raw = false) {
+  document.querySelectorAll(`[data-output="${key}"]`).forEach((node) => { node.textContent = raw ? String(value) : formatValue(value); });
 }
-function renderResult(payload) {
-  const estimate = payload.estimate;
-  const physical = estimate.physical;
-  const workload = estimate.workload;
-  const costs = estimate.costBreakdown;
-  const trace = estimate.formulaTrace.map((item) => `<li><strong>${escapeHtml(item.field)}｜${escapeHtml(item.result)} ${escapeHtml(item.unit)}</strong><code>${escapeHtml(item.formula)}\n輸入：${escapeHtml(JSON.stringify(item.inputs))}\n單位轉換：${escapeHtml(item.unitConversion)}</code></li>`).join("");
-  const warnings = estimate.warnings.length ? `<ul class="estimate-warning-list">${estimate.warnings.map((warning) => `<li>${escapeHtml(warning)}</li>`).join("")}</ul>` : "<p>沒有額外警示。</p>";
-  resultRoot.innerHTML = `
-    <div class="estimate-summary">
-      <div class="estimate-stat"><span>單件重量</span><strong>${escapeHtml(formatNumber(physical.blankMassKgPerPart))} kg</strong><small>理論毛坯重量</small></div>
-      <div class="estimate-stat"><span>總材料重量</span><strong>${escapeHtml(formatNumber(physical.totalMaterialMassKg))} kg</strong><small>未填利用率時不假設損耗</small></div>
-      <div class="estimate-stat estimate-market"><span>估算模式</span><strong>${escapeHtml(estimate.rateProfile.mode)}</strong><small>${escapeHtml(estimate.rateProfile.source)}</small></div>
-    </div>
-    <section class="estimate-result-section"><h3>物理計算</h3><div class="estimate-metric-grid">
-      ${renderMetric("毛坯面積", physical.blankAreaMm2, "mm²")}
-      ${renderMetric("毛坯體積", physical.blankVolumeMm3, "mm³")}
-      ${renderMetric("密度", physical.densityKgM3, "kg/m³", physical.densitySource)}
-      ${renderMetric("數量", physical.quantity, "件")}
-      ${renderMetric("理論總毛坯重量", physical.theoreticalTotalBlankMassKg, "kg")}
-      ${renderMetric("材料利用率", physical.materialUtilizationPct ?? (physical.scrapPct === null ? null : 100 - physical.scrapPct), "%", physical.materialUtilizationPct !== null ? "明確輸入" : physical.scrapPct !== null ? `由損耗率 ${physical.scrapPct}% 換算` : "未提供")}
-      ${renderMetric("材料損耗率", physical.scrapPct, "%", physical.scrapPct === null ? "未提供" : "明確輸入")}
-    </div></section>
-    <section class="estimate-result-section"><h3>製造工作量</h3><div class="estimate-metric-grid">
-      ${renderMetric("總切割長度", workload.totalCutLengthM, "m")}
-      ${renderMetric("總穿孔", workload.totalPierceCount, "次")}
-      ${renderMetric("總折彎", workload.totalBendCount, "次")}
-      ${renderMetric("總焊接長度", workload.totalWeldLengthM, "m")}
-      ${renderMetric("總表處面積", workload.totalTreatedAreaM2, "m²")}
-      ${renderMetric("批次數", workload.batchCount, "批")}
-      ${renderMetric("每批數量", workload.quantityPerBatch, "件／批")}
-    </div></section>
-    <section class="estimate-result-section"><h3>製程時間</h3>${renderProcessTime(estimate.processTimeEstimate)}</section>
-    <section class="estimate-result-section"><h3>成本估算</h3>${renderCost(costs, estimate.rateProfile)}</section>
-    <section class="estimate-result-section"><h3>警示與資料邊界</h3>${warnings}</section>
-    <section class="estimate-result-section"><details><summary><strong>查看公式與計算依據</strong></summary><ol class="estimate-trace-list">${trace}</ol></details></section>
-    <p class="estimate-footer-note">${escapeHtml(estimate.disclaimer)} 市場參考不會被轉成 marketAdjustmentFactor；目前為 ${escapeHtml(String(estimate.marketAdjustmentFactor))}。</p>`;
+function componentLabel(key) {
+  return { cutting: "雷射切割／切割", bending: "折彎", welding: "焊接", surfaceTreatment: "表面處理", engineeringSetup: "工程／其他準備" }[key] || key;
 }
-function showValidationError(payload) {
-  const errors = (payload.errors || []).map((error) => `${error.path}｜${error.code}｜${error.message}`);
-  errorRoot.innerHTML = `<strong>輸入需要修正：</strong><br>${errors.map(escapeHtml).join("<br>")}`;
-  errorRoot.classList.remove("hidden");
-  statusRoot.textContent = "未產生估算結果；請依結構化錯誤修正輸入。";
+function stateText(state) {
+  return state === "READY" ? "已完成" : state === "DISABLED" ? "未啟用" : state === "INVALID" ? "資料錯誤" : "資料不足";
 }
-function clearError() { errorRoot.textContent = ""; errorRoot.classList.add("hidden"); }
-async function submitEstimate(event) {
-  event.preventDefault();
-  clearError();
-  statusRoot.textContent = "正在計算明確工程量…";
-  try {
-    const response = await fetch("/api/engineering/estimate", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(buildInput()) });
-    const payload = await response.json();
-    if (!response.ok || payload.state !== "OK") { showValidationError(payload); return; }
-    renderResult(payload);
-    statusRoot.textContent = `已完成 ${payload.estimate.processFamily} 工程量計算；成本模式 ${payload.estimate.rateProfile.mode}。`;
-  } catch (error) {
-    errorRoot.textContent = "估算服務暫時無法使用，請稍後再試。";
-    errorRoot.classList.remove("hidden");
-    statusRoot.textContent = "估算失敗。";
+function showValidation(errors) {
+  if (!errors.length) {
+    validationSummary.classList.add("hidden");
+    validationSummary.innerHTML = "";
+    return;
   }
+  validationSummary.classList.remove("hidden");
+  validationSummary.innerHTML = `<strong>請先修正輸入：</strong><ul>${errors.map((error) => `<li>${escapeHtml(error.label)}：${escapeHtml(error.message)}</li>`).join("")}</ul>`;
+}
+function renderBreakdown(result) {
+  const c = result.costs;
+  const rows = [
+    ["材料成本", c.materialCost],
+    ["切割運轉成本", c.cuttingRunCost],
+    ["穿孔成本", c.piercingCost],
+    ["切割準備成本", c.cuttingSetupCost],
+    ["折彎運轉成本", c.bendingRunCost],
+    ["折彎準備成本", c.bendingSetupCost],
+    ["焊接人工成本", c.weldingLaborCost],
+    ["焊接設備成本", c.weldingEquipmentCost],
+    ["焊接準備成本", c.weldingSetupCost],
+    ["表面處理成本", c.surfaceTreatmentCost],
+    ["setup／engineering 成本", c.engineeringSetupCost],
+    ["其他固定成本（獨立）", c.otherFixedCost],
+    ["總額", c.totalCost],
+  ];
+  byId("costBreakdown").innerHTML = rows.map(([label, value]) => `<div class="estimate-breakdown-row"><span>${escapeHtml(label)}</span><span>${escapeHtml(formatValue(value))}</span></div>`).join("");
+}
+function renderComponents(result) {
+  const entries = [
+    ["cutting", result.components.cutting, `運轉 ${formatValue(result.components.cutting.runMinutes)} min；穿孔 ${formatValue(result.components.cutting.pierceMinutes)} min；setup ${formatValue(result.components.cutting.setupMinutes)} min`, result.components.cutting.totalCost],
+    ["bending", result.components.bending, `運轉 ${formatValue(result.components.bending.runMinutes)} min；setup ${formatValue(result.components.bending.setupMinutes)} min`, result.components.bending.totalCost],
+    ["welding", result.components.welding, `運轉 ${formatValue(result.components.welding.runMinutes)} min；setup ${formatValue(result.components.welding.setupMinutes)} min`, result.components.welding.totalCost],
+    ["surfaceTreatment", result.components.surfaceTreatment, `總面積 ${formatValue(result.components.surfaceTreatment.totalTreatedAreaM2)} m²；不猜測製程時間`, result.components.surfaceTreatment.totalCost],
+    ["engineeringSetup", result.components.engineeringSetup, `setup ${formatValue(result.components.engineeringSetup.setupMinutes)} min`, result.components.engineeringSetup.totalCost],
+  ];
+  byId("componentResults").innerHTML = entries.map(([key, item, detail, cost]) => {
+    const stateClass = item.state === "MISSING" ? "missing" : item.state === "INVALID" ? "invalid" : item.state === "DISABLED" ? "disabled" : "";
+    const errors = item.errors?.length ? `<div class="detail">${item.errors.map((error) => `${escapeHtml(error.label)}：${escapeHtml(error.message)}`).join("；")}</div>` : "";
+    return `<article class="estimate-component"><h4>${escapeHtml(componentLabel(key))}</h4><span class="state ${stateClass}">${escapeHtml(stateText(item.state))}</span><div class="detail">${escapeHtml(detail)}</div>${errors}<div class="cost"><span>成本</span><span>${escapeHtml(formatValue(cost))}</span></div></article>`;
+  }).join("");
+}
+function renderFormulas(result) {
+  byId("formulaList").innerHTML = result.formulaTrace.map(([label, formula, detail]) => `<li><strong>${escapeHtml(label)}</strong><code>${escapeHtml(formula)}<br>${escapeHtml(detail)}</code></li>`).join("");
+}
+function renderResult(result) {
+  emptyResult.classList.add("hidden");
+  resultRoot.classList.remove("hidden");
+  setOutput("blankMassKgPerPart", result.physical.blankMassKgPerPart);
+  setOutput("totalMaterialMassKg", result.physical.totalMaterialMassKg);
+  setOutput("totalCutLengthM", result.workload.totalCutLengthM);
+  setOutput("totalPierceCount", result.workload.totalPierceCount);
+  setOutput("totalBendCount", result.workload.totalBendCount);
+  setOutput("totalWeldLengthM", result.workload.totalWeldLengthM);
+  setOutput("totalTreatedAreaM2", result.workload.totalTreatedAreaM2);
+  setOutput("quantityPerBatch", result.physical.quantityPerBatch);
+  setOutput("cuttingRunMinutes", result.time.cuttingRunMinutes);
+  setOutput("pierceMinutes", result.time.pierceMinutes);
+  setOutput("bendingRunMinutes", result.time.bendingRunMinutes);
+  setOutput("weldingRunMinutes", result.time.weldingRunMinutes);
+  setOutput("totalSetupMinutes", result.time.totalSetupMinutes);
+  setOutput("totalProcessMinutes", result.time.totalProcessMinutes);
+  setOutput("timeStatus", result.time.timeStatus, true);
+  setOutput("totalCost", result.costs.totalCost);
+  setOutput("costPerPart", result.costs.costPerPart);
+  setOutput("costStatus", result.costs.costStatus === "READY" ? "READY" : "資料不足", true);
+  renderBreakdown(result);
+  renderComponents(result);
+  renderFormulas(result);
+}
+function clearResult(message = "尚未計算。填入明確資料後開始。") {
+  emptyResult.classList.remove("hidden");
+  resultRoot.classList.add("hidden");
+  document.querySelectorAll("[data-output]").forEach((node) => { node.textContent = "資料不足"; });
+  ["costBreakdown", "componentResults", "formulaList"].forEach((id) => { byId(id).textContent = ""; });
+  validationSummary.classList.add("hidden");
+  validationSummary.innerHTML = "";
+  statusMessage.className = "estimate-status";
+  statusMessage.textContent = message;
+}
+function updateDensity() {
+  const family = byId("materialFamily").value;
+  const standard = calculator.DENSITIES_KG_M3[family];
+  densityHint.textContent = standard ? `工程預設值 ${standard} kg/m³；可直接覆寫。` : "其他材質必須明確提供密度；工具不猜測。";
+}
+function updateProcessState() {
+  PROCESS_NAMES.forEach((name) => {
+    const toggleId = name === "surfaceTreatment" ? "surfaceTreatmentEnabled" : name === "engineeringSetup" ? "engineeringSetupEnabled" : `${name}Enabled`;
+    const toggle = byId(toggleId);
+    const container = document.querySelector(`[data-process-fields="${name}"]`);
+    const card = document.querySelector(`[data-process="${name}"]`);
+    if (!toggle || !container || !card) return;
+    container.classList.toggle("is-disabled", !toggle.checked);
+    container.querySelectorAll("input, select, textarea").forEach((field) => { field.disabled = !toggle.checked; });
+    card.classList.toggle("is-disabled", !toggle.checked);
+  });
 }
 function resetEstimate() {
-  clearError();
-  resultRoot.innerHTML = `<div class="estimate-cost"><strong>尚未計算</strong>請先輸入工程條件並按下「計算工程量」。</div>`;
-  statusRoot.textContent = "已清除結果；請輸入明確工程條件。";
+  form.reset();
+  updateDensity();
+  updateProcessState();
+  clearResult();
 }
-function updateEnabledFields() {
-  const groups = [
-    ["cuttingEnabled", ["cutLengthMmPerPart", "pierceCountPerPart"]],
-    ["bendingEnabled", ["bendCountPerPart"]],
-    ["weldingEnabled", ["weldLengthMmPerPart"]],
-    ["surfaceTreatmentEnabled", ["treatmentType", "treatedAreaMm2PerPart"]],
-  ];
-  for (const [toggle, ids] of groups) for (const id of ids) byId(id).disabled = !byId(toggle).checked;
+function handleSubmit(event) {
+  event.preventDefault();
+  showValidation([]);
+  statusMessage.className = "estimate-status";
+  statusMessage.textContent = "正在於目前瀏覽器頁面計算…";
+  try {
+    const result = calculator.calculate(readInput());
+    renderResult(result);
+    statusMessage.className = "estimate-status ok";
+    statusMessage.textContent = result.costs.costStatus === "READY" ? "計算完成。結果只存在目前頁面。" : "工程量已完成；部分啟用元件資料不足，成本總額暫不計算。";
+  } catch (error) {
+    clearResult("輸入格式不正確，尚未產生估算。");
+    showValidation(error.errors || [{ label: "輸入", message: "請檢查欄位。" }]);
+    statusMessage.className = "estimate-status error";
+    statusMessage.textContent = "輸入格式不正確，尚未產生估算。";
+  }
 }
-form.addEventListener("submit", submitEstimate);
-byId("estimateReset").addEventListener("click", resetEstimate);
-for (const id of ["cuttingEnabled", "bendingEnabled", "weldingEnabled", "surfaceTreatmentEnabled"]) byId(id).addEventListener("change", updateEnabledFields);
-updateEnabledFields();
+
+form.addEventListener("submit", handleSubmit);
+byId("clearButton").addEventListener("click", resetEstimate);
+byId("printButton").addEventListener("click", () => window.print());
+byId("materialFamily").addEventListener("change", () => {
+  const standard = calculator.DENSITIES_KG_M3[byId("materialFamily").value];
+  byId("densityKgM3").value = standard || "";
+  updateDensity();
+});
+PROCESS_NAMES.forEach((name) => {
+  const toggleId = name === "surfaceTreatment" ? "surfaceTreatmentEnabled" : name === "engineeringSetup" ? "engineeringSetupEnabled" : `${name}Enabled`;
+  byId(toggleId).addEventListener("change", updateProcessState);
+});
+window.addEventListener("pageshow", resetEstimate);
+updateDensity();
+updateProcessState();
+clearResult();

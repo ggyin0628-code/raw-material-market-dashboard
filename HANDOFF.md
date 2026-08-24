@@ -492,3 +492,28 @@ The approved remediation head `324937a10ef6d81dd22508ba8fc45e32bf1d0b0a` was pro
 | Production operations | No Render configuration, Neon, Gmail, schedule, secret, workflow, migration, bootstrap, daily/weekly, backfill or mail operation was performed |
 
 The existing Render service `raw-material-market-dashboard-1.onrender.com` deployed normally from `main` and passed read-only certification. The standalone artifact is intentionally not a public Render page. The next action is controlled human distribution/use of the offline HTML, not another automatic development phase; this certification does not enter company values or authorize a real pilot.
+
+
+## Phase 4F follow-up — Public `/estimate` browser-local internal engineering cost workspace
+
+**Status: FEATURE_BRANCH_READY_FOR_REVIEW — DO NOT PROMOTE MAIN — DO NOT ENTER REAL COMPANY DATA**
+
+The approved standalone calculator remains the certified repository-controlled `file://` artifact and the public `/standalone` namespace remains fail-closed with HTTP 404. This follow-up is implemented only on `feat/estimate-browser-local-internal-cost-v1`, created from the current certified main checkpoint `b4666ae5c840e29a23cb747e54eac22d5adb1c76`. It makes the existing public `/estimate` page the primary operator UX without creating another calculator product, changing Render architecture or exposing the standalone artifact.
+
+| Handoff item | Result |
+|---|---|
+| Primary page | `/estimate` is a complete Traditional-Chinese `內部工程成本估算` workspace; `/estimate/` remains the existing route alias |
+| Input sections | 零件基本資料、材料成本、雷射切割／切割、折彎、焊接、表面處理、工程／其他準備、結果、成本拆解與公式明細 |
+| Formula source | `local-cost-calculator.js` is a pure CommonJS/browser module extracted from the certified Phase 4F formula core; deterministic JSON-normalized comparison matches the standalone calculator on the full synthetic fixture |
+| Manual internal costs | Material, cutting, bending, welding, surface-treatment, setup and other fixed-cost values are read and calculated only in the current browser document |
+| Server/API boundary | `estimate.js` never calls `POST /api/engineering/estimate`; no fetch, XHR, WebSocket, sendBeacon, form action, background sync, storage or cookie path exists for entered values |
+| Privacy lifecycle | `pageshow` and `清除全部` reset in-memory inputs/results; invalid populated values fail closed with Traditional-Chinese validation and no result; blank enabled component data remains `資料不足`/null rather than guessed |
+| Market separation | Public market references remain informational only; no market pressure, score or multiplier populates an internal rate or enters the formula |
+| Public API contract | Existing production `/api/engineering/estimate` remains `NO_RATE` only; `PRIVATE_CALIBRATED` and `SYNTHETIC_TEST` behavior is unchanged; machining and sheet-metal `engineeringEstimate=null` behavior remains covered |
+| Standalone protection | `standalone/InternalEngineeringCostCalculator.html` remains a local file artifact; `/standalone` and all descendants remain HTTP 404 and no navigation link is added |
+| Targeted regression | PASS: syntax checks plus estimate browser-local, standalone and engineering suites: **29 passed / 0 failed** |
+| Browser smoke | Synthetic `TEST_ONLY` fixture reached `3,964.75` total and `39.6475` per part; post-click network calls `[]`; cookie, localStorage and sessionStorage were empty; clear removed result content; invalid input stayed fail-closed; pageshow cleared in-memory values |
+| Visual review | PASS: `artifacts/phase4f-estimate-browser-local/estimate-desktop-1440x1000.png` and `estimate-mobile-390x844.png`; mobile navigation/tags wrap without visible horizontal overflow |
+| Production operations | NONE: no Render deployment, main promotion, private runtime, real company value, real rate, Neon, Gmail, schedule, secret, migration, workflow, bootstrap, job, telemetry or API data operation |
+
+This follow-up stops before main promotion and before any real company-data entry. The feature branch must receive separate review and approval before any promotion; a future production check must verify that the existing public `/standalone` 404, public API `NO_RATE` boundary and market-reference isolation remain intact.

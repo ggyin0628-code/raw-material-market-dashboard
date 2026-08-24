@@ -340,13 +340,15 @@ test("anonymous public API rejects PRIVATE_CALIBRATED and has no private route o
   assert.equal(privateRoute.statusCode, 404);
 });
 
-test("public UI and market APIs contain no private-rate entry or cost coupling", () => {
+test("public UI keeps browser-local internal costs separate from private runtime and market coupling", () => {
   const estimateHtml = fs.readFileSync("estimate.html", "utf8");
   const estimateJs = fs.readFileSync("estimate.js", "utf8");
   const marketHtml = fs.readFileSync("sheet-metal.html", "utf8");
-  assert.doesNotMatch(estimateHtml, /carbonSteelRatePerKg|machineRatePerMinute|private-rate-input/);
-  assert.doesNotMatch(estimateJs, /carbonSteelRatePerKg|machineRatePerMinute|PRIVATE_CALIBRATED/);
-  assert.match(estimateHtml, /尚未載入製程時間校正參數/);
-  assert.match(estimateHtml, /NO_RATE/);
+  assert.match(estimateHtml, /materialRatePerKg/);
+  assert.match(estimateHtml, /瀏覽器內計算/);
+  assert.match(estimateHtml, /此頁輸入的內部成本資料僅在目前瀏覽器頁面中計算，不會傳送至伺服器或保存/);
+  assert.match(estimateHtml, /NO_RATE-only/);
+  assert.doesNotMatch(estimateHtml, /carbonSteelRatePerKg|machineRatePerMinute|private-rate-input|PRIVATE_CALIBRATED/);
+  assert.doesNotMatch(estimateJs, /carbonSteelRatePerKg|machineRatePerMinute|PRIVATE_CALIBRATED|private-cost/);
   assert.doesNotMatch(marketHtml, /PRIVATE_CALIBRATED|machineRatePerMinute|private-cost/);
 });

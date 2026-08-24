@@ -193,7 +193,8 @@ test("schema and canonical estimate routes are independent and contract-safe", a
   const page = await capture("GET", "/estimate");
   assert.equal(page.statusCode, 200);
   assert.match(page.body, /工程估算/);
-  assert.match(page.body, /非供應商報價/);
+  assert.match(page.body, /瀏覽器內計算/);
+  assert.match(page.body, /內部成本資料僅在目前瀏覽器頁面中計算/);
   const alias = await capture("GET", "/estimate/");
   assert.equal(alias.statusCode, 200);
   const legacy = await capture("GET", "/estimate.html");
@@ -322,18 +323,20 @@ test("engineering API method gates preserve GET-only legacy routes and POST-only
   assert.equal(schemaPost.headers.allow, "GET");
 });
 
-test("engineering page and market-layer isolation contracts remain explicit", () => {
+test("engineering page keeps browser-local internal costs separate from public market/API layers", () => {
   const html = fs.readFileSync("estimate.html", "utf8");
   const js = fs.readFileSync("estimate.js", "utf8");
   const marketHtml = fs.readFileSync("sheet-metal.html", "utf8");
   assert.match(html, /工程估算/);
-  assert.match(html, /未載入公司成本參數/);
+  assert.match(html, /內部工程成本輸入/);
+  assert.match(html, /此頁輸入的內部成本資料僅在目前瀏覽器頁面中計算，不會傳送至伺服器或保存/);
   assert.match(html, /公式與計算依據/);
   assert.match(html, /@media\(max-width:620px\)/); // responsive layout is defined for a narrow mobile viewport
-  assert.match(js, /SYNTHETIC \/ DEMO \/ TEST ONLY/);
-  assert.match(js, /marketAdjustmentFactor/);
-  assert.match(html, /損耗率（%，可選）/);
-  assert.doesNotMatch(html, /materialRatePerKg|cuttingRatePerM|synthetic-rate-input/);
+  assert.match(html, /materialRatePerKg/);
+  assert.match(html, /公開市場參考保持資訊性/);
+  assert.match(html, /不會把市場壓力轉成價格/);
+  assert.match(html, /不會與公開市場分數相乘/);
+  assert.doesNotMatch(js, /fetch\s*\(|XMLHttpRequest|WebSocket|sendBeacon|localStorage|indexedDB|document\.cookie/i);
   assert.match(marketHtml, /工程估算層在 Phase 3A 保持關閉/);
   assert.match(marketHtml, /非供應商報價/);
   assert.equal(/api\/engineering\/estimate/.test(marketHtml), false);

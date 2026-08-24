@@ -494,3 +494,25 @@ The approved public-exposure remediation head `324937a10ef6d81dd22508ba8fc45e32b
 | Production operations | NONE beyond the authorized main push and read-only Render verification; no Render configuration, Neon, Gmail, schedule, secret, workflow, migration, bootstrap, daily/weekly, backfill, mail or private-runtime operation |
 
 The existing Render service `raw-material-market-dashboard-1.onrender.com` deployed normally from `main`. The standalone calculator is not a public Render page and is not discoverable from public UI. The public website remains unchanged except for the required fail-closed `/standalone/` namespace block. The next action is controlled human distribution/use of the offline HTML, not another automatic development phase; this certification does not enter company values or execute a real pilot.
+
+## Phase 4F follow-up — `/estimate` browser-local internal engineering cost workspace
+
+**FEATURE_BRANCH_READY_FOR_REVIEW — DO NOT PROMOTE MAIN — DO NOT ENTER REAL COMPANY DATA**
+
+This follow-up is implemented on `feat/estimate-browser-local-internal-cost-v1`, from certified main `b4666ae5c840e29a23cb747e54eac22d5adb1c76`. It makes the existing public `/estimate` page the primary operator workspace for `內部工程成本估算`; it does not create another calculator product and does not alter the certified standalone `file://` artifact or its public `/standalone` 404 protection.
+
+| Status item | Result |
+|---|---|
+| `/estimate` UI | PASS: complete browser-local Traditional-Chinese workspace for basic part data, material, cutting/piercing, bending, welding, surface treatment, engineering/setup, other fixed cost, results, breakdown and formula trace |
+| Shared formula core | PASS: pure `local-cost-calculator.js` reproduces the certified standalone full synthetic fixture exactly after JSON normalization; standalone artifact remains unchanged |
+| Browser-local privacy | PASS: manual internal cost values never enter server/API/Render logs/Neon/Gmail/analytics/telemetry; no fetch, XHR, WebSocket, sendBeacon, form submission, background sync, localStorage, IndexedDB, sessionStorage or cookie path |
+| Lifecycle | PASS: `pageshow` and `清除全部` reset in-memory inputs/results; clear removes output/breakdown/formula DOM; invalid values show field validation and no result; missing enabled component data is explicit `資料不足`/null |
+| Market separation | PASS: market references remain informational; no market pressure, score or multiplier is used to populate internal rates or cost formulas |
+| Public API | PASS: existing production engineering API remains `NO_RATE` only; `PRIVATE_CALIBRATED`/`SYNTHETIC_TEST` handling and market `engineeringEstimate=null` isolation remain regression-covered |
+| `/standalone` | PASS: namespace deny behavior remains covered; local artifact retained only for controlled `file://` use and no public navigation link added |
+| Targeted deterministic suite | PASS: **29 passed / 0 failed** across estimate integration, standalone and engineering regression tests |
+| Browser smoke | PASS: synthetic `TEST_ONLY` values produced total `3,964.75` and per-part `39.6475`; calculation generated zero additional network calls; cookie/localStorage/sessionStorage were empty; clear, invalid fail-closed and pageshow reset passed |
+| Visual review | PASS: desktop `1440×1000` and mobile `390×844`; navigation/tags wrap on mobile and no visible horizontal overflow; artifacts under `artifacts/phase4f-estimate-browser-local/` |
+| Production boundary | NONE: no Render deploy, main push, private runtime, real company data, real rate, Neon, Gmail, schedules, secrets, migration, workflow, bootstrap, daily/weekly job, mail or telemetry operation |
+
+The branch remains stopped before main promotion and before real company-data entry. Full final gates and branch push remain pending after the implementation/documentation checkpoint.

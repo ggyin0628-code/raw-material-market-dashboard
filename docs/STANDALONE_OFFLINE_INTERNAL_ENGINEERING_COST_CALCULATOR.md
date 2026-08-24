@@ -115,3 +115,23 @@ The public boundary was verified with read-only requests only. No form submissio
 [1]: ../docs/ENGINEERING_ESTIMATE_FOUNDATION.md "Existing engineering estimator foundation"
 [2]: ../lib/engineering/engineeringContract.js "Existing engineering input contract"
 [3]: ../lib/engineering/engineeringEstimator.js "Existing engineering formulas and density defaults"
+
+
+## Phase 4F `/estimate` browser-local integration follow-up
+
+The public `/estimate` page is now the primary operator UX for the existing certified formula model on feature branch `feat/estimate-browser-local-internal-cost-v1`. This is an integration into the existing estimate page, not a second calculator product and not a public route to the standalone artifact. The standalone HTML remains self-contained and remains protected from public HTTP serving by the `/standalone` namespace 404 rule.
+
+The shared [`local-cost-calculator.js`](../local-cost-calculator.js) contains only pure validation, geometry, workload, process-time, component-cost, total-cost and formula-trace logic. It has no I/O, network, persistence, telemetry or API behavior. The browser controller [`estimate.js`](../estimate.js) reads the form and calls that pure core in memory; it never calls `/api/engineering/estimate` and never sends manually entered internal rates or other company-entered values to `server.js`, Render, Neon, Gmail, logs or analytics. No form action, background sync, cookie, localStorage, IndexedDB, sessionStorage, fetch, XHR, WebSocket or beacon path is present.
+
+The `/estimate` page contains the same explicit Phase 4F calculation semantics: standard density defaults, explicit density override, utilization/scrap mutual exclusion, cutting/piercing/bending/welding/setup formulas, surface-treatment area-only cost, other fixed cost as a separate component, missing enabled inputs as `資料不足`/null, and invalid populated values as fail-closed Traditional-Chinese validation. Market references remain informational and are not used as a multiplier or automatic rate population. `清除全部` and `pageshow` clear in-memory inputs and rendered output; refresh/close therefore do not retain the entered values.
+
+| Integration verification | Result |
+|---|---|
+| Targeted deterministic tests | **29 passed / 0 failed** across estimate integration, standalone parity and public engineering regression |
+| Full synthetic fixture parity | Shared core and standalone core both returned total `3,964.75` and per-part `39.6475` after JSON normalization |
+| Browser interaction smoke | Synthetic `TEST_ONLY` values reached `READY`; calculation caused zero additional network calls; cookie, localStorage and sessionStorage remained empty |
+| Clear/invalid lifecycle | Clear removed the rendered result, breakdown and formula DOM; invalid thickness stayed fail-closed with no result; `pageshow` cleared in-memory values |
+| Responsive review | Desktop `1440×1000` and mobile `390×844` screenshots show the existing shell, privacy boundary, stacked mobile layout and no visible horizontal overflow |
+| Production protection | No deployment, main promotion, real company-data entry, private runtime, Render configuration, database, mail, schedule, secret, workflow or API operation was performed |
+
+This follow-up remains feature-branch-ready only. It does not change the standalone artifact's distribution boundary, does not authorize real company values, and must stop before main promotion until separately approved.
