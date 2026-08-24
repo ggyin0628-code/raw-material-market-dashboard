@@ -1,0 +1,45 @@
+{
+  "mode": "file:// synthetic-only",
+  "results": [
+    {
+      "name": "desktop",
+      "width": 1440,
+      "height": 1000,
+      "networkRequests": [],
+      "title": "內部工程成本估算｜離線計算工具",
+      "documentWidth": 1440,
+      "bodyWidth": 1440,
+      "viewportWidth": 1440,
+      "horizontalOverflow": false,
+      "resultVisible": true,
+      "resultTextHasTotal": true,
+      "resultTextHasPerPart": true,
+      "hasRequiredDisclaimer": true,
+      "hasRawNetworkApi": false,
+      "localStorageLength": 0,
+      "cookie": "",
+      "totalText": "3,964.75",
+      "perPartText": "39.6475"
+    },
+    {
+      "name": "mobile",
+      "width": 390,
+      "height": 844,
+      "networkRequests": [],
+      "title": "內部工程成本估算｜離線計算工具",
+      "documentWidth": 390,
+      "bodyWidth": 390,
+      "viewportWidth": 390,
+      "horizontalOverflow": false,
+      "resultVisible": true,
+      "resultTextHasTotal": true,
+      "resultTextHasPerPart": true,
+      "hasRequiredDisclaimer": true,
+      "hasRawNetworkApi": false,
+      "localStorageLength": 0,
+      "cookie": "",
+      "totalText": "3,964.75",
+      "perPartText": "39.6475"
+    }
+  ]
+}
