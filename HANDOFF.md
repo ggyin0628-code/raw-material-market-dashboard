@@ -517,3 +517,10 @@ The approved standalone calculator remains the certified repository-controlled `
 | Production operations | NONE: no Render deployment, main promotion, private runtime, real company value, real rate, Neon, Gmail, schedule, secret, migration, workflow, bootstrap, job, telemetry or API data operation |
 
 This follow-up stops before main promotion and before any real company-data entry. The feature branch must receive separate review and approval before any promotion; a future production check must verify that the existing public `/standalone` 404, public API `NO_RATE` boundary and market-reference isolation remain intact.
+
+
+### Final feature-branch delivery checkpoint
+
+The completed feature head is `29fe7df546301b76777b431d4ce72e4502db44bf` and was pushed to `origin/feat/estimate-browser-local-internal-cost-v1`. Final gates passed on the completed worktree: `npm ci`, `npm run check`, `npm test` (**143 passed / 0 failed**), `npm run build`, `npm audit --omit=dev` (**0 vulnerabilities**) and `git diff --check`. The visual artifacts and review note are committed under `artifacts/phase4f-estimate-browser-local/`.
+
+`main` and `origin/main` both remain `b4666ae5c840e29a23cb747e54eac22d5adb1c76`; this follow-up was not promoted. No Render deployment, real company-data entry, private runtime execution, API submission, database, mail, schedule, secret, workflow or telemetry operation was performed.
