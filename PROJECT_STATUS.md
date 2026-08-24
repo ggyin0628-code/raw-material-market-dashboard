@@ -444,3 +444,26 @@ The existing Render service `https://raw-material-market-dashboard-1.onrender.co
 The next action is **manual local operator execution of the first real pilot**, not another coding phase. It is not executed automatically by this certification. The future operator must use a repository-external private directory, complete the value-empty templates locally, run `npm run private:validate`, execute exactly one controlled pilot only after all statuses pass, stop the localhost runtime, preserve only protected external audit/history and run `npm run private:leak-check`. This status does not itself authorize the operator to enter values.
 
 No Render/private cloud upload, Neon change, Gmail change, schedule change, secret change, workflow dispatch, migration, bootstrap, daily/weekly job, backfill or mail send was performed. The final annotated checkpoint tag `first-real-calibration-operator-readiness-v1` is created after the documentation-only checkpoint commit and points to the final verified main state.
+
+## Phase 4F — Standalone public exposure remediation
+
+**PHASE_4F_STANDALONE_PUBLIC_EXPOSURE_REMEDIATION_PASS — FEATURE_BRANCH_READY_FOR_REVIEW — DO NOT PROMOTE MAIN**
+
+The Phase 4F standalone calculator remains a repository artifact for controlled offline `file://` copying, but a narrow public-server remediation now blocks the entire `/standalone` namespace before generic static-file serving. The change is on `feat/standalone-offline-public-exposure-remediation-v1`, based on approved Phase 4F SHA `6f13df19066b9fdd6c0d2427def7de094317afe1`.
+
+| Status item | Result |
+|---|---|
+| Exact deny behavior | HTTP 404, body `Not found`, no redirect for `/standalone`, `/standalone/`, `/standalone/InternalEngineeringCostCalculator.html`, `/standalone/test.html` and decoded descendants |
+| Server boundary | `server.js` checks `/standalone` namespace before legacy redirects, static resolution and generic root serving |
+| Local artifact | PASS: repository file remains present and valid for direct `file://` opening; calculator formulas/UI unchanged |
+| Public pages | PASS: `/`, `/machining`, `/sheet-metal`, `/estimate` remain HTTP 200 |
+| Public assets | PASS: `/styles.css`, `/app.js`, `/nav.js`, `/machining.js`, `/sheet-metal.js`, `/estimate.js` remain HTTP 200 |
+| Public navigation | PASS: no standalone calculator link |
+| Offline contract | PASS: existing no-external-resource, no-network and no-persistence tests remain passing |
+| Full regression | PASS: **137 passed / 0 failed** after adding the remediation assertions |
+| Final gates | PASS: `npm ci`, `npm run check`, `npm test`, `npm run build`, `npm audit --omit=dev`, `git diff --check`; audit 0 vulnerabilities |
+| Private/company data | NONE: no company/private value, real rate, real profile, real pilot or operator workflow used |
+| Main | NOT PROMOTED; remains `479774bb362881928587573ebb577d169fa35e02` |
+| Production operations | NONE: no deploy, Render configuration, Neon, Gmail, schedule, secret, migration, workflow, bootstrap, job or mail operation |
+
+The standalone calculator must not be re-exposed through another public route, added to public navigation or served by Render. This remediation is a pre-promotion requirement and does not authorize main promotion or first real pilot execution.

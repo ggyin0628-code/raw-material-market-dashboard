@@ -79,6 +79,14 @@ The calculator must remain a standalone offline artifact. It must not be added t
 
 The next permissible action is a separately authorized human operator opening the standalone file on a controlled device and manually entering approved internal numbers. That action is outside this implementation task. The current feature branch must stop before main promotion and before any company real-data entry.
 
+## Phase 4F public exposure remediation
+
+The standalone artifact remains a repository-controlled `file://` deliverable, but it is no longer eligible for public static serving. `server.js` now checks the decoded request pathname before legacy redirects, static-path resolution or generic root serving. The exact namespace `/standalone` and every pathname beginning `/standalone/` return HTTP `404` with the normal security headers, `cache-control: no-store` and body `Not found`; no public redirect is issued. This includes `/standalone/`, `/standalone/InternalEngineeringCostCalculator.html`, arbitrary descendants and URL-encoded equivalents after path decoding.
+
+The artifact itself remains at [`standalone/InternalEngineeringCostCalculator.html`](../standalone/InternalEngineeringCostCalculator.html) and remains valid for direct local opening. The public route regression confirms the repository file exists, its HTML still carries `lang="zh-Hant"`, the offline title and no external script/URL marker, while public `/`, `/machining`, `/sheet-metal`, `/estimate` and their existing `/styles.css`, `/app.js`, `/nav.js`, `/machining.js`, `/sheet-metal.js` and `/estimate.js` assets continue to return HTTP 200. `nav.js` contains no standalone link. No alternate public route exposes the calculator content.
+
+The remediation is intentionally narrow. It does not redesign the standalone calculator, change its formulas, add authentication, add a public alias, remove the repository artifact, modify Render configuration or run any operator workflow. The current remediation branch must remain separate from `main` until a later explicit promotion approval.
+
 ## References
 
 [1]: ../docs/ENGINEERING_ESTIMATE_FOUNDATION.md "Existing engineering estimator foundation"

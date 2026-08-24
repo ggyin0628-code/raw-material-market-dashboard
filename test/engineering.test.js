@@ -1,4 +1,5 @@
 const fs = require("node:fs");
+const path = require("node:path");
 const { EventEmitter } = require("node:events");
 const test = require("node:test");
 const assert = require("node:assert/strict");
@@ -204,6 +205,35 @@ test("schema and canonical estimate routes are independent and contract-safe", a
   assert.equal(schemaPayload.state, "OK");
   assert.deepEqual(schemaPayload.schema.processFamily.allowed, ["SHEET_METAL"]);
   assert.equal(schemaPayload.schema.output.marketAdjustmentFactor, null);
+});
+
+test("standalone calculator remains a local file artifact and public /standalone namespace is fail-closed", async () => {
+  const artifactPath = path.join(__dirname, "..", "standalone", "InternalEngineeringCostCalculator.html");
+  assert.equal(fs.statSync(artifactPath).isFile(), true);
+  const artifact = fs.readFileSync(artifactPath, "utf8");
+  assert.match(artifact, /<html lang="zh-Hant">/);
+  assert.match(artifact, /內部工程成本估算/);
+  assert.match(new URL(`file://${artifactPath}`).protocol, /^file:$/);
+  assert.doesNotMatch(artifact, /<script\s+[^>]*src=/i);
+  assert.doesNotMatch(artifact, /https?:\/\//i);
+
+  for (const pathname of ["/standalone", "/standalone/", "/standalone/InternalEngineeringCostCalculator.html", "/standalone/test.html"]) {
+    const response = await capture("GET", pathname);
+    assert.equal(response.statusCode, 404, pathname);
+    assert.equal(response.body, "Not found");
+    assert.doesNotMatch(response.body, /內部工程成本估算|TEST_ONLY|materialRatePerKg/);
+  }
+
+  for (const pathname of ["/", "/machining", "/sheet-metal", "/estimate"]) {
+    const response = await capture("GET", pathname);
+    assert.equal(response.statusCode, 200, pathname);
+  }
+  for (const pathname of ["/styles.css", "/app.js", "/nav.js", "/machining.js", "/sheet-metal.js", "/estimate.js"]) {
+    const response = await capture("GET", pathname);
+    assert.equal(response.statusCode, 200, pathname);
+  }
+  const nav = fs.readFileSync(path.join(__dirname, "..", "nav.js"), "utf8");
+  assert.doesNotMatch(nav, /InternalEngineeringCostCalculator|standalone\//i);
 });
 
 test("POST estimate API returns physical/workload result and structured validation without market coupling", async () => {

@@ -445,3 +445,26 @@ The existing Render service `https://raw-material-market-dashboard-1.onrender.co
 The next action is **manual local operator execution of the first real pilot**, not another coding phase. That future operation requires the operator to choose a repository-external private directory, complete the value-empty templates locally, validate with `npm run private:validate`, run exactly one controlled pilot only after all statuses pass, stop the runtime, preserve only protected external audit/history and run `npm run private:leak-check`. This certification does not itself authorize or execute that real pilot.
 
 No Render/private cloud upload, Neon change, Gmail change, schedule change, secret change, workflow dispatch, migration, bootstrap, daily/weekly job, backfill or mail send was performed. Public Render remains outside the private trust boundary. Read-only browser observations are recorded in `docs/visual-review/phase4e-promotion-browser-observations.md`.
+
+## Phase 4F — Standalone public exposure remediation
+
+**PHASE_4F_STANDALONE_PUBLIC_EXPOSURE_REMEDIATION_PASS — FEATURE_BRANCH_READY_FOR_REVIEW — DO NOT PROMOTE MAIN**
+
+A narrow remediation was applied on `feat/standalone-offline-public-exposure-remediation-v1`, based on the approved Phase 4F calculator head `6f13df19066b9fdd6c0d2427def7de094317afe1`. The public `server.js` generic static fallback now rejects the decoded `/standalone` namespace before legacy redirects, static-path resolution or root file serving. `/standalone`, `/standalone/`, `/standalone/InternalEngineeringCostCalculator.html`, arbitrary descendants and encoded equivalents return HTTP 404 with security headers, `cache-control: no-store` and body `Not found`; no public redirect or alternate route is provided.
+
+| Handoff item | Result |
+|---|---|
+| Remediation branch | `feat/standalone-offline-public-exposure-remediation-v1` |
+| Base | Approved Phase 4F SHA `6f13df19066b9fdd6c0d2427def7de094317afe1` |
+| Standalone repository artifact | Retained at `standalone/InternalEngineeringCostCalculator.html`; valid for direct local `file://` opening |
+| Public namespace | PASS: `/standalone`, `/standalone/`, `/standalone/InternalEngineeringCostCalculator.html` and `/standalone/test.html` return HTTP 404 `Not found` |
+| Public page regression | PASS: `/`, `/machining`, `/sheet-metal`, `/estimate` remain HTTP 200 |
+| Public asset regression | PASS: `/styles.css`, `/app.js`, `/nav.js`, `/machining.js`, `/sheet-metal.js`, `/estimate.js` remain HTTP 200 |
+| Navigation | PASS: no public navigation link points to standalone calculator |
+| Offline/network/persistence regression | PASS: existing standalone self-contained/no-network/no-persistence tests retained |
+| Deterministic tests | PASS: full suite and new public-exposure assertions pass; no standalone content returned by public route |
+| Company/private data | NONE: no company values, real rates, private profile, pilot or operator workflow used |
+| Main | NOT PROMOTED; authoritative main remains `479774bb362881928587573ebb577d169fa35e02` |
+| Production | NONE: no deploy, Render change, Neon, Gmail, schedules, secrets, migration, workflow, private runtime or job operation |
+
+The remediation intentionally does not redesign the calculator, change its formulas or UI, add authentication, remove the repository artifact, expose another route or modify Render configuration. It is a required pre-promotion safety fix. A separate explicit approval is required before any main promotion; the first real pilot remains outside this remediation and is not authorized by this pass.

@@ -126,12 +126,21 @@ function resolveStaticPath(pathname) {
   return pathname;
 }
 
+function isBlockedStaticNamespace(pathname) {
+  return pathname === "/standalone" || pathname.startsWith("/standalone/");
+}
+
 async function serveStatic(req, res) {
   let pathname;
   try {
     pathname = decodeURIComponent(new URL(req.url || "/", "http://localhost").pathname);
   } catch {
     sendJson(res, 400, { state: "API_ERROR", error: "網址格式錯誤" });
+    return;
+  }
+  if (isBlockedStaticNamespace(pathname)) {
+    res.writeHead(404, { ...securityHeaders(), "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" });
+    res.end("Not found");
     return;
   }
   if (pathname === "/machining.html") {
@@ -433,4 +442,5 @@ module.exports = {
   server,
   startServer,
   resolveStaticPath,
+  isBlockedStaticNamespace,
 };
