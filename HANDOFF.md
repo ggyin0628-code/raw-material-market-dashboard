@@ -569,3 +569,28 @@ The approved head `2b38c6830a56eb53ec7e369fd107715aa4e78a05` was promoted to `ma
 | Real data boundary | PASS: no real company data, real rate, private runtime, database, mail, schedule, secret, workflow, migration, bootstrap, backfill or telemetry operation |
 
 The final production checkpoint is complete. No real-data pilot is authorized by this record, and no further phase should be started automatically.
+
+
+## Phase 4F — Public production data-integrity audit & process monetary references
+
+**FEATURE_BRANCH_READY_FOR_REVIEW — STOP BEFORE FINAL MAIN PROMOTION**
+
+本次完整稽核與 remediation 位於 `feat/production-data-integrity-public-process-reference-v1`，從 authoritative main `096005640b08fc31c340a38d41c0f2c41655757d` 建立；implementation checkpoint 為 `7d8f321eb9100ca27446737c1a588a4d4433b1d6`。`main` 未被修改，沒有部署、production read/write、migration、bootstrap、daily/weekly、mail、Gmail、Neon、schedule、secret 或 workflow dispatch。
+
+| Handoff item | Result |
+|---|---|
+| Full public data path | Audited from Yahoo/Stooq/FX → market service/cache/seed → `/api/market`/dashboard → daily snapshots/Postgres → weekly analytics/quality/mail boundaries → machining/sheet-metal |
+| P0 freshness | PASS: production seed fallback disabled; direct Yahoo/Stooq/FX observations use actual `lastTradeAt`; old direct observations become `EXPIRED` rather than `OK`; `generatedAt`, `servedAt`, `dataAsOf`, observation date and collection time remain separate |
+| Durable fallback | PASS: production Postgres public snapshot read path is `READ_FALLBACK`, preserves observation identity, never becomes `LIVE`, expires by observation age and exposes no credentials |
+| Weekly/dashboard | PASS: current observation freshness is explicit; old/expired data blocks clean weekly delivery; dashboard counts `OK/FALLBACK`, `STALE`, `EXPIRED`, API/no-data separately and excludes ineligible rows from top gain/loss |
+| Public monetary contract | PASS: `publicPriceReferences` is validated, source-linked and separated by pricing basis; CNC `TWD/hr` and PRO360 `TWD/min` are never hidden-averaged; `engineeringEstimate=null` remains intact |
+| Open-ended CNC references | PASS: TaiwanCNC 5-axis is represented as `priceMin=2000`, `priceMax=null`, `priceOpenEnded=true`; turn-mill is `1800+`; UI renders `NT$ 2,000+ / hr` and `NT$ 1,800+ / hr`, not false caps |
+| Sheet-metal references | PASS: MINCA/Zhongkai laser rows preserve material, thickness, per-meter and small-hole semantics; bending, TIG, MIG/CO2 and spot welding remain explicit `NO_PUBLIC_PRICE_DATA` |
+| Money-first UI | PASS: `/machining` and `/sheet-metal` DOM/visual order is public monetary panel → summary → `成本趨勢輔助`; pressure remains secondary and never fills `/estimate` |
+| Local visual review | PASS: sandbox-only desktop `1440×1000` and mobile `390×844` captures for both pages; navigation, public price cards, NO_PUBLIC_PRICE_DATA and no visible horizontal overflow reviewed |
+| Deterministic regression | PASS: **160 passed / 0 failed** |
+| Required gates | PASS: `npm ci`, `npm run check`, `npm test`, `npm run build`, `npm audit --omit=dev` with **0 vulnerabilities**, and `git diff --check` |
+| Production boundary | PASS: no real company/private data, supplier/customer quote, private rate, production variable/secret, schedule, workflow, database mutation, mail or deployment operation |
+| Main | **UNCHANGED** at `096005640b08fc31c340a38d41c0f2c41655757d`; no promotion authorized by this checkpoint |
+
+Public source acceptance and limitations are documented in `docs/FULL_PRODUCTION_DATA_INTEGRITY_AUDIT.md` and `docs/PUBLIC_PROCESS_COST_REFERENCE_CONTRACT.md`. Visual evidence is committed under `artifacts/phase4f-pasted13-public-process-reference/`. A later promotion, if separately approved, must independently rerun the complete gates and verify branch lineage; this handoff intentionally stops before main promotion.

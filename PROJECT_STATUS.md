@@ -561,3 +561,26 @@ The approved head `2b38c6830a56eb53ec7e369fd107715aa4e78a05` was promoted to `ma
 | Real-data boundary | PASS: no real company data, real rate, private runtime, database, mail, schedule, secret, workflow, migration, bootstrap, backfill or telemetry operation |
 
 This is the final production certification checkpoint. No real-data pilot is authorized by this record, and no additional development phase should be started automatically.
+
+
+## Phase 4F — Public data-integrity audit & public process money references
+
+**FEATURE_BRANCH_READY_FOR_REVIEW — DO NOT PROMOTE MAIN**
+
+本次工作在 `feat/production-data-integrity-public-process-reference-v1` 完成，從 main `096005640b08fc31c340a38d41c0f2c41655757d` 建立；implementation checkpoint 為 `7d8f321eb9100ca27446737c1a588a4d4433b1d6`。本階段沒有 production deployment、database mutation、migration、bootstrap、schedule、workflow dispatch、mail、Gmail、Neon、secret/variable 修改，也沒有使用真實公司或 private data。
+
+| Status item | Result |
+|---|---|
+| End-to-end integrity | PASS: public acquisition、cache/seed、market API/dashboard、daily/Postgres snapshots、weekly quality/mail boundary與 process pages均完成 freshness/provenance audit |
+| Direct observation policy | PASS: successful Yahoo/Stooq/FX fetches are age-classified by actual `lastTradeAt`; older observations cannot remain `OK`; missing timestamps fail closed |
+| Seed/durable fallback | PASS: production bundled seed disabled; durable public snapshot is `READ_FALLBACK`, observation date preserved, never relabeled `LIVE`, expired data remains `EXPIRED` |
+| Weekly/dashboard truthfulness | PASS: observation age and headline eligibility are explicit; expired/old observations block clean weekly delivery; dashboard freshness counts and top gain/loss exclusion are deterministic |
+| Machining money-first | PASS: TaiwanCNC machine-hour references and separate PRO360 TWD/min statistic; 5-axis/turn-mill preserve open-ended `+` semantics; no hidden average |
+| Sheet-metal money-first | PASS: laser direct listed tables with material/thickness/unit/hole metadata; bending/TIG/MIG/CO2/spot welding are `NO_PUBLIC_PRICE_DATA` rather than invented rates |
+| Estimate/privacy boundary | PASS: `/estimate` remains browser-local; public references do not auto-fill internal rates; `engineeringEstimate=null`; `/standalone` remains 404 |
+| UI | PASS: public monetary panels precede summary and `成本趨勢輔助`; local 1440×1000 and 390×844 screenshots reviewed for both process pages with no visible horizontal overflow |
+| Tests | PASS: **160 passed / 0 failed** |
+| Gates | PASS: `npm ci`, `npm run check`, `npm test`, `npm run build`, `npm audit --omit=dev` (**0 vulnerabilities**), `git diff --check` |
+| Main | **UNCHANGED** at `096005640b08fc31c340a38d41c0f2c41655757d`; promotion remains explicitly out of scope |
+
+Detailed audit and public monetary contract documentation are `docs/FULL_PRODUCTION_DATA_INTEGRITY_AUDIT.md` and `docs/PUBLIC_PROCESS_COST_REFERENCE_CONTRACT.md`. Local visual evidence is under `artifacts/phase4f-pasted13-public-process-reference/`. The current feature head is ready for separate review only and must stop before final main promotion.
