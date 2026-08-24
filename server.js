@@ -127,7 +127,8 @@ function resolveStaticPath(pathname) {
 }
 
 function isBlockedStaticNamespace(pathname) {
-  return pathname === "/standalone" || pathname.startsWith("/standalone/");
+  const canonicalPathname = `/${pathname.replace(/^\/+/, "")}`;
+  return canonicalPathname === "/standalone" || canonicalPathname.startsWith("/standalone/");
 }
 
 async function serveStatic(req, res) {

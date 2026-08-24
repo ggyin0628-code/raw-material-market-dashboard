@@ -218,7 +218,7 @@ test("standalone calculator remains a local file artifact and public /standalone
   assert.doesNotMatch(artifact, /<script\s+[^>]*src=/i);
   assert.doesNotMatch(artifact, /https?:\/\//i);
 
-  for (const pathname of ["/standalone", "/standalone/", "/standalone/InternalEngineeringCostCalculator.html", "/standalone/test.html"]) {
+  for (const pathname of ["/standalone", "/standalone/", "/standalone/InternalEngineeringCostCalculator.html", "/standalone/test.html", "//standalone/InternalEngineeringCostCalculator.html", "/%2Fstandalone%2FInternalEngineeringCostCalculator.html"]) {
     const response = await capture("GET", pathname);
     assert.equal(response.statusCode, 404, pathname);
     assert.equal(response.body, "Not found");
