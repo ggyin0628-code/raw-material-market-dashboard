@@ -29,4 +29,12 @@ private-calibration-pilot*.json
 **/private-calibration-pilot*.json
 private-calibration-history*.jsonl
 **/private-calibration-history*.jsonl
+
+# Phase 4E local operator readiness artifacts must remain outside Git.
+private-engineering-cost/
+**/private-engineering-cost/
+private-operator-*.json
+**/private-operator-*.json
+private-operator-*.jsonl
+**/private-operator-*.jsonl
 !private-rate-profile.example.json
