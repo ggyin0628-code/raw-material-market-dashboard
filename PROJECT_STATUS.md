@@ -382,3 +382,31 @@ Phase 4D is implemented on `feat/internal-engineering-cost-calibration-pilot-v1`
 | Production state | NONE: no real company/supplier data, Render deployment, main promotion, Neon migration, Gmail, schedule, secret, workflow, bootstrap, daily/weekly, backfill, mail or production configuration operation |
 
 The synthetic visual fixture produced 2.355 kg/part, 235.5 kg total material, 313 process minutes, 3,566 `TEST_UNITS` total internal cost, a 250 `TEST_UNITS` historical reference and a 1,326.4% synthetic variance. These values are test-only and are not company or supplier data. Before a real pilot is considered, the project still requires a separately approved authenticated operator boundary, least privilege, encryption/key management, private backup/restore, lifecycle/revocation, access audit, leakage scanning, reconciliation and independent certification. Phase 4D is not approved for real-data intake or main promotion.
+
+## Phase 4BCD — Private Cost Foundation Production Certification
+
+**PHASE_4BCD_PRIVATE_COST_FOUNDATION_PRODUCTION_PASS**
+
+The Phase 4B–4D code foundation was promoted to `main` by pure fast-forward from authoritative main `73f1c5ef14266ed162ff8f2127859b877e69a385` to promotion SHA `03ca44e2a22dbcb7177e258fc1e2a67e0958a70f`. Phase lineage is intact: Phase 4B `0e4a84bff00c8846888e45906a2682986c6df16c`, Phase 4C `2d1afa0836688c443202933a7913e52b7e589fab`, Phase 4D `03ca44e2a22dbcb7177e258fc1e2a67e0958a70f`. Only code, tests, docs and synthetic visual artifacts were promoted; no real private/company data was imported.
+
+| Certification item | Result |
+|---|---|
+| Main promotion | PASS: pure fast-forward, no force push or history rewrite |
+| Final regression | PASS: **118 passed / 0 failed** |
+| Final gates | PASS: `npm ci`, `npm run check`, `npm test`, `npm run build`, `npm audit --omit=dev`, `git diff --check`; 0 vulnerabilities |
+| Render deployment | PASS: existing Render service deployed normally from main; no new service created |
+| Public routes | PASS: `/`, `/machining`, `/sheet-metal`, `/estimate` HTTP 200; legacy machining/sheet-metal HTML routes remained canonical redirects |
+| Health | PASS: `/health` and `/health/weekly` HTTP 200, top-level `status=OK`; existing owner-controlled readiness and mail notices unchanged |
+| Public private routes | PASS: `/private-estimate` HTTP 404; POST `/api/private/estimate` and POST `/api/private/calibration-pilot` HTTP 405 method-gate responses; no private runtime content |
+| Public engineering | PASS: production schema allows `NO_RATE` only; NO_RATE POST HTTP 200 with all monetary fields `null` |
+| Rejected modes | PASS: `PRIVATE_CALIBRATED` HTTP 403 with `PRIVATE_CALIBRATED_NOT_AVAILABLE_ON_PUBLIC_API`; `SYNTHETIC_TEST` HTTP 400 with `SYNTHETIC_RATE_NOT_ALLOWED_IN_PRODUCTION` |
+| Market isolation | PASS: machining and sheet-metal reference APIs HTTP 200; both retain `engineeringEstimate=null`; no private cost or market multiplier injection |
+| Public visual review | PASS: home, machining, sheet-metal and estimate at desktop `1440×1000` and mobile `390×844`; all no-overflow, no pilot button, no private profile metadata; estimate remains NO_RATE |
+| Runtime configuration | PASS: public Render continues `npm start → server.js`; no `PRIVATE_RUNTIME_ENABLED`, profile path, pilot path, audit path or history path added to Render |
+| Leakage precheck | PASS: no tracked real profile/pilot/history/audit payload; private artifact ignore rules verified; templates/examples synthetic/placeholders only |
+| Real calibration | NONE: no real profile or pilot was loaded; no calibration has occurred |
+| Production operations | No migration, Neon, Gmail, schedule, workflow, bootstrap, daily/weekly, backfill, mail or secret operation was performed |
+
+The production read-only visual and deployment records are preserved under `docs/visual-review/phase4abcd-production-*.png`, `docs/visual-review/phase4abcd-production-visual-metrics.json` and `docs/visual-review/phase4abcd-render-deployment-observations.md`.
+
+The private runtime remains localhost-only, disabled by default and separate from Render. The first real pilot remains a separate local/private operation and is blocked until authenticated internal identity, least-privilege authorization, deployment boundary, encryption/key management, private backup/restore, profile lifecycle/revocation, access audit, leakage scanning, reconciliation, retention/deletion and independent certification are approved. The production certification does not authorize real private-data import or quotation behavior.

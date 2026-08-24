@@ -379,3 +379,36 @@ Phase 4D is implemented on `feat/internal-engineering-cost-calibration-pilot-v1`
 The synthetic local visual fixture produced 2.355 kg/part, 235.5 kg total material, 313 process minutes, 3,566 `TEST_UNITS` total internal cost and a 250 `TEST_UNITS` historical reference, resulting in a 1,326.4% synthetic variance. These are DEMO/TEST ONLY outputs and must never be interpreted as company, supplier, market or customer values. Visual artifacts are `docs/visual-review/phase4d-private-pilot-desktop.png`, `phase4d-private-pilot-mobile.png`, `phase4d-capture-metrics.json` and `phase4d-private-ui-observations.md`.
 
 No real historical case was requested or loaded. Before a first real pilot, a separate approval must establish authenticated operator identity, least-privilege authorization, deployment boundary, encryption/key management, private backup/restore, profile lifecycle and revocation, retention/deletion, access audit, leakage scanning, reconciliation and independent certification. The branch stops before real-data intake and before main promotion.
+
+## Phase 4BCD — Private Cost Foundation Production Certification
+
+**PHASE_4BCD_PRIVATE_COST_FOUNDATION_PRODUCTION_PASS**
+
+The approved chained foundation head `03ca44e2a22dbcb7177e258fc1e2a67e0958a70f` was promoted from authoritative main `73f1c5ef14266ed162ff8f2127859b877e69a385` by pure fast-forward. The promotion contained only code, deterministic tests, documentation and synthetic visual artifacts. No real company, supplier, customer or private calibration data was imported, committed, logged, backed up or exposed. No force push or history rewrite was used.
+
+| Certification item | Result |
+|---|---|
+| Promotion SHA | `03ca44e2a22dbcb7177e258fc1e2a67e0958a70f` |
+| Final main before documentation checkpoint | `03ca44e2a22dbcb7177e258fc1e2a67e0958a70f` |
+| Feature lineage | Phase 4B `0e4a84bff00c8846888e45906a2682986c6df16c` → Phase 4C `2d1afa0836688c443202933a7913e52b7e589fab` → Phase 4D `03ca44e2a22dbcb7177e258fc1e2a67e0958a70f` |
+| Final regression | **118 passed / 0 failed** |
+| Final gates | `npm ci`, `npm run check`, `npm test`, `npm run build`, `npm audit --omit=dev`, `git diff --check` PASS; 0 vulnerabilities |
+| Existing Render service | PASS: deployed normally from main and served public pages |
+| Public pages | PASS: `/`, `/machining`, `/sheet-metal`, `/estimate` HTTP 200 |
+| Public health | PASS: `/health` and `/health/weekly` HTTP 200 with top-level `status=OK`; existing `MAIL_CONFIGURATION_REQUIRED` and readiness reporting were not modified or triggered |
+| Private public routes | PASS: `GET /private-estimate` HTTP 404; `POST /api/private/estimate` and `POST /api/private/calibration-pilot` HTTP 405 method-gate responses; no private runtime content returned |
+| Public engineering schema | PASS: production allowed mode is `NO_RATE` only |
+| Public NO_RATE | PASS: HTTP 200; monetary fields including total and per-part cost are `null` |
+| Public PRIVATE_CALIBRATED | PASS: HTTP 403 with `PRIVATE_CALIBRATED_NOT_AVAILABLE_ON_PUBLIC_API` |
+| Public SYNTHETIC_TEST | PASS: HTTP 400 with `SYNTHETIC_RATE_NOT_ALLOWED_IN_PRODUCTION` |
+| Market isolation | PASS: machining and sheet-metal market APIs HTTP 200; `engineeringEstimate=null`; no private-cost result or market multiplier entered either response |
+| Public visual review | PASS: desktop `1440×1000` and mobile `390×844` captures for home, machining, sheet-metal and estimate; no horizontal overflow, no pilot button, no private profile metadata, public estimate remains NO_RATE |
+| Private runtime | Remains separate `npm run private:estimate`, disabled by default and localhost-only `127.0.0.1`; no private configuration was added to Render |
+| Repository leakage precheck | PASS: no tracked real profile/pilot/history/audit payload; `.gitignore` protects private profiles, pilots, histories, audits and worksheets; tracked examples are synthetic/placeholders only |
+| Production operations | NONE beyond the authorized pure fast-forward main push and read-only Render verification; no real-data import, secret, Neon, Gmail, schedule, workflow, migration, bootstrap, daily/weekly, backfill or mail operation |
+
+The existing Render health payload continues to report its owner-controlled operational state, including `WEB_READY`, `DATABASE_READY`, `WEEKLY_REPORT_READY`, `MAIL_CONFIGURATION_REQUIRED`, `DAILY_DATA_NOT_READY` and prior job/test history. The Phase 4BCD promotion did not trigger or modify those jobs, mail records, schedules or configuration.
+
+The code foundation is now promoted, but **no real calibration has occurred**. The private runtime remains disabled by default and is not exposed through public Render. The first real pilot remains a separate local/private operation requiring authenticated operator identity, least privilege, encryption/key management, private backup/restore, lifecycle and revocation, access audit, leakage scanning, reconciliation, retention/deletion controls and independent certification. This certification does not authorize real private-data import or customer/supplier quotation behavior.
+
+Production visual artifacts are under `docs/visual-review/phase4abcd-production-*.png`, with metrics in `docs/visual-review/phase4abcd-production-visual-metrics.json` and read-only deployment observations in `docs/visual-review/phase4abcd-render-deployment-observations.md`.
