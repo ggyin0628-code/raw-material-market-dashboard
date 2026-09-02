@@ -65,11 +65,17 @@ The daily/weekly schedule gate remains owner-controlled. The agent did not enabl
 
 The next operational certification is for the owner to enable the existing schedule gate by setting `PRODUCTION_SCHEDULES_ENABLED=1` when ready. The Gmail live test and attachment verification are already complete; they are not prerequisites to repeat. No bootstrap rerun, Graph setup, company mail integration or additional live email is required for this handoff.
 
-## Weekly PostgreSQL snapshot-read timeout remediation — feature-only checkpoint
+## Weekly PostgreSQL bounded-read production recovery — 2026-W35
 
-本次 incident remediation 在 `fix/weekly-postgres-read-timeout-v1` 完成。根因為 `loadAndBuildWeeklyReport()` 透過 `listSnapshots()` 對 `market_snapshots` 執行無 date bounds 的全表 JSONB read；修復後以 reporting week end 作為 `to`，以 `min(YTD year start, end - 784 days)` 作為 `from`，並將兩者傳入 PostgreSQL query。784 天覆蓋 52-week target 的 364 天與既有 420-day comparison tolerance；既有 `market_snapshots_date_idx` 已支援 range predicate，DB timeout policy 未提高（default 8,000 ms，maximum 30,000 ms）。
+**WEEKLY_POSTGRES_BOUNDED_READ_PRODUCTION_RECOVERY_PASS**
 
-新增 coverage 涵蓋 explicit from/to、各 analytics window、XLSX history、no unbounded weekly read、`DATABASE_READ_FAILED` fail-closed、DB read failure 不觸發 mail及正常 report 進入 mail path。Full gates 為 **172 tests passed / 0 failed**、`npm audit --omit=dev` 0 vulnerabilities、check/build/diff clean。此 checkpoint 僅使用 synthetic public fixtures，未執行 workflow、mail resend、migration、bootstrap、backfill、Neon mutation或 private data操作；main 保持 `d9b94a40fd0e8f5d8f451951e32fe33382f45e9f` 且必須停止於 main promotion 前。
+The approved feature head `366ad99784bcaf19f588ae0930875f6f032af2f5` was promoted to `main` from `d9b94a40fd0e8f5d8f451951e32fe33382f45e9f` by pure fast-forward. The existing Render service remained the only deployment path. Pre-promotion gates passed with **172 tests passed / 0 failed** and **0 vulnerabilities**.
+
+The production W35 read certification passed: `GET /api/weekly/report?week=2026-W35` returned HTTP 200 in **13.877676 seconds** with no `DATABASE_READ_FAILED`; reporting period was `2026-08-24` through `2026-08-30`, and quality gate was `SEND_OK`. The XLSX export returned HTTP 200 in **16.778032 seconds** with a valid ZIP/XLSX signature and 433,436 bytes. The bounded range used `from=2024-07-07` and `to=2026-08-30`, preserving weekly, four-week, three-month, YTD, 52-week, rolling-volatility and XLSX history requirements without increasing the 8,000 ms query timeout. The existing `market_snapshots_date_idx` supports the date predicate.
+
+Before recovery, the durable public job state for W35 was `weeklyReport.state=FAILED` with `lastError=Postgres snapshot query failed：Query read timeout`; its last successful timestamp predated W35, while the separate successful `weeklyMail` state was W34. No successful W35 delivery was recorded. The only recovery run was GitHub Actions run [33600925979](https://github.com/ggyin0628-code/raw-material-market-dashboard/actions/runs/33600925979), which completed successfully on main SHA `366ad99784bcaf19f588ae0930875f6f032af2f5`, generated the W35 HTML/JSON/XLSX artifacts, passed `SEND_OK`, and recorded `weeklyMail.state=TEST_SENT`, `reportingWeek=2026-W35`, and `sent=true`. Exactly one recovery email was sent through the existing test-mode recipient path; no second recovery or test email was sent.
+
+The next normal schedules, `PRODUCTION_SCHEDULES_ENABLED`, `WEEKLY_MAIL_TEST_MODE`, recipients, credentials, database configuration and mail configuration remain unchanged. No bootstrap, backfill, unrelated workflow, manual database mutation or private/company data operation was performed. No further recovery, duplicate send, test email, daily run or manual next-week weekly run is authorized by this checkpoint.
 
 ## References
 
