@@ -43,7 +43,7 @@ const { buildSnapshot } = require("../lib/marketData/marketService");
 const { handleRequest } = require("../server");
 const { dailyFreshnessSummary, dailyReadinessState, snapshotToRecords } = require("../lib/weekly/dailySnapshotService");
 const { readStore, upsertSnapshots, clearWriteQueue } = require("../lib/weekly/snapshotStore");
-const { buildWeeklyReport, renderWeeklyHtml, createWeeklyWorkbook, buildCategoryMomentum, getSignalDistribution } = require("../lib/weekly/reportService");
+const { buildWeeklyReport, renderWeeklyHtml, createWeeklyWorkbook, buildCategoryMomentum, getSignalDistribution, loadAndBuildWeeklyReport, getWeeklySnapshotRange } = require("../lib/weekly/reportService");
 const { buildSignal } = require("../lib/weekly/weeklyAnalytics");
 const { backfillPublicHistory, getHistoryConcurrency, runWithConcurrency } = require("../lib/weekly/backfillService");
 const { parseArgs, run: runWeeklyCommand, summarizeProductionWeekly, commandExitCode, errorExitCode } = require("../lib/weekly/cli");
@@ -389,10 +389,10 @@ test("daily freshness separates execution success from data readiness", () => {
 });
 
 test("/api/market exposes FALLBACK when Yahoo fails but configured public fallbacks work", async () => {
-  const csv = "Symbol,Date,Time,Open,High,Low,Close,Volume\nHG.F,2026-08-21,17:00:00,620.00,630.00,615.00,625.00,123";
+  const csv = "Symbol,Date,Time,Open,High,Low,Close,Volume\nHG.F,2026-09-01,17:00:00,620.00,630.00,615.00,625.00,123";
   global.fetch = async (url) => {
     const decoded = decodeURIComponent(url);
-    if (decoded.includes("open.er-api.com")) return jsonResponse({ rates: { TWD: 32 }, time_last_update_utc: "2026-08-21T00:00:00Z" });
+    if (decoded.includes("open.er-api.com")) return jsonResponse({ rates: { TWD: 32 }, time_last_update_utc: "2026-09-01T00:00:00Z" });
     if (decoded.includes("stooq")) return textResponse(csv);
     throw new Error("Yahoo unavailable");
   };
@@ -523,6 +523,71 @@ test("weekly quality states stay distinct and threshold boundaries are determini
   assert.equal(buildSignal({ ...current, weeklyChangePct: -2 }).signal, "MARKET_WEAKENING");
   assert.equal(buildSignal({ ...current, weeklyChangePct: 1.99 }).signal, "STABLE");
   assert.equal(buildSignal({ ...current, weeklyChangePct: 0, rollingVolatilityPct: 3 }).signal, "HIGH_VOLATILITY");
+});
+
+test("weekly report snapshot reads use a bounded range that preserves all analytics windows", async () => {
+  assert.deepEqual(getWeeklySnapshotRange("2026-W33"), { from: "2024-06-23", to: "2026-08-16", reportingWeek: "2026-W33" });
+  const pool = new FakePostgresPool();
+  const fixture = weeklyFixtureRecords();
+  for (const record of fixture) pool.snapshots.set(`${record.materialId}|${record.date}`, record);
+  const report = await loadAndBuildWeeklyReport({ env: { STORAGE_PROVIDER: "postgres" }, pool, reportingWeek: "2026-W33", generatedAt: "2026-08-17T01:00:00Z" });
+  assert.equal(report.reportingWeek, "2026-W33");
+  const snapshotQuery = pool.queries.find((query) => query.startsWith("SELECT payload FROM market_snapshots"));
+  assert.match(snapshotQuery, /WHERE observation_date >= \$1 AND observation_date <= \$2/);
+  assert.doesNotMatch(snapshotQuery, /SELECT payload FROM market_snapshots ORDER BY/);
+});
+
+test("bounded weekly history preserves every analytics comparison window", () => {
+  const values = [
+    ["2025-08-17", 100],
+    ["2026-01-01", 150],
+    ["2026-05-18", 160],
+    ["2026-07-19", 170],
+    ["2026-08-03", 175],
+    ["2026-08-16", 200],
+  ];
+  const records = values.map(([date, marketPrice]) => ({ materialId: "copper", materialName: "銅", symbol: "HG=F", category: "工業金屬", exchange: "COMEX", date, marketPrice, sourceUnit: "USD/lb", currency: "USD", source: "fixture", status: "LIVE", collectedAt: `${date}T12:00:00Z` }));
+  const report = buildWeeklyReport({ records, reportingWeek: "2026-W33", generatedAt: "2026-08-17T01:00:00Z" });
+  const copper = report.indicators.find((item) => item.materialId === "copper");
+  assert.equal(copper.comparisons.fiftyTwoWeek.comparableDate, "2025-08-17");
+  assert.equal(copper.comparisons.ytd.comparableDate, "2026-01-01");
+  assert.equal(copper.comparisons.threeMonth.comparableDate, "2026-05-18");
+  assert.equal(copper.comparisons.fourWeek.comparableDate, "2026-07-19");
+  assert.equal(copper.comparisons.weekly.comparableDate, "2026-08-03");
+  assert.equal(copper.fiftyTwoWeekChangePct, 100);
+  assert.equal(copper.ytdChangePct, (200 - 150) / 150 * 100);
+  assert.equal(copper.threeMonthChangePct, 25);
+  assert.equal(copper.fourWeekChangePct, (200 - 170) / 170 * 100);
+  assert.equal(copper.weeklyChangePct, (200 - 175) / 175 * 100);
+});
+
+test("bounded weekly report retains the XLSX history sheet rows", async () => {
+  const pool = new FakePostgresPool();
+  const fixture = weeklyFixtureRecords();
+  for (const record of fixture) pool.snapshots.set(`${record.materialId}|${record.date}`, record);
+  const report = await loadAndBuildWeeklyReport({ env: { STORAGE_PROVIDER: "postgres" }, pool, reportingWeek: "2026-W33", generatedAt: "2026-08-17T01:00:00Z" });
+  const workbook = createWeeklyWorkbook(report);
+  const history = workbook.getWorksheet("歷史資料");
+  assert.equal(history.rowCount, report.historyRows.filter((record) => record.materialId !== "__fx_usd_twd__").length + 1);
+  assert.equal(history.rowCount, 5);
+});
+
+test("weekly database read failure fails closed before mail and successful report reaches mail path", async () => {
+  const failingPool = new FakePostgresPool();
+  failingPool.failOn = /SELECT payload FROM market_snapshots/;
+  let failedMailCalls = 0;
+  const failingEnv = { NODE_ENV: "production", STORAGE_PROVIDER: "postgres", DATABASE_URL: "postgres://fixture.invalid/market" };
+  const failingConfig = getStorageConfig(failingEnv, { forceProduction: true });
+  await assert.rejects(() => require("../lib/weekly/productionService").runProductionWeekly({ env: failingEnv, storageConfig: failingConfig, pool: failingPool, reportingWeek: "2026-W33", send: true, sendWeeklyEmail: async () => { failedMailCalls += 1; } }), (error) => error.code === "DATABASE_READ_FAILED");
+  assert.equal(failedMailCalls, 0);
+
+  const directory = await tempDirectory();
+  const env = { NODE_ENV: "production", PRODUCTION_STORAGE_ROOT: directory };
+  const config = getStorageConfig(env, { forceProduction: true });
+  let successfulMailCalls = 0;
+  const result = await require("../lib/weekly/productionService").runProductionWeekly({ env, storageConfig: config, reportingWeek: "2026-W33", records: fullProductionFixtureRecords(), send: true, dryRun: true, sendWeeklyEmail: async () => { successfulMailCalls += 1; return { state: "DRY_RUN", sent: false }; } });
+  assert.equal(successfulMailCalls, 1);
+  assert.equal(result.mail.state, "DRY_RUN");
 });
 
 test("weekly report HTML and XLSX use the approved procurement-management presentation layer", async () => {
@@ -701,7 +766,7 @@ test("production bootstrap is idempotent-safe and generates a first public repor
     const writeResult = await upsertSnapshots(fullProductionFixtureRecords(), { filePath, env });
     return { period: "1y", recordCount: fullProductionFixtureRecords().length, inserted: writeResult.inserted, replaced: writeResult.replaced, ignored: writeResult.ignored, failureCount: 0, results: [] };
   };
-  const result = await runProductionBootstrap({ env, storageConfig: config, period: "1y", backfill });
+  const result = await runProductionBootstrap({ env, storageConfig: config, period: "1y", now: "2026-08-17T12:00:00Z", backfill });
   assert.equal(calls, 1);
   assert.equal(result.state, "BOOTSTRAP_COMPLETE");
   assert.equal(result.weekly.mail.state, "NOT_REQUESTED");
@@ -861,6 +926,7 @@ test("Postgres adapter is migration-idempotent and parity-compatible with filesy
   const pool = new FakePostgresPool();
   const first = await postgres.migratePostgres({ env, pool });
   const second = await postgres.migratePostgres({ env, pool });
+  assert.ok(postgres.MIGRATION_STATEMENTS.some((statement) => statement.includes("market_snapshots_date_idx") && statement.includes("observation_date")));
   assert.equal(first.state, "DATABASE_MIGRATED");
   assert.equal(second.statementCount, first.statementCount);
   const fixture = weeklyFixtureRecords();
@@ -1198,6 +1264,7 @@ test("production bootstrap records safe progress and completion summary", async 
     env,
     storageConfig: config,
     period: "3y",
+    now: "2026-08-17T12:00:00Z",
     logProgress: false,
     backfill: async ({ filePath, onProgress }) => {
       await upsertSnapshots(records, { filePath, env });

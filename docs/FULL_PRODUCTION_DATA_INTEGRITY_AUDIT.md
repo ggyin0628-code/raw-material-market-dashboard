@@ -81,6 +81,14 @@ The deterministic suite covers seed disable/expiry, timestamp separation, direct
 
 The public source layer still has real limitations. Direct Taiwan current monetary coverage is strong for selected laser materials and thicknesses but not universal for all thicknesses, quantity tiers, setup, material sheet cost, bevel, thick plate or sample work. CNC machine-hour ranges and marketplace quote statistics describe different economic bases. Current public monetary ranges for bending and welding processes remain unavailable under the accepted-source standard. These gaps are shown as limitations rather than filled with fabricated values.
 
+## Weekly PostgreSQL snapshot-read timeout remediation — 2026-09-02
+
+本次 narrow incident review 確認 weekly report 的 storage path 為 `loadAndBuildWeeklyReport()` → `listSnapshots()` → `SELECT payload FROM market_snapshots ORDER BY material_id, observation_date`，未帶日期條件，因此在 PostgreSQL 端對 JSONB snapshot table 做無界全表讀取；production default query timeout 為 8,000 ms。事故發生於 report generation，mail 尚未到達；本修復不假設 Gmail failure，也不 resend mail。
+
+Weekly report loader 現在先解析 reporting week，將 `to` 設為 reporting week end，並將 `from` 設為 report-year YTD 起點與 `end - 784 days` 的較早者。784 天由 52-week target 的 364 天加上既有 420-day comparison tolerance 組成，足以保留 weekly、four-week、three-month、YTD、52-week、rolling volatility與 XLSX history 所需資料。PostgreSQL query 現在帶有 `observation_date >= $1 AND observation_date <= $2`，不再先讀全表再於 Node 過濾。
+
+既有 `market_snapshots_date_idx` 已支援日期 range predicate，未新增不必要 index；8,000 ms default與 30,000 ms maximum timeout 維持不變。新增 deterministic tests 證明 explicit from/to、各 analytics comparison window、XLSX history rows、`DATABASE_READ_FAILED` fail-closed、DB read failure 不觸發 mail，以及正常成功 report 進入 mail path。所有測試使用 synthetic public fixtures。
+
 ## Final boundary
 
 This audit was completed on the approved feature branch and then certified in production after the required pure fast-forward promotion. The promotion and certification record is appended below. The production certification did not authorize any schedule, secret, Neon, Gmail, workflow, migration, bootstrap or mail mutation; it used read-only public endpoint and visual checks only. An existing legacy daily job state may remain `DAILY_DATA_NOT_READY` until the next normal scheduled daily collection establishes the new freshness contract, and this is not treated as a deployment failure.

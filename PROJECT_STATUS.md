@@ -77,6 +77,14 @@ The accepted offline `2026-W33` preview was generated from synthetic public-safe
 
 The next operational certification is owner-controlled schedule enablement. When the owner is ready, set `PRODUCTION_SCHEDULES_ENABLED=1` to activate the existing production schedule gate. The Gmail test and HTML/XLSX receipt verification are already complete and must not be repeated as part of this cleanup. No bootstrap rerun, Microsoft Graph setup, company mail integration or additional email is required.
 
+## Weekly PostgreSQL snapshot-read timeout remediation — feature-only
+
+狀態：`FEATURE_BRANCH_READY_FOR_REVIEW；STOP BEFORE MAIN PROMOTION`
+
+2026-08-31 weekly incident 的根因已確認為 report generation 透過 `listSnapshots()` 對 `market_snapshots` 做無日期條件的 JSONB 全表讀取，觸發 `DATABASE_READ_FAILED` query timeout；mail path 未被到達。`loadAndBuildWeeklyReport()` 現在傳入 bounded `from`／`to`：`to` 為 reporting week end，`from` 為 YTD year start 與 `end - 784 days` 的較早者，保留所有現行 weekly、four-week、three-month、YTD、52-week、volatility與 XLSX history需求。既有 `market_snapshots_date_idx` 足以支援 predicate；DB timeout default 8,000 ms與 maximum 30,000 ms未變更。
+
+本次新增 deterministic tests 涵蓋 explicit bounds、analytics window preservation、XLSX rows、no unbounded query、`DATABASE_READ_FAILED` fail-closed、mail non-attempt與正常成功 mail path。Full gates：**172 passed / 0 failed**、`npm audit --omit=dev` 0 vulnerabilities、check/build/diff clean。只使用 synthetic public fixtures；未執行 workflow、migration、bootstrap、backfill、mail resend、Neon/production mutation或 private data操作。Feature branch為 `fix/weekly-postgres-read-timeout-v1`，base/main維持 `d9b94a40fd0e8f5d8f451951e32fe33382f45e9f`。
+
 ## References
 
 [1]: https://github.com/ggyin0628-code/raw-material-market-dashboard/actions/runs/32609131444 "Cancelled bootstrap run"

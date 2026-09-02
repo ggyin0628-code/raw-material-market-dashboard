@@ -65,6 +65,12 @@ The daily/weekly schedule gate remains owner-controlled. The agent did not enabl
 
 The next operational certification is for the owner to enable the existing schedule gate by setting `PRODUCTION_SCHEDULES_ENABLED=1` when ready. The Gmail live test and attachment verification are already complete; they are not prerequisites to repeat. No bootstrap rerun, Graph setup, company mail integration or additional live email is required for this handoff.
 
+## Weekly PostgreSQL snapshot-read timeout remediation — feature-only checkpoint
+
+本次 incident remediation 在 `fix/weekly-postgres-read-timeout-v1` 完成。根因為 `loadAndBuildWeeklyReport()` 透過 `listSnapshots()` 對 `market_snapshots` 執行無 date bounds 的全表 JSONB read；修復後以 reporting week end 作為 `to`，以 `min(YTD year start, end - 784 days)` 作為 `from`，並將兩者傳入 PostgreSQL query。784 天覆蓋 52-week target 的 364 天與既有 420-day comparison tolerance；既有 `market_snapshots_date_idx` 已支援 range predicate，DB timeout policy 未提高（default 8,000 ms，maximum 30,000 ms）。
+
+新增 coverage 涵蓋 explicit from/to、各 analytics window、XLSX history、no unbounded weekly read、`DATABASE_READ_FAILED` fail-closed、DB read failure 不觸發 mail及正常 report 進入 mail path。Full gates 為 **172 tests passed / 0 failed**、`npm audit --omit=dev` 0 vulnerabilities、check/build/diff clean。此 checkpoint 僅使用 synthetic public fixtures，未執行 workflow、mail resend、migration、bootstrap、backfill、Neon mutation或 private data操作；main 保持 `d9b94a40fd0e8f5d8f451951e32fe33382f45e9f` 且必須停止於 main promotion 前。
+
 ## References
 
 [1]: https://github.com/ggyin0628-code/raw-material-market-dashboard/actions/runs/32609131444 "Cancelled bootstrap run"
